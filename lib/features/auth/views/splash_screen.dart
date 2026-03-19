@@ -1,0 +1,126 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/constants/app_colors.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted) context.go('/login');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.dark,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Blob rose haut gauche
+          Positioned(
+            top: -100, left: -80,
+            child: Container(
+              width: 340,
+              height: 340,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [AppColors.primary.withAlpha(80), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+          // Blob secondaire bas droite
+          Positioned(
+            bottom: -80, right: -60,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [AppColors.secondary.withAlpha(50), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+          // Contenu centré
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logo
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(26),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withAlpha(80),
+                        blurRadius: 32,
+                        offset: const Offset(0, 12),
+                      )
+                    ],
+                  ),
+                  child: const Center(
+                    child: Text('♥', style: TextStyle(fontSize: 42, color: Colors.white)),
+                  ),
+                )
+                    .animate()
+                    .scale(duration: 600.ms, curve: Curves.elasticOut)
+                    .fade(duration: 300.ms),
+                const SizedBox(height: 28),
+                Text(
+                  'Oklifor',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 38,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1.5,
+                    fontFamilyFallback: const ['Helvetica'],
+                  ),
+                ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.3, end: 0),
+                const SizedBox(height: 4),
+                Text(
+                  'Rencontres au Togo',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                    letterSpacing: 0.3,
+                  ),
+                ).animate().fadeIn(delay: 500.ms),
+              ],
+            ),
+          ),
+          // Loading bar en bas
+          Positioned(
+            bottom: 60, left: 0, right: 0,
+            child: Center(
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 2,
+                  backgroundColor: AppColors.primary.withAlpha(25),
+                ),
+              ),
+            ).animate().fadeIn(delay: 1000.ms),
+          ),
+        ],
+      ),
+    );
+  }
+}

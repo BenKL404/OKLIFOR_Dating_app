@@ -1,0 +1,66 @@
+import 'package:go_router/go_router.dart';
+import '../../features/auth/views/splash_screen.dart';
+import '../../features/auth/views/login_screen.dart';
+import '../../features/auth/views/otp_screen.dart';
+import '../../features/discovery/views/discovery_screen.dart';
+import '../../features/chat/views/chat_list_screen.dart';
+import '../../features/profile/views/profile_screen.dart';
+import '../../features/profile/views/settings_screen.dart';
+import '../../features/profile/views/invite_friends_screen.dart';
+import '../../features/explore/views/explore_screen.dart';
+import '../widgets/main_shell.dart';
+
+class AppRouter {
+  AppRouter._();
+
+  static final GoRouter router = GoRouter(
+    initialLocation: '/splash',
+    routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/otp',
+        builder: (context, state) {
+          final phone = state.extra as String? ?? '';
+          return OtpScreen(phoneNumber: phone);
+        },
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/invite-friends',
+        builder: (context, state) => const InviteFriendsScreen(),
+      ),
+      // Coquille principale avec barre de navigation
+      ShellRoute(
+        builder: (context, state, child) => MainShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/discovery',
+            builder: (context, state) => const DiscoveryScreen(),
+          ),
+          GoRoute(
+            path: '/explore',
+            builder: (context, state) => const ExploreScreen(),
+          ),
+          GoRoute(
+            path: '/chats',
+            builder: (context, state) => const ChatListScreen(),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+        ],
+      ),
+    ],
+  );
+}
