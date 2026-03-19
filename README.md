@@ -10,7 +10,7 @@ Application mobile **Flutter** (Découverte, chat, profil, exploration de lieux)
 ## Installation
 
 ```bash
-git clone https://github.com/TON_UTILISATEUR/oklifor_dating_app.git
+git clone <URL_DU_DEPOT_GITHUB>
 cd oklifor_dating_app
 flutter pub get
 ```
