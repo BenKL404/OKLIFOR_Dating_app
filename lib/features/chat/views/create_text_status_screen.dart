@@ -127,9 +127,6 @@ class _CreateTextStatusScreenState extends State<CreateTextStatusScreen> {
                         fontSize: text.length > 120 ? 18 : 24,
                         fontWeight: FontWeight.w700,
                         height: 1.25,
-                        shadows: const [
-                          Shadow(color: Colors.black54, blurRadius: 12),
-                        ],
                       ),
                     ),
                   ),
@@ -192,14 +189,6 @@ class _CreateTextStatusScreenState extends State<CreateTextStatusScreen> {
                         color: sel ? AppColors.primary : context.oklDivider,
                         width: sel ? 3 : 1,
                       ),
-                      boxShadow: sel
-                          ? [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.35),
-                                blurRadius: 8,
-                              ),
-                            ]
-                          : null,
                     ),
                     child: sel
                         ? const Icon(LucideIcons.check, color: Colors.white, size: 20)

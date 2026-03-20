@@ -68,12 +68,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: BoxDecoration(
                             gradient: AppColors.primaryGradient,
                             borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withAlpha(80),
-                                blurRadius: 24, offset: const Offset(0, 8),
-                              )
-                            ],
                           ),
                           child: const Center(
                             child: Text('♥', style: TextStyle(fontSize: 34, color: Colors.white)),

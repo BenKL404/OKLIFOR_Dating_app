@@ -753,12 +753,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w800,
                                                   letterSpacing: -0.2,
-                                                  shadows: [
-                                                    Shadow(
-                                                      color: Colors.black54,
-                                                      blurRadius: 8,
-                                                    ),
-                                                  ],
                                                 ),
                                               ),
                                               const SizedBox(height: 2),
@@ -770,9 +764,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                   color: Colors.white.withValues(alpha: 0.88),
                                                   fontSize: 11.5,
                                                   height: 1.25,
-                                                  shadows: const [
-                                                    Shadow(color: Colors.black45, blurRadius: 6),
-                                                  ],
                                                 ),
                                               ),
                                             ],
@@ -850,15 +841,6 @@ class _ExploreFilterChip extends StatelessWidget {
                   : context.oklDivider,
               width: selected ? 1.5 : 1,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
           ),
           child: Text(
             label,

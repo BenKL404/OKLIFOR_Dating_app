@@ -69,20 +69,26 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
     final selectedIndex = _tabIndexForPath(path);
+    final isDiscovery = path.startsWith('/discovery');
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onPopInvoked,
       child: Scaffold(
         backgroundColor: context.oklScaffold,
+        extendBody: isDiscovery,
         body: widget.child,
         bottomNavigationBar: ClipRect(
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: context.oklScaffold.withValues(alpha: 0.92),
-              border: Border(
-                top: BorderSide(color: context.oklDivider, width: 0.5),
-              ),
+              color: isDiscovery
+                  ? Colors.transparent
+                  : context.oklScaffold.withValues(alpha: 0.92),
+              border: isDiscovery
+                  ? null
+                  : Border(
+                      top: BorderSide(color: context.oklDivider, width: 0.5),
+                    ),
             ),
             child: SafeArea(
               top: false,
@@ -95,6 +101,7 @@ class _MainShellState extends State<MainShell> {
                       label: 'Découvrir',
                       index: 0,
                       selected: selectedIndex == 0,
+                      overMedia: isDiscovery,
                       onTap: () => context.go(_routes[0]),
                     ),
                     _NavItem(
@@ -102,6 +109,7 @@ class _MainShellState extends State<MainShell> {
                       label: 'Explorer',
                       index: 1,
                       selected: selectedIndex == 1,
+                      overMedia: isDiscovery,
                       onTap: () => context.go(_routes[1]),
                     ),
                     _NavItem(
@@ -109,6 +117,7 @@ class _MainShellState extends State<MainShell> {
                       label: 'Messages',
                       index: 2,
                       selected: selectedIndex == 2,
+                      overMedia: isDiscovery,
                       onTap: () => context.go(_routes[2]),
                     ),
                     _NavItem(
@@ -116,6 +125,7 @@ class _MainShellState extends State<MainShell> {
                       label: 'Profil',
                       index: 3,
                       selected: selectedIndex == 3,
+                      overMedia: isDiscovery,
                       onTap: () => context.go(_routes[3]),
                     ),
                   ],
@@ -134,6 +144,8 @@ class _NavItem extends StatelessWidget {
   final String label;
   final int index;
   final bool selected;
+  /// Sur Découvrir : barre sur le reel — couleurs adaptées (sans ombre).
+  final bool overMedia;
   final VoidCallback onTap;
 
   const _NavItem({
@@ -141,14 +153,26 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.index,
     required this.selected,
+    this.overMedia = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isLightBar =
+        !overMedia && Theme.of(context).brightness == Brightness.light;
+
     final accent = selected
-        ? AppColors.togoGold
-        : context.oklOnSurfaceMuted(0.55);
+        ? (isLightBar ? AppColors.togoGoldOnLight : AppColors.togoGold)
+        : overMedia
+            ? Colors.white.withValues(alpha: 0.92)
+            : context.oklOnSurfaceMuted(0.55);
+
+    final labelStyle = TextStyle(
+      fontSize: 10,
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      color: accent,
+    );
 
     return Expanded(
       child: GestureDetector(
@@ -165,28 +189,16 @@ class _NavItem extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: accent,
-                ),
+                style: labelStyle,
               ),
               const SizedBox(height: 2),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: selected ? 4 : 0,
                 height: selected ? 4 : 0,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.togoGreen,
                   shape: BoxShape.circle,
-                  boxShadow: selected
-                      ? [
-                          BoxShadow(
-                            color: AppColors.togoGold.withValues(alpha: 0.6),
-                            blurRadius: 6,
-                          ),
-                        ]
-                      : null,
                 ),
               ),
             ],

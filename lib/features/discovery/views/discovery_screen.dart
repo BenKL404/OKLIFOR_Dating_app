@@ -711,12 +711,6 @@ class _DiscoveryTopBar extends StatelessWidget {
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.8,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black54,
-                          blurRadius: 8,
-                        ),
-                      ],
                     ),
                   ),
                 ],
@@ -1480,7 +1474,6 @@ class _ReelPage extends StatelessWidget {
                           fontSize: 26,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.5,
-                          shadows: [Shadow(color: Colors.black54, blurRadius: 10)],
                         ),
                       ),
                     ),
@@ -1508,9 +1501,6 @@ class _ReelPage extends StatelessWidget {
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.88),
                           fontSize: 14,
-                          shadows: const [
-                            Shadow(color: Colors.black45, blurRadius: 8)
-                          ],
                         ),
                       ),
                     ),
@@ -1575,15 +1565,6 @@ class _SideActionState extends State<_SideAction> {
               shape: BoxShape.circle,
               color: Colors.black.withValues(alpha: 0.4),
               border: Border.all(color: Colors.white24),
-              boxShadow: _pressed
-                  ? [
-                      BoxShadow(
-                        color: widget.color.withValues(alpha: 0.35),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : const [],
             ),
             child: Icon(widget.icon, color: iconColor, size: 24),
           ),
@@ -1594,9 +1575,6 @@ class _SideActionState extends State<_SideAction> {
               color: labelColor,
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              shadows: _pressed
-                  ? const [Shadow(color: Colors.black87, blurRadius: 6)]
-                  : null,
             ),
           ),
         ],

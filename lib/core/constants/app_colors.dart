@@ -28,6 +28,8 @@ class AppColors {
   // Togo — drapeau en accents modernes (vert / or / rouge)
   static const Color togoGreen = Color(0xFF006A4E);
   static const Color togoGold  = Color(0xFFFFD200);
+  /// Or plus lisible sur fond clair (barre d’onglets, surfaces blanches).
+  static const Color togoGoldOnLight = Color(0xFFB8860B);
   static const Color togoRed   = Color(0xFFD21034);
 
   // Functional

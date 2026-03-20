@@ -321,9 +321,6 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                         fontSize: s.isTextOnly ? 22 : 15,
                         fontWeight: FontWeight.w700,
                         height: 1.25,
-                        shadows: const [
-                          Shadow(color: Colors.black87, blurRadius: 10),
-                        ],
                       ),
                     ),
                   ),

@@ -191,7 +191,6 @@ class _GroupDetailBody extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontWeight: FontWeight.w800,
-                shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
               ),
             ),
             background: Stack(

@@ -67,13 +67,6 @@ class _SplashScreenState extends State<SplashScreen> {
                   decoration: BoxDecoration(
                     gradient: AppColors.primaryGradient,
                     borderRadius: BorderRadius.circular(26),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withAlpha(80),
-                        blurRadius: 32,
-                        offset: const Offset(0, 12),
-                      )
-                    ],
                   ),
                   child: const Center(
                     child: Text('♥', style: TextStyle(fontSize: 42, color: Colors.white)),
