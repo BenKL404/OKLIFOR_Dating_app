@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../constants/app_colors.dart';
+import '../theme/theme_extensions.dart';
 
 /// Champ pill (même base que conversation / statut : surface, sans bordure au focus).
 class OklPillSearchBar extends StatelessWidget {
@@ -28,7 +28,7 @@ class OklPillSearchBar extends StatelessWidget {
       child: Container(
         height: 44,
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.oklSurface,
           borderRadius: BorderRadius.circular(999),
         ),
         child: ValueListenableBuilder<TextEditingValue>(
@@ -38,11 +38,11 @@ class OklPillSearchBar extends StatelessWidget {
               controller: controller,
               focusNode: focusNode,
               autofocus: autofocus,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: context.oklOnSurface),
               textInputAction: textInputAction,
               decoration: InputDecoration(
                 hintText: hintText,
-                hintStyle: const TextStyle(color: AppColors.textSecondary),
+                hintStyle: TextStyle(color: context.oklOnSurfaceMuted(0.6)),
                 isDense: true,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
@@ -51,12 +51,12 @@ class OklPillSearchBar extends StatelessWidget {
                   minWidth: 36,
                   minHeight: 36,
                 ),
-                prefixIcon: const Padding(
-                  padding: EdgeInsets.only(left: 6),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 6),
                   child: Icon(
                     LucideIcons.search,
                     size: 18,
-                    color: AppColors.textSecondary,
+                    color: context.oklOnSurfaceMuted(0.6),
                   ),
                 ),
                 suffixIconConstraints: const BoxConstraints(
@@ -68,10 +68,10 @@ class OklPillSearchBar extends StatelessWidget {
                         padding: const EdgeInsets.only(right: 2),
                         child: IconButton(
                           visualDensity: VisualDensity.compact,
-                          icon: const Icon(
+                          icon: Icon(
                             LucideIcons.x,
                             size: 18,
-                            color: AppColors.textSecondary,
+                            color: context.oklOnSurfaceMuted(0.6),
                           ),
                           onPressed: () {
                             controller.clear();

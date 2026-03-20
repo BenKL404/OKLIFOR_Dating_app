@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_settings.dart';
+import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
+import 'account_verification_screen.dart';
+import 'edit_profile_screen.dart';
+import '../models/user_profile.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -24,9 +30,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text(
           'Parametres',
           style: TextStyle(fontWeight: FontWeight.w700),
@@ -35,10 +43,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
         children: [
-          const Text(
+          Text(
             'Securite',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w700,
             ),
@@ -46,9 +54,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -64,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.mapPinOff,
                   title: 'Mode quartier (distance floue)',
@@ -77,7 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.eyeOff,
                   title: 'Mode incognito',
@@ -94,10 +102,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'Compte',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w700,
             ),
@@ -105,30 +113,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
+                _ActionSettingRow(
+                  icon: LucideIcons.pencil,
+                  title: 'Modifier mon profil',
+                  onTap: () => _openSubPage(
+                    EditProfileScreen(initial: ProfileSession.profile.value),
+                  ),
+                ),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
+                _ActionSettingRow(
+                  icon: LucideIcons.badgeCheck,
+                  title: 'Verification et certificat',
+                  onTap: () => _openSubPage(const AccountVerificationScreen()),
+                ),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.bell,
                   title: 'Notifications',
                   onTap: () => _openSubPage(const _NotificationsSettingsPage()),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.shield,
                   title: 'Confidentialite',
                   onTap: () => _openSubPage(const _PrivacySettingsPage()),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.lock,
                   title: 'Securite du compte',
                   onTap: () => _openSubPage(const _SecuritySettingsPage()),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.slidersHorizontal,
                   title: 'Preferences de l application',
@@ -138,10 +160,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'Support',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w700,
             ),
@@ -149,9 +171,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -160,13 +182,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Aide et support',
                   onTap: () => _openSubPage(const _HelpSupportPage()),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.messagesSquare,
                   title: 'FAQ',
                   onTap: () => _openSubPage(const _FaqSettingsPage()),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.fileText,
                   title: 'Conditions et confidentialite',
@@ -176,10 +198,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'Session',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w700,
             ),
@@ -187,13 +209,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.logOut,
                   title: 'Deconnexion',
@@ -209,7 +231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.trash2,
                   title: 'Supprimer mon compte',
@@ -251,17 +273,18 @@ class _SwitchSettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.textSecondary, size: 18),
+          Icon(icon, color: cs.onSurface.withValues(alpha: 0.55), size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: cs.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -282,6 +305,7 @@ class _SwitchSettingRow extends StatelessWidget {
 class _ActionSettingRow extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? valueSubtitle;
   final bool destructive;
   final VoidCallback onTap;
 
@@ -289,12 +313,14 @@ class _ActionSettingRow extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.onTap,
+    this.valueSubtitle,
     this.destructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = destructive ? AppColors.primary : AppColors.textPrimary;
+    final cs = Theme.of(context).colorScheme;
+    final color = destructive ? AppColors.primary : cs.onSurface;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -305,7 +331,7 @@ class _ActionSettingRow extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: AppColors.textSecondary,
+                color: cs.onSurface.withValues(alpha: 0.55),
                 size: 18,
               ),
               const SizedBox(width: 12),
@@ -319,10 +345,21 @@ class _ActionSettingRow extends StatelessWidget {
                   ),
                 ),
               ),
+              if (valueSubtitle != null) ...[
+                Text(
+                  valueSubtitle!,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.5),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               if (!destructive)
-                const Icon(
+                Icon(
                   LucideIcons.chevronRight,
-                  color: AppColors.textMuted,
+                  color: cs.onSurface.withValues(alpha: 0.35),
                   size: 16,
                 ),
             ],
@@ -351,9 +388,11 @@ class _NotificationsSettingsPageState extends State<_NotificationsSettingsPage> 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('Notifications'),
       ),
       body: ListView(
@@ -361,9 +400,9 @@ class _NotificationsSettingsPageState extends State<_NotificationsSettingsPage> 
         children: [
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -373,35 +412,35 @@ class _NotificationsSettingsPageState extends State<_NotificationsSettingsPage> 
                   value: _messages,
                   onChanged: (v) => setState(() => _messages = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.heart,
                   title: 'Likes et super likes',
                   value: _likes,
                   onChanged: (v) => setState(() => _likes = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.sparkles,
                   title: 'Nouveaux matchs',
                   value: _matchs,
                   onChanged: (v) => setState(() => _matchs = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.radio,
                   title: 'Lives et activites',
                   value: _live,
                   onChanged: (v) => setState(() => _live = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.mail,
                   title: 'Emails Oklifor',
                   value: _email,
                   onChanged: (v) => setState(() => _email = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.volume2,
                   title: 'Sons de notification',
@@ -433,9 +472,11 @@ class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('Confidentialite'),
       ),
       body: ListView(
@@ -443,9 +484,9 @@ class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -455,28 +496,28 @@ class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
                   value: _showOnline,
                   onChanged: (v) => setState(() => _showOnline = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.mapPin,
                   title: 'Afficher ma distance',
                   value: _showDistance,
                   onChanged: (v) => setState(() => _showDistance = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.checkCheck,
                   title: 'Accuses de lecture',
                   value: _readReceipts,
                   onChanged: (v) => setState(() => _readReceipts = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.userPlus,
                   title: 'Autoriser demandes de tous',
                   value: _allowRequests,
                   onChanged: (v) => setState(() => _allowRequests = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.userX,
                   title: 'Utilisateurs bloques',
@@ -506,9 +547,11 @@ class _SecuritySettingsPageState extends State<_SecuritySettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('Securite du compte'),
       ),
       body: ListView(
@@ -516,9 +559,9 @@ class _SecuritySettingsPageState extends State<_SecuritySettingsPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -528,27 +571,37 @@ class _SecuritySettingsPageState extends State<_SecuritySettingsPage> {
                   value: _twoFactor,
                   onChanged: (v) => setState(() => _twoFactor = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.fingerprint,
                   title: 'Deblocage biometrie',
                   value: _biometric,
                   onChanged: (v) => setState(() => _biometric = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.lock,
                   title: 'Verrouiller a l ouverture',
                   value: _screenLock,
                   onChanged: (v) => setState(() => _screenLock = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
+                _ActionSettingRow(
+                  icon: LucideIcons.shieldCheck,
+                  title: 'Verification du compte (badge)',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AccountVerificationScreen(),
+                    ),
+                  ),
+                ),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.keyRound,
                   title: 'Changer PIN de securite',
                   onTap: () => OklFeedback.snack(context, 'Changement du PIN (demo)'),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.smartphone,
                   title: 'Sessions actives',
@@ -563,24 +616,102 @@ class _SecuritySettingsPageState extends State<_SecuritySettingsPage> {
   }
 }
 
-class _AppPreferencesPage extends StatefulWidget {
+class _AppPreferencesPage extends ConsumerStatefulWidget {
   const _AppPreferencesPage();
 
   @override
-  State<_AppPreferencesPage> createState() => _AppPreferencesPageState();
+  ConsumerState<_AppPreferencesPage> createState() =>
+      _AppPreferencesPageState();
 }
 
-class _AppPreferencesPageState extends State<_AppPreferencesPage> {
+class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
   bool _autoPlay = true;
   bool _dataSaver = false;
   bool _vibrate = true;
 
+  static String _themeLabel(ThemeMode mode) {
+    return switch (mode) {
+      ThemeMode.light => 'Clair',
+      ThemeMode.system => 'Systeme',
+      ThemeMode.dark => 'Sombre',
+    };
+  }
+
+  Future<void> _openThemeSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).dividerColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, bottom: 4),
+                  child: Text(
+                    'Theme',
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+                ...[
+                  ThemeMode.dark,
+                  ThemeMode.light,
+                  ThemeMode.system,
+                ].map((mode) {
+                  final current = ref.watch(themeModeProvider);
+                  return ListTile(
+                    title: Text(_themeLabel(mode)),
+                    subtitle: mode == ThemeMode.system
+                        ? Text(
+                            'Suit le reglage de l appareil',
+                            style: Theme.of(ctx).textTheme.bodySmall,
+                          )
+                        : null,
+                    trailing: current == mode
+                        ? Icon(LucideIcons.check, color: AppColors.primary, size: 20)
+                        : null,
+                    onTap: () async {
+                      await ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('Preferences'),
       ),
       body: ListView(
@@ -588,9 +719,9 @@ class _AppPreferencesPageState extends State<_AppPreferencesPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -599,27 +730,28 @@ class _AppPreferencesPageState extends State<_AppPreferencesPage> {
                   title: 'Langue de l application',
                   onTap: () => OklFeedback.snack(context, 'Français (par defaut)'),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.palette,
                   title: 'Theme',
-                  onTap: () => OklFeedback.snack(context, 'Theme sombre'),
+                  valueSubtitle: _themeLabel(themeMode),
+                  onTap: _openThemeSheet,
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.playCircle,
                   title: 'Lecture auto des medias',
                   value: _autoPlay,
                   onChanged: (v) => setState(() => _autoPlay = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.signal,
                   title: 'Economiseur de donnees',
                   value: _dataSaver,
                   onChanged: (v) => setState(() => _dataSaver = v),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.vibrate,
                   title: 'Vibrations',
@@ -641,9 +773,11 @@ class _HelpSupportPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('Aide et support'),
       ),
       body: ListView(
@@ -651,9 +785,9 @@ class _HelpSupportPage extends StatelessWidget {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -662,13 +796,13 @@ class _HelpSupportPage extends StatelessWidget {
                   title: 'Centre d aide',
                   onTap: () => OklFeedback.snack(context, 'Articles d aide (demo)'),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.mail,
                   title: 'Contacter le support',
                   onTap: () => OklFeedback.snack(context, 'support@oklifor.app'),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.bug,
                   title: 'Signaler un bug',
@@ -689,9 +823,11 @@ class _FaqSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('FAQ'),
       ),
       body: ListView(
@@ -723,20 +859,21 @@ class _FaqItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: ExpansionTile(
-        iconColor: AppColors.textSecondary,
-        collapsedIconColor: AppColors.textSecondary,
+        iconColor: cs.onSurface.withValues(alpha: 0.55),
+        collapsedIconColor: cs.onSurface.withValues(alpha: 0.55),
         title: Text(
           title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: cs.onSurface,
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
@@ -746,7 +883,10 @@ class _FaqItem extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
             child: Text(
               body,
-              style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.65),
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -761,9 +901,11 @@ class _LegalSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('Conditions et confidentialite'),
       ),
       body: ListView(
@@ -771,9 +913,9 @@ class _LegalSettingsPage extends StatelessWidget {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
@@ -782,13 +924,13 @@ class _LegalSettingsPage extends StatelessWidget {
                   title: 'Conditions d utilisation',
                   onTap: () => OklFeedback.snack(context, 'Conditions Oklifor (demo)'),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.shield,
                   title: 'Politique de confidentialite',
                   onTap: () => OklFeedback.snack(context, 'Politique de confidentialite (demo)'),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.scale,
                   title: 'Regles de la communaute',

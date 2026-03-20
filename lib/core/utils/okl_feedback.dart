@@ -8,14 +8,15 @@ class OklFeedback {
   static void snack(BuildContext context, String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
+    final t = Theme.of(context);
     messenger
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
           content: Text(
             message,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: t.colorScheme.onSurface,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -24,7 +25,7 @@ class OklFeedback {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          backgroundColor: AppColors.surface,
+          backgroundColor: t.colorScheme.surface,
         ),
       );
   }
@@ -38,19 +39,24 @@ class OklFeedback {
   }) {
     return showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
+      builder: (ctx) {
+        final t = Theme.of(ctx);
+        return AlertDialog(
+        backgroundColor: t.colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: t.colorScheme.onSurface,
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
           body,
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: TextStyle(
+            color: t.textTheme.bodyMedium?.color ?? t.colorScheme.onSurface,
+            fontSize: 14,
+          ),
         ),
         actions: [
           TextButton(
@@ -66,7 +72,8 @@ class OklFeedback {
             child: Text(confirmLabel),
           ),
         ],
-      ),
+        );
+      },
     );
   }
 }

@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../constants/app_colors.dart';
+import '../theme/theme_extensions.dart';
+import '../utils/okl_feedback.dart';
 
-class MainShell extends StatelessWidget {
+class MainShell extends StatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  DateTime? _lastExitPrompt;
 
   static int _tabIndexForPath(String path) {
     if (path.startsWith('/discovery')) return 0;
@@ -17,65 +27,99 @@ class MainShell extends StatelessWidget {
 
   static const _routes = ['/discovery', '/explore', '/chats', '/profile'];
 
+  void _onPopInvoked(bool didPop, dynamic result) {
+    if (didPop) return;
+    if (!mounted) return;
+
+    // Fermer d’abord les écrans poussés avec rootNavigator (statuts, conversation, image…)
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    if (rootNav.canPop()) {
+      rootNav.pop();
+      return;
+    }
+
+    final go = GoRouter.maybeOf(context);
+    if (go != null && go.canPop()) {
+      go.pop();
+      return;
+    }
+
+    final nestedNav = Navigator.maybeOf(context, rootNavigator: false);
+    if (nestedNav != null && nestedNav.canPop()) {
+      nestedNav.pop();
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastExitPrompt == null ||
+        now.difference(_lastExitPrompt!) > const Duration(seconds: 2)) {
+      _lastExitPrompt = now;
+      OklFeedback.snack(
+        context,
+        'Appuie encore sur Retour pour quitter Oklifor',
+      );
+      return;
+    }
+
+    _lastExitPrompt = null;
+    SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
     final selectedIndex = _tabIndexForPath(path);
-    final isDiscovery = path.startsWith('/discovery');
 
-    return Scaffold(
-      backgroundColor: AppColors.dark,
-      // Discovery: la barre flotte au-dessus (style IG, transparente).
-      // Autres pages: la barre prend sa place normale pour éviter tout décalage.
-      extendBody: isDiscovery,
-      body: child,
-      bottomNavigationBar: ClipRect(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: isDiscovery
-                ? Colors.transparent
-                : AppColors.dark.withValues(alpha: 0.92),
-            border: isDiscovery
-                ? null
-                : const Border(
-                    top: BorderSide(color: AppColors.divider, width: 0.5),
-                  ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 62,
-              child: Row(
-                children: [
-                  _NavItem(
-                    icon: LucideIcons.sparkles,
-                    label: 'Découvrir',
-                    index: 0,
-                    selected: selectedIndex == 0,
-                    onTap: () => context.go(_routes[0]),
-                  ),
-                  _NavItem(
-                    icon: LucideIcons.compass,
-                    label: 'Explorer',
-                    index: 1,
-                    selected: selectedIndex == 1,
-                    onTap: () => context.go(_routes[1]),
-                  ),
-                  _NavItem(
-                    icon: LucideIcons.messageCircle,
-                    label: 'Messages',
-                    index: 2,
-                    selected: selectedIndex == 2,
-                    onTap: () => context.go(_routes[2]),
-                  ),
-                  _NavItem(
-                    icon: LucideIcons.user,
-                    label: 'Profil',
-                    index: 3,
-                    selected: selectedIndex == 3,
-                    onTap: () => context.go(_routes[3]),
-                  ),
-                ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _onPopInvoked,
+      child: Scaffold(
+        backgroundColor: context.oklScaffold,
+        body: widget.child,
+        bottomNavigationBar: ClipRect(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: context.oklScaffold.withValues(alpha: 0.92),
+              border: Border(
+                top: BorderSide(color: context.oklDivider, width: 0.5),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 62,
+                child: Row(
+                  children: [
+                    _NavItem(
+                      icon: LucideIcons.sparkles,
+                      label: 'Découvrir',
+                      index: 0,
+                      selected: selectedIndex == 0,
+                      onTap: () => context.go(_routes[0]),
+                    ),
+                    _NavItem(
+                      icon: LucideIcons.compass,
+                      label: 'Explorer',
+                      index: 1,
+                      selected: selectedIndex == 1,
+                      onTap: () => context.go(_routes[1]),
+                    ),
+                    _NavItem(
+                      icon: LucideIcons.messageCircle,
+                      label: 'Messages',
+                      index: 2,
+                      selected: selectedIndex == 2,
+                      onTap: () => context.go(_routes[2]),
+                    ),
+                    _NavItem(
+                      icon: LucideIcons.user,
+                      label: 'Profil',
+                      index: 3,
+                      selected: selectedIndex == 3,
+                      onTap: () => context.go(_routes[3]),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -102,7 +146,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = selected ? AppColors.togoGold : AppColors.textSecondary;
+    final accent = selected
+        ? AppColors.togoGold
+        : context.oklOnSurfaceMuted(0.55);
 
     return Expanded(
       child: GestureDetector(

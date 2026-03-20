@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_extensions.dart';
+import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
 
 class _DemoProfile {
@@ -148,7 +150,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.oklSurface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -278,9 +280,11 @@ class _ProfileDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
         title: const Text('Profil complet'),
       ),
       body: SingleChildScrollView(
@@ -296,16 +300,16 @@ class _ProfileDetailsScreen extends StatelessWidget {
                   imageUrl: profile.imageUrl,
                   fit: BoxFit.cover,
                   memCacheWidth: 900,
-                  placeholder: (context, url) => Container(color: AppColors.surface),
-                  errorWidget: (context, url, error) => Container(color: AppColors.surface),
+                  placeholder: (ctx, url) => Container(color: ctx.oklSurface),
+                  errorWidget: (ctx, url, error) => Container(color: ctx.oklSurface),
                 ),
               ),
             ),
             const SizedBox(height: 16),
             Text(
               '${profile.name}, ${profile.age}',
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: context.oklOnSurface,
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
               ),
@@ -313,11 +317,11 @@ class _ProfileDetailsScreen extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(LucideIcons.mapPin, size: 16, color: AppColors.textSecondary),
+                Icon(LucideIcons.mapPin, size: 16, color: context.oklOnSurfaceMuted(0.62)),
                 const SizedBox(width: 6),
                 Text(
                   profile.location,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  style: TextStyle(color: context.oklOnSurfaceMuted(0.62), fontSize: 14),
                 ),
               ],
             ),
@@ -329,18 +333,18 @@ class _ProfileDetailsScreen extends StatelessWidget {
                   .map(
                     (t) => Chip(
                       label: Text(t),
-                      backgroundColor: AppColors.surface,
+                      backgroundColor: context.oklSurface,
                       side: BorderSide(color: AppColors.togoGold.withValues(alpha: 0.45)),
-                      labelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                      labelStyle: TextStyle(color: context.oklOnSurface, fontSize: 12),
                     ),
                   )
                   .toList(),
             ),
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'A propos',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: context.oklOnSurface,
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -348,8 +352,8 @@ class _ProfileDetailsScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               profile.bio,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: context.oklOnSurfaceMuted(0.62),
                 height: 1.4,
                 fontSize: 14,
               ),
@@ -436,13 +440,13 @@ class _ProfileFieldTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.oklSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.oklDivider),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.textSecondary, size: 18),
+          Icon(icon, color: context.oklOnSurfaceMuted(0.62), size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -450,16 +454,16 @@ class _ProfileFieldTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: context.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.oklOnSurface,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -485,9 +489,11 @@ class _LiveFriendsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
         title: const Text('Amis en live'),
       ),
       body: ListView(
@@ -504,8 +510,8 @@ class _LiveFriendsScreen extends StatelessWidget {
                     imageUrl: host.imageUrl,
                     fit: BoxFit.cover,
                     memCacheWidth: 1000,
-                    placeholder: (context, url) => Container(color: AppColors.surface),
-                    errorWidget: (context, url, error) => Container(color: AppColors.surface),
+                    placeholder: (ctx, url) => Container(color: ctx.oklSurface),
+                    errorWidget: (ctx, url, error) => Container(color: ctx.oklSurface),
                   ),
                   const DecoratedBox(
                     decoration: BoxDecoration(
@@ -558,10 +564,10 @@ class _LiveFriendsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Amis connectes en live',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: context.oklOnSurface,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -572,9 +578,9 @@ class _LiveFriendsScreen extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: context.oklSurface,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.divider),
+                border: Border.all(color: context.oklDivider),
               ),
               child: Row(
                 children: [
@@ -599,8 +605,8 @@ class _LiveFriendsScreen extends StatelessWidget {
                                 '${friend.name}, ${friend.age}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
+                                style: TextStyle(
+                                  color: context.oklOnSurface,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
                                 ),
@@ -615,8 +621,8 @@ class _LiveFriendsScreen extends StatelessWidget {
                           '${friend.location} • ${friend.relationGoal}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
+                          style: TextStyle(
+                            color: context.oklOnSurfaceMuted(0.62),
                             fontSize: 12,
                           ),
                         ),
@@ -625,8 +631,8 @@ class _LiveFriendsScreen extends StatelessWidget {
                           'Ethnie: ${friend.ethnicity} • Langues: ${friend.languages}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
+                          style: TextStyle(
+                            color: context.oklOnSurfaceMuted(0.55),
                             fontSize: 11.5,
                           ),
                         ),
@@ -717,25 +723,11 @@ class _DiscoveryTopBar extends StatelessWidget {
               ),
               Row(
                 children: [
-                  _GlassIconBtn(icon: LucideIcons.slidersHorizontal, onTap: onFilters),
+                  OklAppBarIconButton(icon: LucideIcons.slidersHorizontal, onPressed: onFilters),
                   const SizedBox(width: 8),
-                  _GlassIconBtn(icon: LucideIcons.bell, onTap: onBell),
+                  OklAppBarIconButton(icon: LucideIcons.bell, onPressed: onBell),
                   const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: onInfo,
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: const Center(
-                        child: Icon(LucideIcons.radio, color: Colors.white70, size: 18),
-                      ),
-                    ),
-                  ),
+                  OklAppBarIconButton(icon: LucideIcons.radio, onPressed: onInfo),
                 ],
               ),
             ],
@@ -780,9 +772,9 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
       expand: false,
       builder: (context, scrollController) {
         return DecoratedBox(
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: context.oklSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
@@ -792,7 +784,7 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.divider,
+                    color: context.oklDivider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -802,10 +794,10 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Filtres de découverte',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: context.oklOnSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.3,
@@ -815,7 +807,7 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                     Text(
                       'Affine ton fil : critères principaux, options rapides et résumé en un coup d’œil.',
                       style: TextStyle(
-                        color: AppColors.textSecondary.withValues(alpha: 0.95),
+                        color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
                         fontSize: 13,
                         height: 1.35,
                       ),
@@ -831,21 +823,24 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.dark.withValues(alpha: 0.45),
+                        color: Color.alphaBlend(
+                          context.oklOnSurface.withValues(alpha: 0.08),
+                          context.oklSurface,
+                        ),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.divider),
+                        border: Border.all(color: context.oklDivider),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(LucideIcons.layers, size: 16, color: AppColors.textSecondary),
+                              Icon(LucideIcons.layers, size: 16, color: context.oklOnSurfaceMuted(0.62)),
                               const SizedBox(width: 8),
-                              const Text(
+                              Text(
                                 'Résumé actif',
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: context.oklOnSurface,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13,
                                 ),
@@ -853,10 +848,10 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          Wrap(
+                          const Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: const [
+                            children: [
                               _FilterSummaryChip(label: 'Femmes & hommes'),
                               _FilterSummaryChip(label: '≤ 25 km'),
                               _FilterSummaryChip(label: '21 — 35 ans'),
@@ -866,10 +861,10 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    const Text(
+                    Text(
                       'Critères principaux',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: context.oklOnSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -903,10 +898,10 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                       },
                     ),
                     const SizedBox(height: 18),
-                    const Text(
+                    Text(
                       'Affiner le fil',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: context.oklOnSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -915,7 +910,7 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                     Text(
                       'Options qui s’appliquent en plus des critères ci-dessus.',
                       style: TextStyle(
-                        color: AppColors.textMuted.withValues(alpha: 0.9),
+                        color: context.oklOnSurfaceMuted(0.55).withValues(alpha: 0.9),
                         fontSize: 12,
                       ),
                     ),
@@ -953,18 +948,18 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.divider),
+                        border: Border.all(color: context.oklDivider),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(LucideIcons.info, size: 18, color: AppColors.textSecondary),
+                          Icon(LucideIcons.info, size: 18, color: context.oklOnSurfaceMuted(0.62)),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Les filtres sont sauvegardés sur cet appareil. Tu peux les réinitialiser à tout moment.',
                               style: TextStyle(
-                                color: AppColors.textSecondary.withValues(alpha: 0.95),
+                                color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
                                 fontSize: 12,
                                 height: 1.4,
                               ),
@@ -984,9 +979,9 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                   20,
                   MediaQuery.paddingOf(context).bottom + 14,
                 ),
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+                decoration: BoxDecoration(
+                  color: context.oklSurface,
+                  border: Border(top: BorderSide(color: context.oklDivider, width: 0.5)),
                 ),
                 child: Row(
                   children: [
@@ -1002,7 +997,7 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                           OklFeedback.snack(context, 'Filtres réinitialisés');
                         },
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
+                          foregroundColor: context.oklOnSurfaceMuted(0.62),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: const Text('Réinitialiser'),
@@ -1017,7 +1012,7 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.primary,
                                 foregroundColor: Colors.white,
-                                disabledBackgroundColor: AppColors.textMuted,
+                                disabledBackgroundColor: context.oklOnSurface.withValues(alpha: 0.12),
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -1031,9 +1026,12 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                           : OutlinedButton(
                               onPressed: () => _applyAndClose(context),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.textPrimary,
-                                side: const BorderSide(color: AppColors.divider, width: 1),
-                                backgroundColor: AppColors.dark.withValues(alpha: 0.35),
+                                foregroundColor: context.oklOnSurface,
+                                side: BorderSide(color: context.oklDivider, width: 1),
+                                backgroundColor: Color.alphaBlend(
+                                  context.oklOnSurface.withValues(alpha: 0.06),
+                                  context.oklSurface,
+                                ),
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -1066,14 +1064,14 @@ class _FilterSummaryChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.oklSurface,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.oklDivider),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
+        style: TextStyle(
+          color: context.oklOnSurfaceMuted(0.62),
           fontSize: 11.5,
           fontWeight: FontWeight.w600,
         ),
@@ -1102,7 +1100,10 @@ class _FilterToggleTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: AppColors.dark.withValues(alpha: 0.35),
+        color: Color.alphaBlend(
+          context.oklOnSurface.withValues(alpha: 0.06),
+          context.oklSurface,
+        ),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: () => onChanged(!value),
@@ -1111,7 +1112,7 @@ class _FilterToggleTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Icon(icon, color: AppColors.textSecondary, size: 20),
+                Icon(icon, color: context.oklOnSurfaceMuted(0.62), size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1119,8 +1120,8 @@ class _FilterToggleTile extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: context.oklOnSurface,
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
@@ -1128,8 +1129,8 @@ class _FilterToggleTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: context.oklOnSurfaceMuted(0.62),
                           fontSize: 11.5,
                           height: 1.25,
                         ),
@@ -1142,8 +1143,8 @@ class _FilterToggleTile extends StatelessWidget {
                   onChanged: onChanged,
                   activeTrackColor: AppColors.primary.withValues(alpha: 0.45),
                   activeThumbColor: Colors.white,
-                  inactiveTrackColor: AppColors.divider.withValues(alpha: 0.6),
-                  inactiveThumbColor: AppColors.textMuted,
+                  inactiveTrackColor: context.oklDivider.withValues(alpha: 0.6),
+                  inactiveThumbColor: context.oklOnSurfaceMuted(0.55),
                 ),
               ],
             ),
@@ -1172,7 +1173,7 @@ class _FilterRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: AppColors.dark,
+        color: context.oklScaffold,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -1181,23 +1182,23 @@ class _FilterRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                Icon(icon, color: AppColors.textSecondary, size: 22),
+                Icon(icon, color: context.oklOnSurfaceMuted(0.62), size: 22),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title,
-                          style: const TextStyle(
-                              color: AppColors.textPrimary,
+                          style: TextStyle(
+                              color: context.oklOnSurface,
                               fontWeight: FontWeight.w700,
                               fontSize: 15)),
                       Text(subtitle,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                          style: TextStyle(color: context.oklOnSurfaceMuted(0.62), fontSize: 12)),
                     ],
                   ),
                 ),
-                const Icon(LucideIcons.chevronRight, color: AppColors.textMuted, size: 18),
+                Icon(LucideIcons.chevronRight, color: context.oklOnSurfaceMuted(0.55), size: 18),
               ],
             ),
           ),
@@ -1250,9 +1251,11 @@ class _NotificationsScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
         title: const Text('Notifications'),
       ),
       body: ListView.separated(
@@ -1262,7 +1265,7 @@ class _NotificationsScreen extends StatelessWidget {
         itemBuilder: (context, index) {
           final n = items[index];
           return Material(
-            color: AppColors.surface,
+            color: context.oklSurface,
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -1276,10 +1279,13 @@ class _NotificationsScreen extends StatelessWidget {
                       height: 40,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppColors.dark.withValues(alpha: 0.55),
-                        border: Border.all(color: AppColors.divider),
+                        color: Color.alphaBlend(
+                          context.oklOnSurface.withValues(alpha: 0.1),
+                          context.oklSurface,
+                        ),
+                        border: Border.all(color: context.oklDivider),
                       ),
-                      child: Icon(n.icon, color: AppColors.textSecondary, size: 19),
+                      child: Icon(n.icon, color: context.oklOnSurfaceMuted(0.62), size: 19),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1293,8 +1299,8 @@ class _NotificationsScreen extends StatelessWidget {
                                   n.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
+                                  style: TextStyle(
+                                    color: context.oklOnSurface,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -1302,8 +1308,8 @@ class _NotificationsScreen extends StatelessWidget {
                               ),
                               Text(
                                 n.time,
-                                style: const TextStyle(
-                                  color: AppColors.textMuted,
+                                style: TextStyle(
+                                  color: context.oklOnSurfaceMuted(0.55),
                                   fontSize: 11,
                                 ),
                               ),
@@ -1312,8 +1318,8 @@ class _NotificationsScreen extends StatelessWidget {
                           const SizedBox(height: 3),
                           Text(
                             n.subtitle,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: context.oklOnSurfaceMuted(0.62),
                               fontSize: 12.5,
                             ),
                           ),
@@ -1387,8 +1393,8 @@ class _ReelPage extends StatelessWidget {
             filterQuality: FilterQuality.high,
             memCacheWidth: cacheWidth,
             fadeInDuration: const Duration(milliseconds: 180),
-            placeholder: (context, url) => Container(
-              color: AppColors.surface,
+            placeholder: (ctx, url) => Container(
+              color: Colors.black.withValues(alpha: 0.45),
               alignment: Alignment.center,
               child: const SizedBox(
                 width: 36,
@@ -1399,12 +1405,12 @@ class _ReelPage extends StatelessWidget {
                 ),
               ),
             ),
-            errorWidget: (context, url, error) => Container(
-              color: AppColors.surface,
+            errorWidget: (ctx, url, error) => Container(
+              color: Colors.black.withValues(alpha: 0.5),
               alignment: Alignment.center,
-              child: const Icon(
+              child: Icon(
                 LucideIcons.imageOff,
-                color: AppColors.textMuted,
+                color: Colors.white.withValues(alpha: 0.55),
                 size: 48,
               ),
             ),
@@ -1519,30 +1525,6 @@ class _ReelPage extends StatelessWidget {
   }
 }
 
-class _GlassIconBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _GlassIconBtn({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.35),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: Icon(icon, color: Colors.white, size: 20),
-      ),
-    );
-  }
-}
-
 class _SideAction extends StatefulWidget {
   final IconData icon;
   final Color color;
@@ -1572,10 +1554,10 @@ class _SideActionState extends State<_SideAction> {
   Widget build(BuildContext context) {
     final iconColor = _pressed
         ? widget.color
-        : AppColors.textSecondary.withValues(alpha: 0.9);
+        : Colors.white.withValues(alpha: 0.88);
     final labelColor = _pressed
         ? Colors.white.withValues(alpha: 0.92)
-        : AppColors.textSecondary.withValues(alpha: 0.9);
+        : Colors.white.withValues(alpha: 0.78);
 
     return GestureDetector(
       onTap: widget.onTap,

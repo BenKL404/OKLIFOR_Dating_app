@@ -17,6 +17,14 @@ class AppColors {
   static const Color textSecondary = Color(0xFF8E8E8E);
   static const Color textMuted     = Color(0xFF555555);
 
+  /// Palette **clair** (synchronisée avec [AppTheme.lightTheme]).
+  static const Color lightScaffold = Color(0xFFF2F2F5);
+  static const Color lightSurface  = Color(0xFFFFFFFF);
+  static const Color lightDivider  = Color(0xFFE4E4EA);
+  static const Color lightTextPrimary   = Color(0xFF0F0F0F);
+  static const Color lightTextSecondary = Color(0xFF5C5C62);
+  static const Color lightTextMuted     = Color(0xFF93939C);
+
   // Togo — drapeau en accents modernes (vert / or / rouge)
   static const Color togoGreen = Color(0xFF006A4E);
   static const Color togoGold  = Color(0xFFFFD200);

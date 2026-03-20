@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
+import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -46,9 +48,11 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
         title: Text(details.title),
       ),
       body: ListView(
@@ -62,11 +66,14 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                 imageUrl: details.heroUrl,
                 fit: BoxFit.cover,
                 memCacheWidth: 1000,
-                placeholder: (context, url) => Container(color: AppColors.surface),
-                errorWidget: (context, url, error) => Container(
-                  color: AppColors.surface,
-                  child: const Center(
-                    child: Icon(LucideIcons.imageOff, color: AppColors.textMuted),
+                placeholder: (ctx, url) => Container(color: ctx.oklSurface),
+                errorWidget: (ctx, url, error) => Container(
+                  color: ctx.oklSurface,
+                  child: Center(
+                    child: Icon(
+                      LucideIcons.imageOff,
+                      color: ctx.oklOnSurfaceMuted(0.55),
+                    ),
                   ),
                 ),
               ),
@@ -75,8 +82,8 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             details.subtitle,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.oklOnSurface,
               fontSize: 19,
               fontWeight: FontWeight.w800,
             ),
@@ -84,12 +91,21 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(LucideIcons.mapPin, size: 16, color: AppColors.textSecondary),
+              Icon(
+                LucideIcons.mapPin,
+                size: 16,
+                color: Theme.of(context).textTheme.bodyMedium?.color ??
+                    context.oklOnSurfaceMuted(0.62),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   details.locality,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyMedium?.color ??
+                        context.oklOnSurfaceMuted(0.62),
+                    fontSize: 13,
+                  ),
                 ),
               ),
               TextButton.icon(
@@ -97,8 +113,16 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                   context,
                   'Ouverture carte de ${details.title} (demo)',
                 ),
-                style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-                icon: const Icon(LucideIcons.navigation, size: 16, color: AppColors.textSecondary),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).textTheme.bodyMedium?.color ??
+                      context.oklOnSurfaceMuted(0.62),
+                ),
+                icon: Icon(
+                  LucideIcons.navigation,
+                  size: 16,
+                  color: Theme.of(context).textTheme.bodyMedium?.color ??
+                      context.oklOnSurfaceMuted(0.62),
+                ),
                 label: const Text('Localiser'),
               ),
             ],
@@ -108,7 +132,11 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
             title: 'Narration de la zone',
             child: Text(
               details.narration,
-              style: const TextStyle(color: AppColors.textSecondary, height: 1.45),
+              style: TextStyle(
+                color: Theme.of(context).textTheme.bodyMedium?.color ??
+                    context.oklOnSurfaceMuted(0.62),
+                height: 1.45,
+              ),
             ),
           ),
           _ZoneInfoCard(
@@ -121,12 +149,20 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
                       children: [
-                        const Icon(LucideIcons.dot, size: 16, color: AppColors.textSecondary),
+                        Icon(
+                          LucideIcons.dot,
+                          size: 16,
+                          color: Theme.of(context).textTheme.bodyMedium?.color ??
+                              context.oklOnSurfaceMuted(0.62),
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             item,
-                            style: const TextStyle(color: AppColors.textSecondary),
+                            style: TextStyle(
+                              color: Theme.of(context).textTheme.bodyMedium?.color ??
+                                  context.oklOnSurfaceMuted(0.62),
+                            ),
                           ),
                         ),
                       ],
@@ -148,10 +184,10 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Galerie de la zone',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: context.oklOnSurface,
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
@@ -173,8 +209,8 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                       imageUrl: url,
                       fit: BoxFit.cover,
                       memCacheWidth: 360,
-                      placeholder: (context, url) => Container(color: AppColors.surface),
-                      errorWidget: (context, url, error) => Container(color: AppColors.surface),
+                      placeholder: (ctx, url) => Container(color: ctx.oklSurface),
+                      errorWidget: (ctx, url, error) => Container(color: ctx.oklSurface),
                     ),
                   ),
                 );
@@ -199,17 +235,17 @@ class _ZoneInfoCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.oklSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.oklDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.oklOnSurface,
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),
@@ -237,14 +273,21 @@ class _MetaLine extends StatelessWidget {
           width: 110,
           child: Text(
             label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            style: TextStyle(
+              color: context.oklOnSurfaceMuted(0.55),
+              fontSize: 12,
+            ),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+            style: TextStyle(
+              color: Theme.of(context).textTheme.bodyMedium?.color ??
+                  context.oklOnSurfaceMuted(0.62),
+              fontSize: 12.5,
+            ),
           ),
         ),
       ],
@@ -450,7 +493,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final filtered = _filteredSpots;
 
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -463,27 +506,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     _searchMode
                         ? Row(
                             children: [
-                              Material(
-                                color: AppColors.surface,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: const BorderSide(color: AppColors.divider),
-                                ),
-                                child: InkWell(
-                                  onTap: _exitSearch,
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: const SizedBox(
-                                    width: 44,
-                                    height: 44,
-                                    child: Center(
-                                      child: Icon(
-                                        LucideIcons.arrowLeft,
-                                        color: AppColors.textSecondary,
-                                        size: 22,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                              OklAppBarIconButton(
+                                icon: LucideIcons.arrowLeft,
+                                onPressed: _exitSearch,
                               ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -510,10 +535,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Explorer',
                                       style: TextStyle(
-                                        color: AppColors.textPrimary,
+                                        color: context.oklOnSurface,
                                         fontSize: 30,
                                         fontWeight: FontWeight.w800,
                                         letterSpacing: -1,
@@ -525,27 +550,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 ),
                               ),
                               const SizedBox(width: 10),
-                              Material(
-                                color: AppColors.surface,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: const BorderSide(color: AppColors.divider),
-                                ),
-                                child: InkWell(
-                                  onTap: _enterSearch,
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: const SizedBox(
-                                    width: 44,
-                                    height: 44,
-                                    child: Center(
-                                      child: Icon(
-                                        LucideIcons.search,
-                                        color: AppColors.textSecondary,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                              OklAppBarIconButton(
+                                icon: LucideIcons.search,
+                                onPressed: _enterSearch,
                               ),
                             ],
                           ),
@@ -562,7 +569,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     Text(
                       'Filtres',
                       style: TextStyle(
-                        color: AppColors.textMuted,
+                        color: context.oklOnSurfaceMuted(0.55),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.3,
@@ -588,10 +595,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text(
+                    Text(
                       'Lieux',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: context.oklOnSurface,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.3,
@@ -602,8 +609,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       padding: const EdgeInsets.only(bottom: 2),
                       child: Text(
                         filtered.isEmpty ? '0 résultat' : '${filtered.length} lieu${filtered.length > 1 ? 'x' : ''}',
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
+                        style: TextStyle(
+                          color: context.oklOnSurfaceMuted(0.55),
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -622,9 +629,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: AppColors.surface,
+                            color: context.oklSurface,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: AppColors.divider),
+                            border: Border.all(color: context.oklDivider),
                           ),
                           child: Column(
                             children: [
@@ -632,21 +639,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(
-                                  color: AppColors.dark,
+                                  color: context.oklScaffold,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: AppColors.divider),
+                                  border: Border.all(color: context.oklDivider),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   LucideIcons.mapPinOff,
-                                  color: AppColors.textSecondary,
+                                  color: Theme.of(context).textTheme.bodyMedium?.color ??
+                                      context.oklOnSurfaceMuted(0.62),
                                   size: 24,
                                 ),
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 'Aucun lieu ne correspond',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
+                                style: TextStyle(
+                                  color: context.oklOnSurface,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -656,7 +664,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 'Essaye un autre filtre ou une autre recherche pour « ${_groups.firstWhere((g) => g.id == _selectedGroupId).title} ».',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: AppColors.textSecondary.withValues(alpha: 0.95),
+                                  color: (Theme.of(context).textTheme.bodyMedium?.color ??
+                                          context.oklOnSurfaceMuted(0.62))
+                                      .withValues(alpha: 0.95),
                                   fontSize: 13,
                                   height: 1.4,
                                 ),
@@ -677,7 +687,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         (context, i) {
                           final s = filtered[i];
                           return Material(
-                            color: AppColors.card,
+                            color: Theme.of(context).colorScheme.surfaceContainerHigh,
                             elevation: 0,
                             borderRadius: BorderRadius.circular(20),
                             clipBehavior: Clip.antiAlias,
@@ -687,7 +697,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: AppColors.divider, width: 1),
+                                  border: Border.all(color: context.oklDivider, width: 1),
                                 ),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(19),
@@ -699,15 +709,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                         fit: BoxFit.cover,
                                         filterQuality: FilterQuality.high,
                                         memCacheWidth: 600,
-                                        placeholder: (context, url) => Container(
-                                          color: AppColors.surface,
+                                        placeholder: (ctx, url) => Container(
+                                          color: ctx.oklSurface,
                                         ),
-                                        errorWidget: (context, url, error) => Container(
-                                          color: AppColors.surface,
+                                        errorWidget: (ctx, url, error) => Container(
+                                          color: ctx.oklSurface,
                                           alignment: Alignment.center,
-                                          child: const Icon(
+                                          child: Icon(
                                             LucideIcons.imageOff,
-                                            color: AppColors.textMuted,
+                                            color: ctx.oklOnSurfaceMuted(0.55),
                                           ),
                                         ),
                                       ),
@@ -828,10 +838,16 @@ class _ExploreFilterChip extends StatelessWidget {
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? AppColors.card : AppColors.surface,
+            color: selected
+                ? Theme.of(context).colorScheme.surfaceContainerHigh
+                : context.oklSurface,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: selected ? AppColors.textSecondary.withValues(alpha: 0.45) : AppColors.divider,
+              color: selected
+                  ? (Theme.of(context).textTheme.bodyMedium?.color ??
+                          context.oklOnSurfaceMuted(0.62))
+                      .withValues(alpha: 0.45)
+                  : context.oklDivider,
               width: selected ? 1.5 : 1,
             ),
             boxShadow: selected
@@ -847,7 +863,10 @@ class _ExploreFilterChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+              color: selected
+                  ? context.oklOnSurface
+                  : (Theme.of(context).textTheme.bodyMedium?.color ??
+                      context.oklOnSurfaceMuted(0.62)),
               fontSize: 13,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
               letterSpacing: -0.1,

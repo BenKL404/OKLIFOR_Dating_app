@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_extensions.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -22,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -85,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 Text(
                   'Oklifor',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: context.oklOnSurface,
                     fontSize: 38,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -1.5,
@@ -96,7 +97,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 Text(
                   'Rencontres au Togo',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: context.oklOnSurfaceMuted(0.62),
                     fontSize: 14,
                     letterSpacing: 0.3,
                   ),

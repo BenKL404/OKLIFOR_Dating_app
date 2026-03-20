@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_extensions.dart';
+import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
 
 /// Utilisateur dont le profil est public : peut recevoir une invitation.
@@ -64,9 +66,11 @@ class InviteFriendsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(),
+        automaticallyImplyLeading: false,
         title: const Text('Inviter des amis'),
       ),
       body: ListView(
@@ -80,9 +84,9 @@ class InviteFriendsScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: context.oklSurface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: context.oklDivider),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,14 +94,14 @@ class InviteFriendsScreen extends StatelessWidget {
                 Icon(
                   LucideIcons.globe,
                   size: 20,
-                  color: AppColors.textSecondary,
+                  color: context.oklOnSurfaceMuted(0.62),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Seuls les membres avec un profil public acceptent les invitations depuis cette liste. Les profils privés ou restreints n’apparaissent pas.',
                     style: TextStyle(
-                      color: AppColors.textSecondary.withValues(alpha: 0.95),
+                      color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
                       fontSize: 13,
                       height: 1.4,
                     ),
@@ -109,8 +113,8 @@ class InviteFriendsScreen extends StatelessWidget {
           const SizedBox(height: 18),
           Text(
             'Personnes à inviter (${_invitableUsers.length})',
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.oklOnSurface,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -136,7 +140,7 @@ class _InviteUserTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
+      color: context.oklSurface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: () {},
@@ -152,10 +156,10 @@ class _InviteUserTile extends StatelessWidget {
                   height: 50,
                   fit: BoxFit.cover,
                   memCacheWidth: 120,
-                  placeholder: (context, url) => Container(
+                  placeholder: (ctx, url) => Container(
                     width: 50,
                     height: 50,
-                    color: AppColors.dark,
+                    color: ctx.oklSurface,
                   ),
                 ),
               ),
@@ -166,8 +170,8 @@ class _InviteUserTile extends StatelessWidget {
                   children: [
                     Text(
                       user.name,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: context.oklOnSurface,
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                       ),
@@ -175,8 +179,8 @@ class _InviteUserTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       user.area,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: context.oklOnSurfaceMuted(0.62),
                         fontSize: 12.5,
                       ),
                     ),
@@ -184,14 +188,17 @@ class _InviteUserTile extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.dark.withValues(alpha: 0.5),
+                        color: Color.alphaBlend(
+                          context.oklOnSurface.withValues(alpha: 0.08),
+                          context.oklSurface,
+                        ),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.divider),
+                        border: Border.all(color: context.oklDivider),
                       ),
                       child: Text(
                         user.relationHint,
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
+                        style: TextStyle(
+                          color: context.oklOnSurfaceMuted(0.55),
                           fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                         ),

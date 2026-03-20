@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_extensions.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       body: Stack(
         children: [
           // Ambient glow
@@ -79,10 +80,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ).animate().scale(duration: 500.ms, curve: Curves.elasticOut),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Oklifor',
                           style: TextStyle(
-                            color: AppColors.textPrimary,
+                            color: context.oklOnSurface,
                             fontSize: 30,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -1,
@@ -93,44 +94,44 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 56),
                   // Titre
-                  const Text(
+                  Text(
                     'Connexion',
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: context.oklOnSurface,
                       fontSize: 26,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
                     ),
                   ).animate().fadeIn(delay: 250.ms).slideX(begin: -0.2, end: 0),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Entrez votre numéro togolais',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+                    style: TextStyle(color: context.oklOnSurfaceMuted(0.62), fontSize: 15),
                   ).animate().fadeIn(delay: 350.ms),
                   const SizedBox(height: 32),
                   // Champ téléphone — style Instagram/WhatsApp
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: context.oklSurface,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.divider, width: 1),
+                      border: Border.all(color: context.oklDivider, width: 1),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             border: Border(
-                              right: BorderSide(color: AppColors.divider, width: 1),
+                              right: BorderSide(color: context.oklDivider, width: 1),
                             ),
                           ),
                           child: Row(
-                            children: const [
-                              Text('🇹🇬', style: TextStyle(fontSize: 18)),
-                              SizedBox(width: 8),
+                            children: [
+                              const Text('🇹🇬', style: TextStyle(fontSize: 18)),
+                              const SizedBox(width: 8),
                               Text('+228',
                                   style: TextStyle(
-                                    color: AppColors.textPrimary,
+                                    color: context.oklOnSurface,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w600,
                                   )),
@@ -141,8 +142,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: TextField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                            style: TextStyle(
+                              color: context.oklOnSurface,
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                             ),
@@ -195,22 +196,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Séparateur
                   Row(
                     children: [
-                      const Expanded(child: Divider(color: AppColors.divider)),
+                      Expanded(child: Divider(color: context.oklDivider)),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: const Text('ou',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                        child: Text('ou',
+                            style: TextStyle(color: context.oklOnSurfaceMuted(0.62), fontSize: 13)),
                       ),
-                      const Expanded(child: Divider(color: AppColors.divider)),
+                      Expanded(child: Divider(color: context.oklDivider)),
                     ],
                   ),
                   const SizedBox(height: 32),
                   // Bouton Google
                   _SocialButton(
                     label: 'Continuer avec Google',
-                    icon: const Text('G',
+                    icon: Text('G',
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: context.oklOnSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                         )),
@@ -221,8 +222,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text.rich(
                       TextSpan(
                         text: 'En continuant, vous acceptez nos ',
-                        style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12),
+                        style: TextStyle(
+                            color: context.oklOnSurfaceMuted(0.62), fontSize: 12),
                         children: [
                           TextSpan(
                             text: 'CGU',
@@ -270,9 +271,9 @@ class _SocialButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.oklSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider, width: 1),
+          border: Border.all(color: context.oklDivider, width: 1),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -281,8 +282,8 @@ class _SocialButton extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               label,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: context.oklOnSurface,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),

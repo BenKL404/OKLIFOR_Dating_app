@@ -3,6 +3,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_extensions.dart';
+import '../../../core/widgets/okl_app_bar_icon_button.dart';
 
 class OtpScreen extends StatefulWidget {
   final String phoneNumber;
@@ -47,16 +49,11 @@ class _OtpScreenState extends State<OtpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
+      backgroundColor: context.oklScaffold,
       appBar: AppBar(
-        backgroundColor: AppColors.dark,
-        leading: GestureDetector(
-          onTap: () => context.pop(),
-          child: const Padding(
-            padding: EdgeInsets.only(left: 8),
-            child: Icon(LucideIcons.arrowLeft, color: AppColors.textPrimary),
-          ),
-        ),
+        backgroundColor: context.oklScaffold,
+        leading: OklAppBarBackButton(onPressed: () => context.pop()),
+        automaticallyImplyLeading: false,
         elevation: 0,
       ),
       body: SafeArea(
@@ -66,10 +63,10 @@ class _OtpScreenState extends State<OtpScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Vérifie ton\nnuméro 📲',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: context.oklOnSurface,
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.5,
@@ -79,8 +76,8 @@ class _OtpScreenState extends State<OtpScreen> {
               const SizedBox(height: 10),
               Text(
                 'Code envoyé au ${widget.phoneNumber}',
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 14),
+                style: TextStyle(
+                    color: context.oklOnSurfaceMuted(0.62), fontSize: 14),
               ).animate().fadeIn(delay: 150.ms),
               const SizedBox(height: 44),
               // Champs OTP
@@ -163,22 +160,22 @@ class _OtpBox extends StatelessWidget {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
+          color: context.oklOnSurface,
         ),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
-          fillColor: AppColors.surface,
+          fillColor: context.oklSurface,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.divider, width: 1),
+            borderSide: BorderSide(color: context.oklDivider, width: 1),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.divider, width: 1),
+            borderSide: BorderSide(color: context.oklDivider, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),

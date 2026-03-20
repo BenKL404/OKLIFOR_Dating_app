@@ -3,22 +3,30 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_extensions.dart';
+import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
 
 class StatusStory {
   final String name;
   final String avatarUrl;
+  /// Vide si statut texte sur fond [solidBackground].
   final String imageUrl;
   final String caption;
   final String timeAgo;
+  final Color? solidBackground;
 
   const StatusStory({
     required this.name,
     required this.avatarUrl,
-    required this.imageUrl,
+    this.imageUrl = '',
     required this.caption,
     required this.timeAgo,
+    this.solidBackground,
   });
+
+  bool get isTextOnly =>
+      imageUrl.isEmpty && solidBackground != null;
 }
 
 class StatusViewerScreen extends StatefulWidget {
@@ -139,7 +147,9 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
   void _goNext() {
     if (_pausedByTouch || _pausedByKeyboard) return;
     if (_currentIndex >= widget.stories.length - 1) {
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       return;
     }
     _pageController.nextPage(
@@ -162,7 +172,15 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
     final stories = widget.stories;
     final current = stories[_currentIndex];
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (!context.mounted) return;
+        final nav = Navigator.of(context, rootNavigator: true);
+        if (nav.canPop()) nav.pop();
+      },
+      child: Scaffold(
       backgroundColor: Colors.black,
       body: Listener(
         behavior: HitTestBehavior.translucent,
@@ -216,7 +234,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
         },
         onVerticalDragEnd: (_) {
           if (_verticalDragOffset > _closeDragThreshold) {
-            Navigator.pop(context);
+            Navigator.of(context, rootNavigator: true).pop();
             return;
           }
           setState(() => _verticalDragOffset = 0);
@@ -239,44 +257,73 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  CachedNetworkImage(
-                    imageUrl: s.imageUrl,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                    memCacheWidth: 1080,
-                    placeholder: (c, u) => Container(color: AppColors.surface),
-                    errorWidget: (c, u, e) => Container(
-                      color: AppColors.surface,
-                      alignment: Alignment.center,
-                      child: const Icon(LucideIcons.imageOff,
-                          color: AppColors.textMuted, size: 42),
-                    ),
-                  ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x66000000),
-                          Colors.transparent,
-                          Color(0xA6000000)
-                        ],
-                        stops: [0.0, 0.45, 1.0],
+                  if (s.isTextOnly)
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            s.solidBackground!,
+                            HSLColor.fromColor(s.solidBackground!)
+                                .withLightness(
+                                  (HSLColor.fromColor(s.solidBackground!)
+                                              .lightness *
+                                          0.5)
+                                      .clamp(0.08, 0.9),
+                                )
+                                .toColor(),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    CachedNetworkImage(
+                      imageUrl: s.imageUrl,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                      memCacheWidth: 1080,
+                      placeholder: (c, u) => Container(color: context.oklSurface),
+                      errorWidget: (c, u, e) => Container(
+                        color: context.oklSurface,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          LucideIcons.imageOff,
+                          color: context.oklOnSurfaceMuted(0.55),
+                          size: 42,
+                        ),
                       ),
                     ),
-                  ),
+                  if (!s.isTextOnly)
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x66000000),
+                            Colors.transparent,
+                            Color(0xA6000000)
+                          ],
+                          stops: [0.0, 0.45, 1.0],
+                        ),
+                      ),
+                    ),
                   Positioned(
                     left: 16,
                     right: 16,
                     bottom: 92,
                     child: Text(
                       s.caption,
-                      style: const TextStyle(
+                      textAlign: s.isTextOnly ? TextAlign.center : TextAlign.start,
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        shadows: [Shadow(color: Colors.black87, blurRadius: 8)],
+                        fontSize: s.isTextOnly ? 22 : 15,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                        shadows: const [
+                          Shadow(color: Colors.black87, blurRadius: 10),
+                        ],
                       ),
                     ),
                   ),
@@ -332,7 +379,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                           placeholder: (c, u) => Container(
                             width: 34,
                             height: 34,
-                            color: AppColors.surface,
+                            color: context.oklSurface,
                           ),
                         ),
                       ),
@@ -349,17 +396,17 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                           ),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(LucideIcons.x, color: Colors.white),
+                      OklAppBarIconButton(
+                        icon: LucideIcons.x,
+                        onPressed: () {
+                          final n = Navigator.of(context, rootNavigator: true);
+                          if (n.canPop()) n.pop();
+                        },
                       ),
-                      IconButton(
+                      const SizedBox(width: 8),
+                      OklAppBarIconButton(
+                        icon: LucideIcons.moreVertical,
                         onPressed: () {},
-                        icon: const Icon(
-                          LucideIcons.moreVertical,
-                          color: Colors.white,
-                          size: 20,
-                        ),
                       ),
                     ],
                   ),
@@ -381,16 +428,19 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                       child: Container(
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppColors.surface,
+                          color: context.oklSurface,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: TextField(
                           controller: _commentController,
-                          style: const TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(color: context.oklOnSurface),
                           textInputAction: TextInputAction.send,
                           decoration: InputDecoration(
                             hintText: 'Repondre...',
-                            hintStyle: const TextStyle(color: AppColors.textSecondary),
+                            hintStyle: TextStyle(
+                              color: Theme.of(context).textTheme.bodyMedium?.color ??
+                                  context.oklOnSurfaceMuted(0.62),
+                            ),
                             isDense: true,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -399,12 +449,13 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                               minWidth: 36,
                               minHeight: 36,
                             ),
-                            prefixIcon: const Padding(
-                              padding: EdgeInsets.only(left: 6),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.only(left: 6),
                               child: Icon(
                                 LucideIcons.camera,
                                 size: 18,
-                                color: AppColors.textSecondary,
+                                color: Theme.of(context).textTheme.bodyMedium?.color ??
+                                    context.oklOnSurfaceMuted(0.62),
                               ),
                             ),
                             suffixIconConstraints: const BoxConstraints(
@@ -418,10 +469,11 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                                   context,
                                   'Options piece jointe (demo)',
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   LucideIcons.plus,
                                   size: 18,
-                                  color: AppColors.textSecondary,
+                                  color: Theme.of(context).textTheme.bodyMedium?.color ??
+                                      context.oklOnSurfaceMuted(0.62),
                                 ),
                               ),
                             ),
@@ -453,12 +505,15 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _canSend ? AppColors.primary : AppColors.surface,
+                        color: _canSend ? AppColors.primary : context.oklSurface,
                       ),
                       child: Icon(
                         LucideIcons.send,
                         size: 18,
-                        color: _canSend ? Colors.white : AppColors.textSecondary,
+                        color: _canSend
+                            ? Colors.white
+                            : (Theme.of(context).textTheme.bodyMedium?.color ??
+                                context.oklOnSurfaceMuted(0.62)),
                       ),
                     ),
                   ),
@@ -471,6 +526,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
         ),
       ),
       ),
+    ),
     );
   }
 }
