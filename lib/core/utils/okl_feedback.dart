@@ -9,6 +9,13 @@ class OklFeedback {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
     final t = Theme.of(context);
+
+    // Position du toast calée sur la séparation body/nav bar.
+    // La barre dans `MainShell` fait ~62 px.
+    const bottomNavHeight = 62.0;
+    final bottomSafeInset = MediaQuery.paddingOf(context).bottom;
+    final bottomMargin = bottomNavHeight + bottomSafeInset;
+
     messenger
       ..clearSnackBars()
       ..showSnackBar(
@@ -21,7 +28,7 @@ class OklFeedback {
             ),
           ),
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 88),
+          margin: EdgeInsets.fromLTRB(16, 0, 16, bottomMargin),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),

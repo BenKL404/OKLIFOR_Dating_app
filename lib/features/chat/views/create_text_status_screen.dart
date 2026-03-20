@@ -37,6 +37,7 @@ class _CreateTextStatusScreenState extends State<CreateTextStatusScreen> {
   ];
 
   int _selectedBg = 0;
+  bool _showPalette = false;
 
   Color _darkerShade(Color c) {
     final hsl = HSLColor.fromColor(c);
@@ -55,161 +56,221 @@ class _CreateTextStatusScreenState extends State<CreateTextStatusScreen> {
     final text = _controller.text.trim();
 
     return Scaffold(
-      backgroundColor: context.oklScaffold,
-      appBar: AppBar(
-        backgroundColor: context.oklScaffold,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: Center(
-            child: OklAppBarIconButton(
-              icon: LucideIcons.x,
-              onPressed: () {
-                final n = Navigator.of(context, rootNavigator: true);
-                if (n.canPop()) n.pop();
-              },
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [bg, _darkerShade(bg)],
+                ),
+              ),
             ),
           ),
-        ),
-        automaticallyImplyLeading: false,
-        title: const Text('Statut texte'),
-        actions: [
-          TextButton(
-            onPressed: text.isEmpty
-                ? null
-                : () {
-                    Navigator.of(context, rootNavigator: true).pop(
-                      TextStatusPublishResult(text: text, backgroundColor: bg),
-                    );
-                  },
-            child: const Text(
-              'Publier',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      _TopIconButton(
+                        icon: LucideIcons.x,
+                        onPressed: () {
+                          final n = Navigator.of(context, rootNavigator: true);
+                          if (n.canPop()) {
+                            n.pop();
+                            return;
+                          }
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      const Spacer(),
+                      _TopIconButton(
+                        icon: LucideIcons.palette,
+                        onPressed: () =>
+                            setState(() => _showPalette = !_showPalette),
+                      ),
+                      const SizedBox(width: 8),
+                      OklAppBarIconButton(
+                        icon: LucideIcons.send,
+                        
+                        onPressed: () {
+                          if (text.isEmpty) return;
+                          Navigator.of(context, rootNavigator: true).pop(
+                            TextStatusPublishResult(
+                              text: text,
+                              backgroundColor: bg,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                if (_showPalette) const SizedBox(height: 12),
+                if (_showPalette)
+                  SizedBox(
+                    height: 44,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _palette.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
+                      itemBuilder: (context, i) {
+                        final c = _palette[i];
+                        final sel = i == _selectedBg;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedBg = i),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: c,
+                              border: Border.all(
+                                color: sel ? AppColors.primary : context.oklDivider,
+                                width: sel ? 3 : 1,
+                              ),
+                            ),
+                            child: sel
+                                ? const Icon(LucideIcons.check,
+                                    color: Colors.white, size: 20)
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      child: TextField(
+                        controller: _controller,
+                        maxLines: null,
+                        maxLength: 280,
+                        autofocus: true,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: text.length > 120 ? 18 : 24,
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Écrivez un statut',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                            height: 1.25,
+                          ),
+                          counterText: '',
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              height: 70,
+              color: Colors.black.withValues(alpha: 0.6),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _BottomTab(label: 'Vidéo', active: false),
+                    _BottomTab(label: 'Photo', active: false),
+                    _BottomTab(label: 'Message', active: true),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-        children: [
-          Text(
-            'Aperçu',
-            style: TextStyle(
-              color: context.oklOnSurfaceMuted(0.55),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
+    );
+  }
+}
+
+class _TopIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _TopIconButton({
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: Icon(
+              icon,
+              color: cs.onSurface,
+              size: 19,
             ),
           ),
-          const SizedBox(height: 10),
-          AspectRatio(
-            aspectRatio: 9 / 16,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [bg, _darkerShade(bg)],
-                  ),
-                ),
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: Text(
-                      text.isEmpty ? 'Écris quelque chose…' : text,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: text.isEmpty ? 0.45 : 1),
-                        fontSize: text.length > 120 ? 18 : 24,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
-          TextField(
-            controller: _controller,
-            maxLines: 5,
-            maxLength: 280,
-            style: TextStyle(color: context.oklOnSurface, height: 1.35),
-            decoration: InputDecoration(
-              hintText: 'Partage une pensée, une citation, une info…',
-              hintStyle: TextStyle(
-                color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                        context.oklOnSurfaceMuted(0.62))
-                    .withValues(alpha: 0.85),
-              ),
-              filled: true,
-              fillColor: context.oklSurface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.all(16),
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Couleur de fond',
-            style: TextStyle(
-              color: context.oklOnSurfaceMuted(0.55),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _palette.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, i) {
-                final c = _palette[i];
-                final sel = i == _selectedBg;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedBg = i),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: c,
-                      border: Border.all(
-                        color: sel ? AppColors.primary : context.oklDivider,
-                        width: sel ? 3 : 1,
-                      ),
-                    ),
-                    child: sel
-                        ? const Icon(LucideIcons.check, color: Colors.white, size: 20)
-                        : null,
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'Astuce : les statuts disparaissent après 24 h (comportement type démo).',
-            style: TextStyle(
-              color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                      context.oklOnSurfaceMuted(0.62))
-                  .withValues(alpha: 0.9),
-              fontSize: 12,
-              height: 1.4,
-            ),
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomTab extends StatelessWidget {
+  final String label;
+  final bool active;
+
+  const _BottomTab({
+    required this.label,
+    required this.active,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = active ? Colors.white : Colors.white;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: active
+          ? BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+            )
+          : null,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
       ),
     );
   }

@@ -24,6 +24,8 @@ class _ZoneDetailsData {
   final String bestPeriod;
   final String safetyNote;
   final String languages;
+  final List<String> icebreakers;
+  final int suggestedMatches;
   final List<String> galleryUrls;
 
   const _ZoneDetailsData({
@@ -36,6 +38,8 @@ class _ZoneDetailsData {
     required this.bestPeriod,
     required this.safetyNote,
     required this.languages,
+    required this.icebreakers,
+    required this.suggestedMatches,
     required this.galleryUrls,
   });
 }
@@ -140,6 +144,79 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
             ),
           ),
           _ZoneInfoCard(
+            title: 'Brise-glace',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final b in details.icebreakers)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: context.oklSurface,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: context.oklDivider),
+                    ),
+                    child: Text(
+                      b,
+                      style: TextStyle(
+                        color: context.oklOnSurfaceMuted(0.62),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          _ZoneInfoCard(
+            title: 'Matchs suggérés',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      LucideIcons.users,
+                      size: 16,
+                      color: Theme.of(context).textTheme.bodyMedium?.color ??
+                          context.oklOnSurfaceMuted(0.62),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${details.suggestedMatches} personnes intéressées (démo)',
+                      style: TextStyle(
+                        color: context.oklOnSurface,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: () => OklFeedback.snack(
+                    context,
+                    'Ouverture des profils pour ${details.title} (démo)',
+                  ),
+                  icon: Icon(
+                    LucideIcons.sparkles,
+                    size: 16,
+                    color: context.oklOnSurfaceMuted(0.62),
+                  ),
+                  label: Text(
+                    'Voir les profils compatibles',
+                    style: TextStyle(
+                      color: context.oklOnSurfaceMuted(0.62),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _ZoneInfoCard(
             title: 'Points d interet',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,7 +271,7 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 110,
+                  height: 124,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: details.galleryUrls.length,
@@ -361,6 +438,79 @@ class _ExploreScreenState extends State<ExploreScreen> {
     ),
   ];
 
+  static const _nearbyProfiles = <({
+    String name,
+    String avatarUrl,
+    String area,
+    String vibe,
+    String distance,
+  })>[
+    (
+      name: 'Sena',
+      area: 'Agoè',
+      vibe: 'Prêt pour un café',
+      distance: 'à 1.2 km',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&q=80&auto=format&fit=crop',
+    ),
+    (
+      name: 'Kossi',
+      area: 'Kegue',
+      vibe: 'Ambiance tranquille',
+      distance: 'à 2.4 km',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&q=80&auto=format&fit=crop',
+    ),
+    (
+      name: 'Afia',
+      area: 'Agoè',
+      vibe: 'Sortie ce soir',
+      distance: 'à 0.8 km',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80&auto=format&fit=crop',
+    ),
+    (
+      name: 'Mawuli',
+      area: 'Kpalimé',
+      vibe: 'Nature & rando',
+      distance: 'à 4.1 km',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&q=80&auto=format&fit=crop',
+    ),
+    (
+      name: 'Kofi',
+      area: 'Lomé',
+      vibe: 'Match “culture”',
+      distance: 'à 1.6 km',
+      avatarUrl:
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80&auto=format&fit=crop',
+    ),
+  ];
+
+  String _meetCrowdLabelForSpot(String spotTitle) {
+    return switch (spotTitle) {
+      'Lomé' => '120 en mode sortie',
+      'Kpalimé' => '60 partages cette semaine',
+      'Cascade' => '35 visiteurs vibes nature',
+      'Plage' => '95 en soirée',
+      'Ville' => '80 curieux ce soir',
+      'Culture' => '45 rendez-vous culture',
+      _ => '30 personnes',
+    };
+  }
+
+  String _meetMomentLabelForSpot(String spotTitle) {
+    return switch (spotTitle) {
+      'Lomé' => 'Ce soir',
+      'Kpalimé' => 'Week-end',
+      'Cascade' => 'Matin / après-midi',
+      'Plage' => 'Fin de journée',
+      'Ville' => 'Après 19h',
+      'Culture' => 'Soirées événements',
+      _ => 'Bientôt',
+    };
+  }
+
   String _selectedGroupId = 'all';
   bool _searchMode = false;
   final _searchController = TextEditingController();
@@ -436,6 +586,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
         bestPeriod: 'Novembre a mars',
         safetyNote: 'Favoriser les zones animees en soiree.',
         languages: 'Français, Mina, Ewe',
+        icebreakers: [
+          'On commence par un café avant la plage ?',
+          'Quel est ton meilleur spot pour discuter facilement ?',
+          'Tu préfères marché animé ou bord de mer ?',
+        ],
+        suggestedMatches: 24,
         galleryUrls: [s.url, _spots[3].url, _spots[4].url],
       );
     }
@@ -452,6 +608,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
         bestPeriod: 'Octobre a fevrier',
         safetyNote: 'Prevoir des chaussures pour sentiers humides.',
         languages: 'Français, Ewe',
+        icebreakers: [
+          'Tu viens plutôt pour randonner ou juste pour papoter ?',
+          'Quel lieu te donne le plus envie d’essayer un rendez-vous ?',
+          'On fait une petite promenade + photo ?',
+        ],
+        suggestedMatches: 18,
         galleryUrls: [s.url, _spots[2].url, _spots[5].url],
       );
     }
@@ -467,6 +629,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
       bestPeriod: 'Toute l annee',
       safetyNote: 'Rester dans les zones frequentees en soiree.',
       languages: 'Français, langues locales',
+      icebreakers: [
+        'Tu veux un plan tranquille ou une sortie plus animée ?',
+        'Quel est ton “rendez-vous parfait” dans ce quartier ?',
+        'On commence par un message et on se voit sur place ?',
+      ],
+      suggestedMatches: 12,
       galleryUrls: [s.url, _spots.first.url, _spots.last.url],
     );
   }
@@ -536,7 +704,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Explorer',
+                                      'Rencontres',
                                       style: TextStyle(
                                         color: context.oklOnSurface,
                                         fontSize: 30,
@@ -589,6 +757,138 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
             ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Profils à proximité',
+                    style: TextStyle(
+                      color: context.oklOnSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height:4),
+                  SizedBox(
+                    height: 105,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _nearbyProfiles.length,
+                      separatorBuilder: (context, _) =>
+                          const SizedBox(width: 12),
+                      itemBuilder: (context, i) {
+                        final p = _nearbyProfiles[i];
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(18),
+                                  onTap: () => OklFeedback.snack(
+                                    context,
+                                    'Profil suggéré : ${p.name} (démo)',
+                                  ),
+                                  child: Container(
+                                    width: 205,
+                                    height: 105,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: context.oklSurface,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: context.oklDivider),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        ClipOval(
+                                          child: CachedNetworkImage(
+                                            imageUrl: p.avatarUrl,
+                                            width: 42,
+                                            height: 42,
+                                            fit: BoxFit.cover,
+                                            memCacheWidth: 180,
+                                            placeholder: (ctx, url) => Container(
+                                              width: 42,
+                                              height: 42,
+                                              color: ctx.oklSurface,
+                                            ),
+                                            errorWidget: (ctx, url, error) => Container(
+                                              width: 42,
+                                              height: 42,
+                                              color: ctx.oklSurface,
+                                              child: const Center(
+                                                child: Icon(LucideIcons.imageOff, size: 16),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                p.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: context.oklOnSurface,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              Text(
+                                                p.area,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: context.oklOnSurfaceMuted(0.62),
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                p.vibe,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: context.oklOnSurfaceMuted(0.62),
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                p.distance,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: context.oklOnSurfaceMuted(0.5),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
@@ -765,6 +1065,59 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                   fontSize: 11.5,
                                                   height: 1.25,
                                                 ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    LucideIcons.users,
+                                                    size: 14,
+                                                    color: Colors.white.withValues(
+                                                        alpha: 0.92),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Flexible(
+                                                    child: Text(
+                                                      _meetCrowdLabelForSpot(
+                                                          s.title),
+                                                      maxLines: 1,
+                                                      softWrap: false,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        color: Colors.white.withValues(
+                                                            alpha: 0.88),
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w700,
+                                                        height: 1.1,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Icon(
+                                                    LucideIcons.clock,
+                                                    size: 14,
+                                                    color: Colors.white.withValues(
+                                                        alpha: 0.92),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Flexible(
+                                                    child: Text(
+                                                      _meetMomentLabelForSpot(
+                                                          s.title),
+                                                      maxLines: 1,
+                                                      softWrap: false,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        color: Colors.white.withValues(
+                                                            alpha: 0.88),
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w700,
+                                                        height: 1.1,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),

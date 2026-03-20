@@ -60,7 +60,11 @@ class AppTheme {
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.dark,
           elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           centerTitle: false,
+          foregroundColor: AppColors.textPrimary,
           iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 19),
           actionsIconTheme:
               const IconThemeData(color: AppColors.textPrimary, size: 19),
@@ -139,7 +143,11 @@ class AppTheme {
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.lightScaffold,
           elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           centerTitle: false,
+          foregroundColor: AppColors.lightTextPrimary,
           iconTheme:
               const IconThemeData(color: AppColors.lightTextPrimary, size: 19),
           actionsIconTheme:

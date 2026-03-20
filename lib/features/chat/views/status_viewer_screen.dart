@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -27,6 +28,19 @@ class StatusStory {
 
   bool get isTextOnly =>
       imageUrl.isEmpty && solidBackground != null;
+}
+
+bool _isNetworkStatusUrl(String u) {
+  return u.startsWith('http://') || u.startsWith('https://');
+}
+
+bool _isVideoStatusPath(String u) {
+  final l = u.toLowerCase();
+  return l.endsWith('.mp4') ||
+      l.endsWith('.mov') ||
+      l.endsWith('.m4v') ||
+      l.endsWith('.mkv') ||
+      l.endsWith('.webm');
 }
 
 class StatusViewerScreen extends StatefulWidget {
@@ -58,6 +72,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
   bool _canSend = false;
   bool _pausedByTouch = false;
   bool _pausedByKeyboard = false;
+  bool _isClosing = false;
   double _verticalDragOffset = 0;
   DateTime? _pointerDownAt;
   Offset? _pointerDownPos;
@@ -147,9 +162,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
   void _goNext() {
     if (_pausedByTouch || _pausedByKeyboard) return;
     if (_currentIndex >= widget.stories.length - 1) {
-      if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
+      _closeViewer();
       return;
     }
     _pageController.nextPage(
@@ -167,6 +180,21 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
     );
   }
 
+  Future<void> _closeViewer() async {
+    if (!mounted || _isClosing) return;
+    _isClosing = true;
+    _autoAdvance?.cancel();
+
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final didPopRoot = await rootNav.maybePop();
+    if (!mounted) return;
+
+    if (!didPopRoot) {
+      final localNav = Navigator.of(context);
+      await localNav.maybePop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final stories = widget.stories;
@@ -177,8 +205,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (!context.mounted) return;
-        final nav = Navigator.of(context, rootNavigator: true);
-        if (nav.canPop()) nav.pop();
+        _closeViewer();
       },
       child: Scaffold(
       backgroundColor: Colors.black,
@@ -234,7 +261,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
         },
         onVerticalDragEnd: (_) {
           if (_verticalDragOffset > _closeDragThreshold) {
-            Navigator.of(context, rootNavigator: true).pop();
+            _closeViewer();
             return;
           }
           setState(() => _verticalDragOffset = 0);
@@ -278,22 +305,48 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                       ),
                     )
                   else
-                    CachedNetworkImage(
-                      imageUrl: s.imageUrl,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.high,
-                      memCacheWidth: 1080,
-                      placeholder: (c, u) => Container(color: context.oklSurface),
-                      errorWidget: (c, u, e) => Container(
-                        color: context.oklSurface,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          LucideIcons.imageOff,
-                          color: context.oklOnSurfaceMuted(0.55),
-                          size: 42,
-                        ),
-                      ),
-                    ),
+                    _isNetworkStatusUrl(s.imageUrl)
+                        ? CachedNetworkImage(
+                            imageUrl: s.imageUrl,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
+                            memCacheWidth: 1080,
+                            placeholder: (c, u) =>
+                                Container(color: context.oklSurface),
+                            errorWidget: (c, u, e) => Container(
+                              color: context.oklSurface,
+                              alignment: Alignment.center,
+                              child: Icon(
+                                LucideIcons.imageOff,
+                                color: context.oklOnSurfaceMuted(0.55),
+                                size: 42,
+                              ),
+                            ),
+                          )
+                        : _isVideoStatusPath(s.imageUrl)
+                            ? Container(
+                                color: Colors.black,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  LucideIcons.playCircle,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  size: 56,
+                                ),
+                              )
+                            : Image.file(
+                                File(s.imageUrl),
+                                fit: BoxFit.cover,
+                                filterQuality: FilterQuality.high,
+                                errorBuilder: (c, o, st) => Container(
+                                  color: context.oklSurface,
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    LucideIcons.imageOff,
+                                    color: context.oklOnSurfaceMuted(0.55),
+                                    size: 42,
+                                  ),
+                                ),
+                              ),
                   if (!s.isTextOnly)
                     const DecoratedBox(
                       decoration: BoxDecoration(
@@ -309,21 +362,38 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                         ),
                       ),
                     ),
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 92,
-                    child: Text(
-                      s.caption,
-                      textAlign: s.isTextOnly ? TextAlign.center : TextAlign.start,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: s.isTextOnly ? 22 : 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
+                  if (s.isTextOnly)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
+                        child: Text(
+                          s.caption,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            height: 1.25,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 92,
+                      child: Text(
+                        s.caption,
+                        textAlign: TextAlign.start,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               );
             },
@@ -395,10 +465,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                       ),
                       OklAppBarIconButton(
                         icon: LucideIcons.x,
-                        onPressed: () {
-                          final n = Navigator.of(context, rootNavigator: true);
-                          if (n.canPop()) n.pop();
-                        },
+                        onPressed: _closeViewer,
                       ),
                       const SizedBox(width: 8),
                       OklAppBarIconButton(

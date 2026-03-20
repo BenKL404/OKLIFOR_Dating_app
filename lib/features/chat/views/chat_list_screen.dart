@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
@@ -12,6 +14,7 @@ import 'conversation_screen.dart';
 import 'create_group_screen.dart';
 import 'create_text_status_screen.dart';
 import 'new_message_screen.dart';
+import 'chat_thread_detail_screen.dart';
 import 'status_viewer_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -29,8 +32,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   late List<ChatThread> _threads;
   TextStatusPublishResult? _myTextStatus;
+  String? _myMediaStatusLocalPath;
+  String _myMediaStatusCaption = 'Mon humeur du jour.';
 
   bool _searchMode = false;
+  bool _showArchived = false;
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
 
@@ -74,6 +80,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
         .toList(growable: false);
   }
 
+  List<ChatThread> get _archivedChats {
+    final archived = _threads.where((c) => c.isArchived);
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return archived.toList(growable: false);
+    return archived
+        .where(
+          (c) =>
+              c.name.toLowerCase().contains(q) ||
+              c.lastMsg.toLowerCase().contains(q),
+        )
+        .toList(growable: false);
+  }
+
   List<StatusStory> _storiesForViewer() {
     final mine = _myTextStatus != null
         ? StatusStory(
@@ -84,13 +103,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
             timeAgo: 'à l’instant',
             solidBackground: _myTextStatus!.backgroundColor,
           )
-        : StatusStory(
-            name: 'Mon statut',
-            avatarUrl: _mineStoryUrl,
-            imageUrl: _mineStatusImageUrl,
-            caption: 'Mon humeur du jour.',
-            timeAgo: 'à l’instant',
-          );
+        : (_myMediaStatusLocalPath != null &&
+                _myMediaStatusLocalPath!.isNotEmpty)
+            ? StatusStory(
+                name: 'Mon statut',
+                avatarUrl: _mineStoryUrl,
+                imageUrl: _myMediaStatusLocalPath!,
+                caption: _myMediaStatusCaption,
+                timeAgo: 'à l’instant',
+              )
+            : StatusStory(
+                name: 'Mon statut',
+                avatarUrl: _mineStoryUrl,
+                imageUrl: _mineStatusImageUrl,
+                caption: 'Mon humeur du jour.',
+                timeAgo: 'à l’instant',
+              );
     return [
       mine,
       ..._threads.where((c) => c.hasStory).map(
@@ -150,7 +178,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  OklFeedback.snack(context, 'Ouverture camera (demo)');
+                  _openPickMediaMenu(context, source: ImageSource.camera);
                 },
               ),
               Divider(height: 1, color: ctx.oklDivider),
@@ -173,7 +201,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  OklFeedback.snack(context, 'Ouverture galerie (demo)');
+                  _openPickMediaMenu(context, source: ImageSource.gallery);
                 },
               ),
               Divider(height: 1, color: ctx.oklDivider),
@@ -195,7 +223,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     ),
                   );
                   if (!mounted || r == null) return;
-                  setState(() => _myTextStatus = r);
+                  setState(() {
+                    _myTextStatus = r;
+                    _myMediaStatusLocalPath = null;
+                  });
                   if (!context.mounted) return;
                   OklFeedback.snack(context, 'Statut publié');
                 },
@@ -204,6 +235,143 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _openPickMediaMenu(
+    BuildContext context, {
+    required ImageSource source,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: context.oklSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(LucideIcons.image, color: ctx.oklOnSurface),
+                title: Text(
+                  'Photo',
+                  style: TextStyle(
+                    color: ctx.oklOnSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  'Choisir ou capturer une image',
+                  style: TextStyle(
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                        ctx.oklOnSurfaceMuted(0.62),
+                    fontSize: 12,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _requestAndPickMedia(
+                    context,
+                    source: source,
+                    isVideo: false,
+                  );
+                },
+              ),
+              Divider(height: 1, color: ctx.oklDivider),
+              ListTile(
+                leading: Icon(LucideIcons.video, color: ctx.oklOnSurface),
+                title: Text(
+                  'Vidéo',
+                  style: TextStyle(
+                    color: ctx.oklOnSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  'Choisir ou capturer une vidéo',
+                  style: TextStyle(
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                        ctx.oklOnSurfaceMuted(0.62),
+                    fontSize: 12,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _requestAndPickMedia(
+                    context,
+                    source: source,
+                    isVideo: true,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _requestAndPickMedia(
+    BuildContext context, {
+    required ImageSource source,
+    required bool isVideo,
+  }) async {
+    // Demander les permissions uniquement quand l'utilisateur veut publier
+    // un statut média.
+    final toRequest = <Permission>[];
+
+    if (source == ImageSource.camera) {
+      toRequest.add(Permission.camera);
+      if (isVideo) toRequest.add(Permission.microphone);
+    } else {
+      toRequest.add(Permission.photos);
+      if (isVideo) toRequest.add(Permission.videos);
+      if (Theme.of(context).platform == TargetPlatform.android) {
+        // Sur Android plus anciens, l'accès galerie passe par storage.
+        toRequest.add(Permission.storage);
+      }
+    }
+
+    for (final p in toRequest) {
+      final status = await p.request();
+      if (!status.isGranted) {
+        if (!mounted || !context.mounted) return;
+        if (status.isPermanentlyDenied) {
+          OklFeedback.snack(
+            context,
+            'Permission refusée définitivement. Active-la dans les paramètres.',
+          );
+        } else {
+          OklFeedback.snack(
+            context,
+            'Permission refusée. Impossible de publier ce média.',
+          );
+        }
+        return;
+      }
+    }
+
+    final picker = ImagePicker();
+    final xFile = isVideo
+        ? await picker.pickVideo(source: source)
+        : await picker.pickImage(source: source);
+
+    if (!mounted || xFile == null) return;
+
+    setState(() {
+      _myTextStatus = null;
+      _myMediaStatusLocalPath = xFile.path;
+      _myMediaStatusCaption = 'Mon statut média.';
+    });
+
+    if (!context.mounted) return;
+    OklFeedback.snack(
+      context,
+      isVideo ? 'Statut vidéo publié (local)' : 'Statut photo publié (local)',
     );
   }
 
@@ -359,6 +527,23 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _openConversation(context, thread);
   }
 
+  void _updateThreadById(
+    String threadId,
+    ChatThread Function(ChatThread current) transform,
+  ) {
+    if (!mounted) return;
+    setState(() {
+      final i = _threads.indexWhere((t) => t.id == threadId);
+      if (i < 0) return;
+      _threads[i] = transform(_threads[i]);
+    });
+  }
+
+  void _removeThreadById(String threadId) {
+    if (!mounted) return;
+    setState(() => _threads.removeWhere((t) => t.id == threadId));
+  }
+
   void _openChatActions(BuildContext context, ChatThread chat) {
     HapticFeedback.mediumImpact();
     showModalBottomSheet<void>(
@@ -451,13 +636,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
             _SheetAction(
               icon: LucideIcons.user,
               label: chat.isGroup ? 'Infos du groupe' : 'Voir le profil',
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(ctx);
-                OklFeedback.snack(
-                  context,
-                  chat.isGroup
-                      ? 'Groupe « ${chat.name} » · ${chat.groupMemberCount} membres'
-                      : 'Profil de ${chat.name}',
+                await Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ChatThreadDetailScreen(thread: chat),
+                  ),
                 );
               },
             ),
@@ -466,7 +650,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
               label: 'Appel vocal',
               onTap: () {
                 Navigator.pop(ctx);
-                OklFeedback.snack(context, 'Appel vers ${chat.name}… (démo)');
+                _updateThreadById(
+                  chat.id,
+                  (current) => current.copyWith(
+                    lastMsg: '📞 Appel vocal',
+                    time: formatTimeNow(),
+                    isUnread: false,
+                    unreadCount: 0,
+                  ),
+                );
+                OklFeedback.snack(context, 'Appel vers ${chat.name}…');
               },
             ),
             _SheetAction(
@@ -477,12 +670,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 var mutedAfter = chat.isMuted;
-                setState(() {
-                  final i = _threads.indexWhere((t) => t.id == chat.id);
-                  if (i >= 0) {
-                    mutedAfter = !_threads[i].isMuted;
-                    _threads[i] = _threads[i].copyWith(isMuted: mutedAfter);
-                  }
+                _updateThreadById(chat.id, (current) {
+                  mutedAfter = !current.isMuted;
+                  return current.copyWith(isMuted: mutedAfter);
                 });
                 OklFeedback.snack(
                   context,
@@ -493,18 +683,60 @@ class _ChatListScreenState extends State<ChatListScreen> {
               },
             ),
             _SheetAction(
+              icon: chat.isUnread ? LucideIcons.checkCheck : LucideIcons.circle,
+              label: chat.isUnread ? 'Marquer comme lu' : 'Marquer comme non lu',
+              onTap: () {
+                Navigator.pop(ctx);
+                var unreadAfter = chat.isUnread;
+                _updateThreadById(chat.id, (current) {
+                  unreadAfter = !current.isUnread;
+                  return current.copyWith(
+                    isUnread: unreadAfter,
+                    unreadCount: unreadAfter ? (current.unreadCount > 0 ? current.unreadCount : 1) : 0,
+                  );
+                });
+                OklFeedback.snack(
+                  context,
+                  unreadAfter
+                      ? 'Conversation marquée non lue'
+                      : 'Conversation marquée lue',
+                );
+              },
+            ),
+            _SheetAction(
               icon: LucideIcons.archive,
-              label: 'Archiver',
+              label: chat.isArchived ? 'Désarchiver' : 'Archiver',
               subtle: true,
               onTap: () {
                 Navigator.pop(ctx);
-                setState(() {
-                  final i = _threads.indexWhere((t) => t.id == chat.id);
-                  if (i >= 0) {
-                    _threads[i] = _threads[i].copyWith(isArchived: true);
-                  }
-                });
-                OklFeedback.snack(context, '« ${chat.name} » archivée');
+                _updateThreadById(
+                  chat.id,
+                  (current) => current.copyWith(isArchived: !current.isArchived),
+                );
+                OklFeedback.snack(
+                  context,
+                  chat.isArchived
+                      ? '« ${chat.name} » désarchivée'
+                      : '« ${chat.name} » archivée',
+                );
+              },
+            ),
+            _SheetAction(
+              icon: LucideIcons.trash2,
+              label: 'Supprimer la discussion',
+              subtle: true,
+              onTap: () async {
+                Navigator.pop(ctx);
+                await OklFeedback.confirm(
+                  context,
+                  title: 'Supprimer la discussion',
+                  body: 'Cette conversation sera retirée de ta liste.',
+                  confirmLabel: 'Supprimer',
+                  onConfirm: () {
+                    _removeThreadById(chat.id);
+                    OklFeedback.snack(context, 'Discussion supprimée');
+                  },
+                );
               },
             ),
           ],
@@ -539,6 +771,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final visibleChats = _visibleChats;
+    final archivedChats = _archivedChats;
+    final hasArchived = archivedChats.isNotEmpty;
+    final extraArchivedItems = (hasArchived && _showArchived) ? archivedChats.length : 0;
+    final totalItems = visibleChats.length + (hasArchived ? 1 : 0) + extraArchivedItems;
+
     return Scaffold(
       backgroundColor: context.oklScaffold,
       body: SafeArea(
@@ -634,19 +872,62 @@ class _ChatListScreenState extends State<ChatListScreen> {
             const SizedBox(height: 8),
             Divider(height: 1, color: context.oklDivider),
             Expanded(
-              child: ListView.separated(
-                itemCount: _visibleChats.length,
-                separatorBuilder: (context, index) => Divider(
-                  height: 1,
-                  color: context.oklDivider,
-                  indent: 76,
-                ),
+              child: ListView.builder(
+                itemCount: totalItems,
                 itemBuilder: (context, i) {
-                  final chat = _visibleChats[i];
-                  return _ChatTile(
-                    chat: chat,
-                    onTap: () => _openConversation(context, chat),
-                    onLongPress: () => _openChatActions(context, chat),
+                  final archiveHeaderIndex = hasArchived ? 0 : -1;
+                  final archivedStartIndex = hasArchived ? 1 : 0;
+                  final activeStartIndex = archivedStartIndex + extraArchivedItems;
+
+                  if (hasArchived && i == archiveHeaderIndex) {
+                    return Column(
+                      children: [
+                        _ArchiveHeaderTile(
+                          count: archivedChats.length,
+                          expanded: _showArchived,
+                          onTap: () => setState(() => _showArchived = !_showArchived),
+                        ),
+                        Divider(height: 1, color: context.oklDivider),
+                      ],
+                    );
+                  }
+
+                  if (hasArchived && _showArchived && i >= archivedStartIndex && i < activeStartIndex) {
+                    final archivedIndex = i - archivedStartIndex;
+                    final chat = archivedChats[archivedIndex];
+                    final isLastArchived = archivedIndex == archivedChats.length - 1;
+                    return Column(
+                      children: [
+                        _ChatTile(
+                          chat: chat,
+                          onTap: () => _openConversation(context, chat),
+                          onLongPress: () => _openChatActions(context, chat),
+                        ),
+                        if (!isLastArchived)
+                          Divider(
+                            height: 1,
+                            color: context.oklDivider,
+                            indent: 76,
+                          ),
+                      ],
+                    );
+                  }
+
+                  final activeIndex = i - activeStartIndex;
+                  final chat = visibleChats[activeIndex];
+                  return Column(
+                    children: [
+                      _ChatTile(
+                        chat: chat,
+                        onTap: () => _openConversation(context, chat),
+                        onLongPress: () => _openChatActions(context, chat),
+                      ),
+                      Divider(
+                        height: 1,
+                        color: context.oklDivider,
+                        indent: 76,
+                      ),
+                    ],
                   );
                 },
               ),
@@ -660,6 +941,65 @@ class _ChatListScreenState extends State<ChatListScreen> {
         elevation: 0,
         shape: const CircleBorder(),
         child: const Icon(LucideIcons.messageSquarePlus, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _ArchiveHeaderTile extends StatelessWidget {
+  final int count;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  const _ArchiveHeaderTile({
+    required this.count,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(
+                LucideIcons.archive,
+                color: context.oklOnSurfaceMuted(0.62),
+                size: 20,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  'Archivées',
+                  style: TextStyle(
+                    color: context.oklOnSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                '$count',
+                style: TextStyle(
+                  color: context.oklOnSurfaceMuted(0.55),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+                color: context.oklOnSurfaceMuted(0.55),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

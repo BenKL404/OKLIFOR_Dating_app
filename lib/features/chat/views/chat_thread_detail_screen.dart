@@ -136,28 +136,55 @@ class _DirectDetailBody extends StatelessWidget {
                   icon: LucideIcons.user,
                   title: 'Voir le profil complet',
                   subtitle: 'Photos, intérêts, vérifications',
-                  onTap: () => OklFeedback.snack(context, 'Profil de ${thread.name} (démo)'),
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _ContactProfileSubPage(thread: thread),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _ActionCard(
                   icon: LucideIcons.image,
                   title: 'Médias, fichiers et liens',
                   subtitle: 'Tout ce qui a été partagé ici',
-                  onTap: () => OklFeedback.snack(context, 'Galerie de la conversation (démo)'),
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _SharedMediaSubPage(thread: thread),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _ActionCard(
+                  icon: LucideIcons.phoneCall,
+                  title: 'Appels',
+                  subtitle: 'Historique et actions rapides',
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _ContactCallsSubPage(thread: thread),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _ActionCard(
                   icon: LucideIcons.bellOff,
                   title: 'Notifications',
                   subtitle: 'Silencieux, mentions…',
-                  onTap: () => OklFeedback.snack(context, 'Réglages notifications (démo)'),
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _ContactNotificationsSubPage(thread: thread),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _ActionCard(
                   icon: LucideIcons.shield,
                   title: 'Confidentialité',
                   subtitle: 'Signaler ou bloquer',
-                  onTap: () => OklFeedback.snack(context, 'Options sécurité (démo)'),
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _ContactPrivacySubPage(thread: thread),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -309,7 +336,11 @@ class _GroupDetailBody extends StatelessWidget {
                   icon: LucideIcons.image,
                   title: 'Médias du groupe',
                   subtitle: 'Photos et fichiers partagés',
-                  onTap: () => OklFeedback.snack(context, 'Médias du groupe (démo)'),
+                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _GroupMediaSubPage(thread: thread),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _ActionCard(
@@ -387,7 +418,403 @@ class _MemberTile extends StatelessWidget {
         color: context.oklOnSurfaceMuted(0.55),
         size: 18,
       ),
-      onTap: () => OklFeedback.snack(context, 'Profil de ${contact.name} (démo)'),
+      onTap: () => Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _GroupMemberProfileSubPage(contact: contact, isAdmin: isAdmin),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactProfileSubPage extends StatelessWidget {
+  final ChatThread thread;
+  const _ContactProfileSubPage({required this.thread});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Profil complet'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          _SimpleInfoCard(
+            title: thread.name,
+            subtitle: demoPeerBioForThread(thread),
+            icon: LucideIcons.user,
+          ),
+          const SizedBox(height: 10),
+          _SimpleInfoCard(
+            title: 'Centres d’intérêt',
+            subtitle: 'Sorties, découvertes locales, discussions et rencontres.',
+            icon: LucideIcons.sparkles,
+          ),
+          const SizedBox(height: 10),
+          _SimpleInfoCard(
+            title: 'Vérification',
+            subtitle: 'Compte actif et visible dans les recommandations.',
+            icon: LucideIcons.shieldCheck,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SharedMediaSubPage extends StatelessWidget {
+  final ChatThread thread;
+  const _SharedMediaSubPage({required this.thread});
+
+  @override
+  Widget build(BuildContext context) {
+    final media = [
+      thread.statusImageUrl,
+      'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=600&q=80&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80&auto=format&fit=crop',
+    ];
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Médias, fichiers et liens'),
+      ),
+      body: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        itemCount: media.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+        ),
+        itemBuilder: (context, i) => ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: CachedNetworkImage(
+            imageUrl: media[i],
+            fit: BoxFit.cover,
+            memCacheWidth: 320,
+            placeholder: (c, u) => Container(color: context.oklSurface),
+            errorWidget: (c, u, e) => Container(color: context.oklSurface),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactCallsSubPage extends StatelessWidget {
+  final ChatThread thread;
+  const _ContactCallsSubPage({required this.thread});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <({String when, bool incoming, bool missed})>[
+      (when: 'Aujourd’hui · 18:42', incoming: true, missed: false),
+      (when: 'Hier · 21:10', incoming: false, missed: false),
+      (when: 'Lun. · 07:34', incoming: true, missed: true),
+    ];
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Appels'),
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemCount: rows.length,
+        separatorBuilder: (context, index) => Divider(height: 1, color: context.oklDivider),
+        itemBuilder: (context, i) {
+          final r = rows[i];
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            leading: CircleAvatar(
+              backgroundColor: context.oklSurface,
+              child: Icon(
+                r.incoming ? LucideIcons.phoneIncoming : LucideIcons.phoneOutgoing,
+                color: r.missed ? AppColors.primary : context.oklOnSurfaceMuted(0.62),
+                size: 18,
+              ),
+            ),
+            title: Text(thread.name, style: TextStyle(color: context.oklOnSurface)),
+            subtitle: Text(
+              r.when,
+              style: TextStyle(color: context.oklOnSurfaceMuted(0.55)),
+            ),
+            trailing: IconButton(
+              icon: const Icon(LucideIcons.phone),
+              onPressed: () => OklFeedback.snack(context, 'Appel de ${thread.name}…'),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ContactNotificationsSubPage extends StatefulWidget {
+  final ChatThread thread;
+  const _ContactNotificationsSubPage({required this.thread});
+
+  @override
+  State<_ContactNotificationsSubPage> createState() => _ContactNotificationsSubPageState();
+}
+
+class _ContactNotificationsSubPageState extends State<_ContactNotificationsSubPage> {
+  bool muted = false;
+  bool popup = true;
+  bool vibration = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Notifications'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          SwitchListTile.adaptive(
+            value: muted,
+            onChanged: (v) => setState(() => muted = v),
+            title: Text('Silencieux', style: TextStyle(color: context.oklOnSurface)),
+          ),
+          SwitchListTile.adaptive(
+            value: popup,
+            onChanged: (v) => setState(() => popup = v),
+            title: Text('Aperçu popup', style: TextStyle(color: context.oklOnSurface)),
+          ),
+          SwitchListTile.adaptive(
+            value: vibration,
+            onChanged: (v) => setState(() => vibration = v),
+            title: Text('Vibrations', style: TextStyle(color: context.oklOnSurface)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactPrivacySubPage extends StatelessWidget {
+  final ChatThread thread;
+  const _ContactPrivacySubPage({required this.thread});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Confidentialité'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          _SimpleActionRow(
+            icon: LucideIcons.flag,
+            title: 'Signaler ${thread.name}',
+            onTap: () => OklFeedback.snack(context, 'Signalement envoyé (démo)'),
+          ),
+          _SimpleActionRow(
+            icon: LucideIcons.userX,
+            title: 'Bloquer ${thread.name}',
+            onTap: () => OklFeedback.confirm(
+              context,
+              title: 'Bloquer ce contact ?',
+              body: 'Tu ne recevras plus ses messages.',
+              confirmLabel: 'Bloquer',
+              onConfirm: () => OklFeedback.snack(context, 'Contact bloqué (démo)'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupMediaSubPage extends StatelessWidget {
+  final ChatThread thread;
+  const _GroupMediaSubPage({required this.thread});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Médias du groupe'),
+      ),
+      body: Center(
+        child: Text(
+          'Galerie du groupe ${thread.name} (démo)',
+          style: TextStyle(color: context.oklOnSurfaceMuted(0.62)),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupMemberProfileSubPage extends StatelessWidget {
+  final ChatContact contact;
+  final bool isAdmin;
+  const _GroupMemberProfileSubPage({required this.contact, required this.isAdmin});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Profil membre'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 44,
+              backgroundColor: context.oklSurface,
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: contact.avatarUrl,
+                  width: 88,
+                  height: 88,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              contact.name,
+              style: TextStyle(
+                color: context.oklOnSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isAdmin ? 'Admin du groupe' : 'Membre',
+              style: TextStyle(color: context.oklOnSurfaceMuted(0.55)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SimpleInfoCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  const _SimpleInfoCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.oklSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.oklDivider),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: context.oklOnSurfaceMuted(0.62), size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: context.oklOnSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: context.oklOnSurfaceMuted(0.62),
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SimpleActionRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  const _SimpleActionRow({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.oklSurface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: context.oklOnSurfaceMuted(0.62), size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(color: context.oklOnSurface, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Icon(
+                LucideIcons.chevronRight,
+                color: context.oklOnSurfaceMuted(0.55),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

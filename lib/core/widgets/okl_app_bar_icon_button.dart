@@ -7,6 +7,8 @@ class OklAppBarIconButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final Color? iconColor;
   final double iconSize;
+  final bool useOverlayStyle;
+  final bool overlaySelected;
 
   const OklAppBarIconButton({
     super.key,
@@ -14,25 +16,48 @@ class OklAppBarIconButton extends StatelessWidget {
     required this.onPressed,
     this.iconColor,
     this.iconSize = 19,
+    this.useOverlayStyle = false,
+    this.overlaySelected = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final bgColor = useOverlayStyle
+        ? (overlaySelected
+              ? Colors.white.withValues(alpha: 0.22)
+              : Colors.black.withValues(alpha: 0.28))
+        : cs.surface;
+    final borderColor = useOverlayStyle
+        ? (overlaySelected ? Colors.white70 : Colors.white30)
+        : Colors.transparent;
+    final resolvedIconColor = useOverlayStyle
+        ? Colors.white.withValues(alpha: overlaySelected ? 0.98 : 0.9)
+        : (iconColor ?? cs.onSurface);
+
     return Material(
-      color: cs.surface,
+      color: bgColor,
       borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Center(
-            child: Icon(
-              icon,
-              color: iconColor ?? cs.onSurface,
-              size: iconSize,
+      child: Ink(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: borderColor,
+            width: useOverlayStyle && overlaySelected ? 1.4 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Center(
+              child: Icon(
+                icon,
+                color: resolvedIconColor,
+                size: iconSize,
+              ),
             ),
           ),
         ),

@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
@@ -9,6 +8,8 @@ import '../../../core/utils/okl_feedback.dart';
 import '../models/user_profile.dart';
 import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
+import 'invite_friends_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -134,7 +135,12 @@ class ProfileScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 12),
                 child: OklAppBarIconButton(
                   icon: LucideIcons.settings,
-                  onPressed: () => context.push('/settings'),
+                  onPressed: () => Navigator.of(context, rootNavigator: true)
+                      .push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SettingsScreen(),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -351,7 +357,12 @@ class ProfileScreen extends StatelessWidget {
                         color: context.oklSurface,
                         borderRadius: BorderRadius.circular(10),
                         child: InkWell(
-                          onTap: () => context.push('/invite-friends'),
+                          onTap: () => Navigator.of(context, rootNavigator: true)
+                              .push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const InviteFriendsScreen(),
+                            ),
+                          ),
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
                             width: 40,
