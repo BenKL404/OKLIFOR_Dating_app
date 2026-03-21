@@ -18,7 +18,6 @@ class _DemoProfile {
   /// Photo réseau (Unsplash, etc.).
   final String imageUrl;
   /// Si renseigné, affichage depuis les assets à la place de [imageUrl].
-  final String? imageAsset;
   final List<String> tags;
   final String relationGoal;
   final String ethnicity;
@@ -32,7 +31,6 @@ class _DemoProfile {
     required this.age,
     required this.location,
     required this.imageUrl,
-    this.imageAsset,
     required this.tags,
     required this.relationGoal,
     required this.ethnicity,
@@ -52,25 +50,7 @@ Widget _buildDemoProfileImage(
   Widget? placeholder,
   Widget? errorWidget,
 }) {
-  final asset = profile.imageAsset;
-  if (asset != null && asset.isNotEmpty) {
-    return Image.asset(
-      asset,
-      fit: fit,
-      filterQuality: filterQuality,
-      errorBuilder: (ctx, err, stackTrace) =>
-          errorWidget ??
-          Container(
-            color: Colors.black.withValues(alpha: 0.5),
-            alignment: Alignment.center,
-            child: Icon(
-              LucideIcons.imageOff,
-              color: Colors.white.withValues(alpha: 0.55),
-              size: 48,
-            ),
-          ),
-    );
-  }
+
   return CachedNetworkImage(
     imageUrl: profile.imageUrl,
     fit: fit,
