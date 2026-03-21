@@ -88,7 +88,22 @@ Widget _buildDemoProfileImage(
 
 /// Images Unsplash haute définition (portraits & ambiance claire).
 const _profiles = <_DemoProfile>[
-  
+  _DemoProfile(
+    name: 'Gina K',
+    age: 24,
+    location: 'Tokoin, Lomé',
+    imageUrl:
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1080&q=88&auto=format&fit=crop',
+    imageAsset: 'assets/images/gina-k-photo.jpeg',
+    tags: ['Style', 'Sorties'],
+    relationGoal: 'Relation sérieuse',
+    ethnicity: 'Togolaise',
+    motherTongue: 'Français',
+    languages: 'Français, Anglais',
+    lifestyle: 'Soirées, mode, bons moments entre amis',
+    bio:
+        'J’aime rire, sortir et les conversations vraies. Si tu es authentique et que tu aimes découvrir Lomé autrement, on devrait se parler.',
+  ),
   _DemoProfile(
     name: 'Afi',
     age: 24,
