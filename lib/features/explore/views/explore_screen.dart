@@ -9,6 +9,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
+import 'explore_see_all_screens.dart';
 import 'nearby_profile_preview_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -160,7 +161,7 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             _ZoneInfoCard(
-              title: 'Narration de la zone',
+              title: 'Pourquoi y aller à deux',
               child: Text(
                 details.narration,
                 style: TextStyle(color: muted, height: 1.45, fontSize: 13.5),
@@ -193,7 +194,7 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
               ),
             ),
             _ZoneInfoCard(
-              title: 'Matchs suggérés',
+              title: 'Membres avec la même envie',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -202,7 +203,7 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                       Icon(LucideIcons.users, size: 16, color: muted),
                       const SizedBox(width: 6),
                       Text(
-                        '${details.suggestedMatches} personnes intéressées (démo)',
+                        '${details.suggestedMatches} profils ouverts à ce type de sortie (démo)',
                         style: TextStyle(
                           color: onTitle,
                           fontWeight: FontWeight.w700,
@@ -227,7 +228,7 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                       color: dark ? AppColors.togoGold : AppColors.primary,
                     ),
                     label: const Text(
-                      'Voir les profils compatibles',
+                      'Voir des profils avec la même envie',
                       style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                     ),
                   ),
@@ -235,7 +236,7 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
               ),
             ),
             _ZoneInfoCard(
-              title: 'Points d interet',
+              title: 'Repères sur place',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -397,141 +398,345 @@ class _MetaLine extends StatelessWidget {
 }
 
 class _ExploreScreenState extends State<ExploreScreen> {
+  /// Ambiances de rendez-vous (plus pertinent que quartier / ethnie pour une app de rencontres).
   static const _groups = <({
     String id,
     String title,
   })>[
     (id: 'all', title: 'Tout'),
-    (id: 'ewe', title: 'Ewé'),
-    (id: 'mina', title: 'Mina'),
-    (id: 'adidogome', title: 'Adidogome'),
-    (id: 'zanguera', title: 'Zanguéra'),
-    (id: 'agoè', title: 'Agoè'),
-    (id: 'kegué', title: 'Kégué'),
-    (id: 'kpalimé', title: 'Kpalimé'),
-    (id: 'sokodé', title: 'Sokodé'),
+    (id: 'calme', title: 'Café & discussion'),
+    (id: 'nature', title: 'Dehors & nature'),
+    (id: 'soir', title: 'Soirée & plage'),
+    (id: 'culture', title: 'Ville & culture'),
+    (id: 'weekend', title: 'Week-end'),
   ];
 
-  static const _spots = <({
+  /// Restos, bars, boîtes, lounges…
+  static const _venues = <({
     String title,
     String subtitle,
+    String url,
+    String kind,
+    List<String> groupIds,
+  })>[
+    (
+      title: 'Le Marché Gourmet',
+      subtitle: 'Resto · fusion & partage · Tokoin',
+      url:
+          'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=85&auto=format&fit=crop',
+      kind: 'restaurant',
+      groupIds: <String>['all', 'calme', 'culture', 'soir'],
+    ),
+    (
+      title: 'Terrazzo 228',
+      subtitle: 'Bar rooftop · cocktails · centre-ville',
+      url:
+          'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&q=85&auto=format&fit=crop',
+      kind: 'bar',
+      groupIds: <String>['all', 'soir', 'culture', 'calme'],
+    ),
+    (
+      title: 'Pulse Club',
+      subtitle: 'Boîte · DJ & dancefloor',
+      url:
+          'https://images.unsplash.com/photo-1571266025683-ea67b9ea6ec8?w=800&q=85&auto=format&fit=crop',
+      kind: 'club',
+      groupIds: <String>['all', 'soir', 'weekend'],
+    ),
+    (
+      title: 'Café des Arts',
+      subtitle: 'Café-concert · brunch le dimanche',
+      url:
+          'https://images.unsplash.com/photo-1554118811-1e0d79424c94?w=800&q=85&auto=format&fit=crop',
+      kind: 'cafe',
+      groupIds: <String>['all', 'calme', 'culture', 'weekend'],
+    ),
+    (
+      title: 'La Plage House',
+      subtitle: 'Resto-plage · fin de journée',
+      url:
+          'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800&q=85&auto=format&fit=crop',
+      kind: 'plage',
+      groupIds: <String>['all', 'soir', 'nature', 'calme'],
+    ),
+    (
+      title: 'Underground',
+      subtitle: 'Club · électro & live',
+      url:
+          'https://images.unsplash.com/photo-1574391884720-bdbc281977aa?w=800&q=85&auto=format&fit=crop',
+      kind: 'club',
+      groupIds: <String>['all', 'soir', 'culture', 'weekend'],
+    ),
+    (
+      title: 'Skyline Lounge',
+      subtitle: 'Lounge · vue & afterwork',
+      url:
+          'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=800&q=85&auto=format&fit=crop',
+      kind: 'lounge',
+      groupIds: <String>['all', 'soir', 'calme', 'culture'],
+    ),
+    (
+      title: 'Braise du Golfe',
+      subtitle: 'Grill · terrasse · groupes bienvenus',
+      url:
+          'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=85&auto=format&fit=crop',
+      kind: 'restaurant',
+      groupIds: <String>['all', 'calme', 'soir', 'culture'],
+    ),
+  ];
+
+  static const _nearbyEvents = <({
+    String title,
+    String venue,
+    String dayLabel,
+    String time,
+    String distance,
+    String url,
+    bool certified,
+    List<String> groupIds,
+  })>[
+    (
+      title: 'Afterwork Oklifor',
+      venue: 'Skyline Lounge',
+      dayLabel: 'Ce ven.',
+      time: '19 h',
+      distance: '2,1 km',
+      url:
+          'https://images.unsplash.com/photo-1540575467063-27aef4de018b?w=800&q=85&auto=format&fit=crop',
+      certified: true,
+      groupIds: <String>['all', 'soir', 'culture', 'calme'],
+    ),
+    (
+      title: 'Soirée live jazz',
+      venue: 'Café des Arts',
+      dayLabel: 'Demain',
+      time: '21 h',
+      distance: '1,4 km',
+      url:
+          'https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=800&q=85&auto=format&fit=crop',
+      certified: true,
+      groupIds: <String>['all', 'culture', 'calme', 'soir'],
+    ),
+    (
+      title: 'Marché nocturne & street food',
+      venue: 'Grand Marché zone',
+      dayLabel: 'Sam.',
+      time: '18 h – 23 h',
+      distance: '3 km',
+      url:
+          'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=85&auto=format&fit=crop',
+      certified: false,
+      groupIds: <String>['all', 'culture', 'soir', 'calme'],
+    ),
+    (
+      title: 'Beach games & sunset',
+      venue: 'Plage publique',
+      dayLabel: 'Dim.',
+      time: '17 h',
+      distance: '4,2 km',
+      url:
+          'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=85&auto=format&fit=crop',
+      certified: false,
+      groupIds: <String>['all', 'nature', 'soir', 'weekend'],
+    ),
+    (
+      title: 'Open mic & rencontres',
+      venue: 'Terraço 228',
+      dayLabel: 'Jeu.',
+      time: '20 h 30',
+      distance: '1,9 km',
+      url:
+          'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=85&auto=format&fit=crop',
+      certified: true,
+      groupIds: <String>['all', 'culture', 'calme', 'soir'],
+    ),
+  ];
+
+  static const _ambiancesNearby = <({
+    String label,
+    String hint,
     String url,
     List<String> groupIds,
   })>[
     (
-      title: 'Lomé',
-      subtitle: 'Grande côte & marchés',
+      label: 'Terrasses animées',
+      hint: 'Beaucoup de monde en ce moment',
       url:
-          'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=85&auto=format&fit=crop',
-      groupIds: <String>['all', 'ewe', 'mina', 'adidogome', 'zanguera', 'agoè', 'kegué'],
+          'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'soir', 'calme'],
     ),
     (
-      title: 'Kpalimé',
-      subtitle: 'Collines & café',
+      label: 'Soirée club',
+      hint: 'Files en hausse près de toi',
       url:
-          'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=85&auto=format&fit=crop',
-      groupIds: <String>['all', 'kpalimé', 'ewe'],
+          'https://images.unsplash.com/photo-1571266025683-ea67b9ea6ec8?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'soir', 'weekend'],
     ),
     (
-      title: 'Cascade',
-      subtitle: 'Nature du pays',
+      label: 'Jazz & chill',
+      hint: 'Ambiance posée ce soir',
       url:
-          'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=800&q=85&auto=format&fit=crop',
-      groupIds: <String>['all', 'kpalimé', 'sokodé'],
+          'https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'culture', 'calme'],
     ),
     (
-      title: 'Plage',
-      subtitle: 'Fin de journée',
+      label: 'Coucher de soleil',
+      hint: 'Plage & apéro',
       url:
-          'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800&q=85&auto=format&fit=crop',
-      groupIds: <String>['all', 'mina'],
+          'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'nature', 'soir', 'calme'],
     ),
     (
-      title: 'Ville',
-      subtitle: 'Ambiance urbaine',
+      label: 'Resto romantique',
+      hint: 'Tables demandées',
       url:
-          'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800&q=85&auto=format&fit=crop',
-      groupIds: <String>['all', 'ewe', 'adidogome', 'agoè'],
+          'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'calme', 'culture', 'soir'],
     ),
     (
-      title: 'Culture',
-      subtitle: 'Rencontres & fêtes',
+      label: 'Afterwork',
+      hint: 'Créneau 18 h – 21 h',
       url:
-          'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=85&auto=format&fit=crop',
-      groupIds: <String>['all', 'sokodé', 'ewe'],
+          'https://images.unsplash.com/photo-1540575467063-27aef4de018b?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'soir', 'culture', 'calme'],
     ),
   ];
 
-  static const _nearbyProfiles = <({
+  static const _gatherings = <({
+    String title,
+    String subtitle,
+    int going,
+    String when,
+    String distance,
+    String url,
+    List<String> groupIds,
+  })>[
+    (
+      title: 'Sorties Lomé ensemble',
+      subtitle: 'On coordonne bars & restos le week-end',
+      going: 24,
+      when: 'Actif ce soir',
+      distance: 'Autour de toi',
+      url:
+          'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'soir', 'culture', 'weekend'],
+    ),
+    (
+      title: 'Rando & photo Kpalimé',
+      subtitle: 'Covoit depuis Lomé',
+      going: 8,
+      when: 'Dim. matin',
+      distance: 'Groupe · 45 km',
+      url:
+          'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'nature', 'weekend', 'calme'],
+    ),
+    (
+      title: 'Soirée filles · safe night',
+      subtitle: 'Taxi partagé & lieu validé',
+      going: 12,
+      when: 'Ven. 22 h',
+      distance: 'à 2 km',
+      url:
+          'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'soir', 'culture'],
+    ),
+    (
+      title: 'Apéro langues FR / Ewe',
+      subtitle: '6 places · débutants OK',
+      going: 6,
+      when: 'Mer. 19 h',
+      distance: 'Tokoin',
+      url:
+          'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=600&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'calme', 'culture'],
+    ),
+  ];
+
+  /// Personnes qui cherchent des participant·e·s pour un plan concret.
+  static const _participationAsks = <({
     String name,
     String avatarUrl,
     String area,
-    String vibe,
+    String ask,
+    String slot,
     String distance,
+    List<String> groupIds,
   })>[
     (
       name: 'Sena',
       area: 'Agoè',
-      vibe: 'Prêt pour un café',
-      distance: 'à 1.2 km',
+      ask: '2 personnes pour une expo samedi — entrée déjà payée',
+      slot: 'Sam. 15 h',
+      distance: 'à 1,2 km',
       avatarUrl:
           'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'culture', 'weekend', 'calme'],
     ),
     (
       name: 'Kossi',
-      area: 'Kegue',
-      vibe: 'Ambiance tranquille',
-      distance: 'à 2.4 km',
+      area: 'Kégué',
+      ask: 'Table pour 4 au Braise dimanche — il manque du monde',
+      slot: 'Dim. 13 h',
+      distance: 'à 2,4 km',
       avatarUrl:
           'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'calme', 'culture', 'soir'],
     ),
     (
       name: 'Afia',
       area: 'Agoè',
-      vibe: 'Sortie ce soir',
-      distance: 'à 0.8 km',
+      ask: 'Qui veut tester le nouveau club Pulse ce vendredi ?',
+      slot: 'Ven. 23 h',
+      distance: 'à 0,8 km',
       avatarUrl:
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'soir', 'weekend'],
     ),
     (
       name: 'Mawuli',
       area: 'Kpalimé',
-      vibe: 'Nature & rando',
-      distance: 'à 4.1 km',
+      ask: 'Covoiturage + rando — 3 sièges libres',
+      slot: 'Sam. 7 h',
+      distance: 'Départ Lomé',
       avatarUrl:
           'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'nature', 'weekend', 'calme'],
     ),
     (
       name: 'Kofi',
       area: 'Lomé',
-      vibe: 'Match “culture”',
-      distance: 'à 1.6 km',
+      ask: 'Afterwork Skyline — on partage une bouteille ?',
+      slot: 'Ven. 19 h',
+      distance: 'à 1,6 km',
       avatarUrl:
           'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80&auto=format&fit=crop',
+      groupIds: <String>['all', 'soir', 'culture', 'calme'],
     ),
   ];
 
-  String _meetCrowdLabelForSpot(String spotTitle) {
-    return switch (spotTitle) {
-      'Lomé' => '120 en mode sortie',
-      'Kpalimé' => '60 partages cette semaine',
-      'Cascade' => '35 visiteurs vibes nature',
-      'Plage' => '95 en soirée',
-      'Ville' => '80 curieux ce soir',
-      'Culture' => '45 rendez-vous culture',
-      _ => '30 personnes',
+  IconData _venueKindIcon(String kind) {
+    return switch (kind) {
+      'restaurant' => LucideIcons.utensilsCrossed,
+      'bar' => LucideIcons.wine,
+      'club' => LucideIcons.music,
+      'lounge' => LucideIcons.sofa,
+      'cafe' => LucideIcons.coffee,
+      'plage' => LucideIcons.sun,
+      _ => LucideIcons.mapPin,
     };
   }
 
-  String _meetMomentLabelForSpot(String spotTitle) {
-    return switch (spotTitle) {
-      'Lomé' => 'Ce soir',
-      'Kpalimé' => 'Week-end',
-      'Cascade' => 'Matin / après-midi',
-      'Plage' => 'Fin de journée',
-      'Ville' => 'Après 19h',
-      'Culture' => 'Soirées événements',
-      _ => 'Bientôt',
+  /// Libellé court pour puce sur la carte lieu (évite le bloc bas surchargé).
+  String _venueKindShortLabel(String kind) {
+    return switch (kind) {
+      'restaurant' => 'Resto',
+      'bar' => 'Bar',
+      'club' => 'Club',
+      'lounge' => 'Lounge',
+      'cafe' => 'Café',
+      'plage' => 'Plage',
+      _ => 'Lieu',
     };
   }
 
@@ -566,27 +771,158 @@ class _ExploreScreenState extends State<ExploreScreen> {
     setState(() => _searchMode = false);
   }
 
-  List<({String title, String subtitle, String url, List<String> groupIds})> get _filteredSpots {
-    final Iterable<({String title, String subtitle, String url, List<String> groupIds})> byGroup =
-        _selectedGroupId == 'all'
-            ? _spots
-            : _spots.where((s) => s.groupIds.contains(_selectedGroupId));
+  bool _matchesGroup(List<String> groupIds) =>
+      _selectedGroupId == 'all' || groupIds.contains(_selectedGroupId);
+
+  /// Ligne contextuelle sur les écrans « Voir » (filtre ambiance / recherche).
+  String? _seeAllContextHint() {
+    final parts = <String>[];
+    if (_selectedGroupId != 'all') {
+      parts.add(
+        'Ambiance : ${_groups.firstWhere((g) => g.id == _selectedGroupId).title}',
+      );
+    }
+    final q = _searchController.text.trim();
+    if (q.isNotEmpty) {
+      parts.add('Recherche : « $q »');
+    }
+    if (parts.isEmpty) return null;
+    return parts.join(' · ');
+  }
+
+  List<
+      ({
+        String title,
+        String subtitle,
+        String url,
+        String kind,
+        List<String> groupIds,
+      })> get _filteredVenues {
+    final byGroup = _venues.where((v) => _matchesGroup(v.groupIds));
     final q = _searchController.text.trim().toLowerCase();
     if (q.isEmpty) return byGroup.toList(growable: false);
     return byGroup
         .where(
-          (s) =>
-              s.title.toLowerCase().contains(q) ||
-              s.subtitle.toLowerCase().contains(q),
+          (v) =>
+              v.title.toLowerCase().contains(q) ||
+              v.subtitle.toLowerCase().contains(q),
         )
         .toList(growable: false);
   }
 
-  void _openSpotSheet(
+  List<
+      ({
+        String title,
+        String venue,
+        String dayLabel,
+        String time,
+        String distance,
+        String url,
+        bool certified,
+        List<String> groupIds,
+      })> get _filteredEvents {
+    final byGroup = _nearbyEvents.where((e) => _matchesGroup(e.groupIds));
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return byGroup.toList(growable: false);
+    return byGroup
+        .where(
+          (e) =>
+              e.title.toLowerCase().contains(q) ||
+              e.venue.toLowerCase().contains(q) ||
+              e.dayLabel.toLowerCase().contains(q),
+        )
+        .toList(growable: false);
+  }
+
+  List<
+      ({
+        String title,
+        String venue,
+        String dayLabel,
+        String time,
+        String distance,
+        String url,
+        bool certified,
+        List<String> groupIds,
+      })> get _filteredCertifiedEvents =>
+      _filteredEvents.where((e) => e.certified).toList(growable: false);
+
+  List<
+      ({
+        String label,
+        String hint,
+        String url,
+        List<String> groupIds,
+      })> get _filteredAmbiances {
+    final byGroup = _ambiancesNearby.where((a) => _matchesGroup(a.groupIds));
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return byGroup.toList(growable: false);
+    return byGroup
+        .where(
+          (a) =>
+              a.label.toLowerCase().contains(q) ||
+              a.hint.toLowerCase().contains(q),
+        )
+        .toList(growable: false);
+  }
+
+  List<
+      ({
+        String title,
+        String subtitle,
+        int going,
+        String when,
+        String distance,
+        String url,
+        List<String> groupIds,
+      })> get _filteredGatherings {
+    final byGroup = _gatherings.where((g) => _matchesGroup(g.groupIds));
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return byGroup.toList(growable: false);
+    return byGroup
+        .where(
+          (g) =>
+              g.title.toLowerCase().contains(q) ||
+              g.subtitle.toLowerCase().contains(q) ||
+              g.when.toLowerCase().contains(q),
+        )
+        .toList(growable: false);
+  }
+
+  List<
+      ({
+        String name,
+        String avatarUrl,
+        String area,
+        String ask,
+        String slot,
+        String distance,
+        List<String> groupIds,
+      })> get _filteredParticipationAsks {
+    final byGroup = _participationAsks.where((p) => _matchesGroup(p.groupIds));
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return byGroup.toList(growable: false);
+    return byGroup
+        .where(
+          (p) =>
+              p.name.toLowerCase().contains(q) ||
+              p.area.toLowerCase().contains(q) ||
+              p.ask.toLowerCase().contains(q),
+        )
+        .toList(growable: false);
+  }
+
+  void _openVenueSheet(
     BuildContext context,
-    ({String title, String subtitle, String url, List<String> groupIds}) s,
+    ({
+      String title,
+      String subtitle,
+      String url,
+      String kind,
+      List<String> groupIds,
+    }) v,
   ) {
-    final details = _zoneDetailsFromSpot(s);
+    final details = _zoneDetailsFromVenue(v);
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => _ExploreZoneDetailsScreen(details: details),
@@ -594,72 +930,632 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  _ZoneDetailsData _zoneDetailsFromSpot(
-    ({String title, String subtitle, String url, List<String> groupIds}) s,
+  void _openEventSheet(
+    BuildContext context,
+    ({
+      String title,
+      String venue,
+      String dayLabel,
+      String time,
+      String distance,
+      String url,
+      bool certified,
+      List<String> groupIds,
+    }) e,
   ) {
-    if (s.title == 'Lomé') {
-      return _ZoneDetailsData(
-        title: s.title,
-        subtitle: 'Capitale vivante entre mer et marchés',
-        heroUrl: s.url,
-        locality: 'Golfe 1-6, bord de mer, Agoè',
-        narration:
-            'Lomé est une zone dynamique avec une ambiance urbaine, des lieux de sortie, '
-            'des plages et des quartiers historiques.',
-        highlights: ['Grand Marché', 'Plage de Lomé', 'Monument de l Independance'],
-        bestPeriod: 'Novembre a mars',
-        safetyNote: 'Favoriser les zones animees en soiree.',
-        languages: 'Français, Mina, Ewe',
-        icebreakers: [
-          'On commence par un café avant la plage ?',
-          'Quel est ton meilleur spot pour discuter facilement ?',
-          'Tu préfères marché animé ou bord de mer ?',
-        ],
-        suggestedMatches: 24,
-        galleryUrls: [s.url, _spots[3].url, _spots[4].url],
-      );
-    }
-    if (s.title == 'Kpalimé') {
-      return _ZoneDetailsData(
-        title: s.title,
-        subtitle: 'Nature, collines et cafe',
-        heroUrl: s.url,
-        locality: 'Plateaux, region de Kloto',
-        narration:
-            'Kpalime propose un cadre verdoyant, des circuits nature et une ambiance calme, '
-            'ideale pour des sorties et rencontres de qualite.',
-        highlights: ['Mont Agou', 'Cascades de Womé', 'Artisanat local'],
-        bestPeriod: 'Octobre a fevrier',
-        safetyNote: 'Prevoir des chaussures pour sentiers humides.',
-        languages: 'Français, Ewe',
-        icebreakers: [
-          'Tu viens plutôt pour randonner ou juste pour papoter ?',
-          'Quel lieu te donne le plus envie d’essayer un rendez-vous ?',
-          'On fait une petite promenade + photo ?',
-        ],
-        suggestedMatches: 18,
-        galleryUrls: [s.url, _spots[2].url, _spots[5].url],
-      );
-    }
+    final dark = context.oklMeetIsDark;
+    final onSurface = dark ? Colors.white : context.oklOnSurface;
+    final muted = dark
+        ? Colors.white.withValues(alpha: 0.65)
+        : context.oklOnSurfaceMuted(0.62);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.oklScaffold,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            MediaQuery.paddingOf(ctx).bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: CachedNetworkImage(
+                    imageUrl: e.url,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 800,
+                    placeholder: (c, u) => Container(color: ctx.oklSurface),
+                    errorWidget: (c, u, err) => Container(color: ctx.oklSurface),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (e.certified)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.badgeCheck, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Événement certifié Oklifor',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (e.certified) const SizedBox(height: 10),
+              Text(
+                e.title,
+                style: TextStyle(
+                  color: onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${e.venue} · ${e.dayLabel} · ${e.time} · ${e.distance}',
+                style: TextStyle(color: muted, fontSize: 13, height: 1.35),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    OklFeedback.snack(context, 'Participation enregistrée (démo)');
+                  },
+                  icon: const Icon(LucideIcons.userPlus, size: 20),
+                  label: const Text('Je participe / intéressé·e'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  _ZoneDetailsData _zoneDetailsFromVenue(
+    ({
+      String title,
+      String subtitle,
+      String url,
+      String kind,
+      List<String> groupIds,
+    }) v,
+  ) {
+    final kindFr = switch (v.kind) {
+      'restaurant' => 'restaurant',
+      'bar' => 'bar',
+      'club' => 'boîte de nuit',
+      'lounge' => 'lounge',
+      'cafe' => 'café',
+      'plage' => 'spot plage',
+      _ => 'lieu de sortie',
+    };
     return _ZoneDetailsData(
-      title: s.title,
-      subtitle: s.subtitle,
-      heroUrl: s.url,
-      locality: 'Zone ${s.title}, Togo',
+      title: v.title,
+      subtitle: v.subtitle,
+      heroUrl: v.url,
+      locality: 'Autour de toi · démo',
       narration:
-          '${s.title} offre une ambiance locale ideale pour decouvrir la culture, '
-          'rencontrer de nouvelles personnes et profiter des lieux populaires.',
-      highlights: ['Points culturels', 'Lieux de rencontre', 'Espaces de sortie'],
-      bestPeriod: 'Toute l annee',
-      safetyNote: 'Rester dans les zones frequentees en soiree.',
+          '${v.title} est un $kindFr à ajouter à ta liste : sortie en groupe, afterwork ou rendez-vous, '
+          'avec une adresse concrète plutôt qu’un vague « on verra ».',
+      highlights: const [
+        'Horaires variables le week-end',
+        'Pense à réserver aux heures de pointe',
+        'Idéal pour briser la glace sur place',
+      ],
+      bestPeriod: 'Selon le type de soirée (démo)',
+      safetyNote: 'Privilégie les trajets connus le soir ; sort de groupe possible.',
       languages: 'Français, langues locales',
       icebreakers: [
-        'Tu veux un plan tranquille ou une sortie plus animée ?',
-        'Quel est ton “rendez-vous parfait” dans ce quartier ?',
-        'On commence par un message et on se voit sur place ?',
+        'Tu viens pour manger, danser ou juste discuter ?',
+        'On s’y retrouve directement ou on fait un point avant ?',
+        'Tu connais déjà la carte / la musique ici ?',
       ],
       suggestedMatches: 12,
-      galleryUrls: [s.url, _spots.first.url, _spots.last.url],
+      galleryUrls: [v.url, _venues[1].url, _venues[4].url],
+    );
+  }
+
+  Widget _sectionVoirButton(BuildContext context, {required VoidCallback onPressed}) {
+    return TextButton(
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.fromLTRB(8, 0, 0, 0),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: AppColors.primary,
+      ),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Voir',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              color: AppColors.primary,
+            ),
+          ),
+          Icon(LucideIcons.chevronRight, size: 16, color: AppColors.primary),
+        ],
+      ),
+    );
+  }
+
+  void _pushSeeAllCertifiedEvents(BuildContext context) {
+    final certifiedEvents = _filteredCertifiedEvents;
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => ExploreSeeAllEventsScreen(
+          title: 'Événements certifiés Oklifor',
+          events: certifiedEvents,
+          contextHint: _seeAllContextHint(),
+          onEventTap: _openEventSheet,
+        ),
+      ),
+    );
+  }
+
+  void _pushSeeAllOtherEvents(BuildContext context) {
+    final certifiedEvents = _filteredCertifiedEvents;
+    final eventsMainList = certifiedEvents.isEmpty
+        ? _filteredEvents
+        : _filteredEvents.where((e) => !e.certified).toList(growable: false);
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => ExploreSeeAllEventsScreen(
+          title: certifiedEvents.isEmpty
+              ? 'Événements à proximité'
+              : 'Autres événements près de toi',
+          events: eventsMainList,
+          contextHint: _seeAllContextHint(),
+          onEventTap: _openEventSheet,
+        ),
+      ),
+    );
+  }
+
+  void _pushSeeAllAmbiances(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => ExploreSeeAllAmbiancesScreen(
+          ambiances: _filteredAmbiances,
+          contextHint: _seeAllContextHint(),
+        ),
+      ),
+    );
+  }
+
+  void _pushSeeAllParticipation(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => ExploreSeeAllParticipationScreen(
+          asks: _filteredParticipationAsks,
+          contextHint: _seeAllContextHint(),
+        ),
+      ),
+    );
+  }
+
+  void _pushSeeAllGatherings(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => ExploreSeeAllGatheringsScreen(
+          gatherings: _filteredGatherings,
+          contextHint: _seeAllContextHint(),
+        ),
+      ),
+    );
+  }
+
+  void _pushSeeAllVenues(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => ExploreSeeAllVenuesScreen(
+          title: 'Restos, bars & boîtes',
+          venues: _filteredVenues,
+          contextHint: _seeAllContextHint(),
+          onVenueTap: _openVenueSheet,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventCarouselCard(
+    BuildContext context, {
+    required String title,
+    required String venue,
+    required String dayLabel,
+    required String time,
+    required String distance,
+    required String imageUrl,
+    required bool certified,
+    required VoidCallback onTap,
+  }) {
+    final isDark = context.oklMeetIsDark;
+    const w = 220.0;
+    const h = 158.0;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: w,
+          height: h,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                  blurRadius: isDark ? 16 : 12,
+                  offset: Offset(0, isDark ? 8 : 5),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 440,
+                    placeholder: (c, u) => Container(color: context.oklSurface),
+                    errorWidget: (c, u, e) => Container(color: context.oklSurface),
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.3),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.78),
+                        ],
+                        stops: const [0.0, 0.45, 1.0],
+                      ),
+                    ),
+                  ),
+                  if (certified)
+                    Positioned(
+                      left: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.badgeCheck, size: 10, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text(
+                              'Certifié',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    left: 10,
+                    right: 10,
+                    bottom: 10,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            height: 1.12,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          venue,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '$dayLabel · $time · $distance',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.78),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAmbianceCard(
+    BuildContext context, {
+    required String label,
+    required String hint,
+    required String imageUrl,
+    required VoidCallback onTap,
+  }) {
+    final isDark = context.oklMeetIsDark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 128,
+          height: 92,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 320,
+                  placeholder: (c, u) => Container(color: context.oklSurface),
+                  errorWidget: (c, u, e) => Container(color: context.oklSurface),
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.2),
+                        Colors.black.withValues(alpha: 0.75),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1.08,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        hint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGatheringCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required int going,
+    required String when,
+    required String distance,
+    required String imageUrl,
+    required VoidCallback onTap,
+  }) {
+    final isDark = context.oklMeetIsDark;
+    final titleColor = isDark ? Colors.white : context.oklOnSurface;
+    final subColor =
+        isDark ? Colors.white.withValues(alpha: 0.55) : context.oklOnSurfaceMuted(0.55);
+    const thumb = 86.0;
+    const h = 90.0;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 252,
+          height: h,
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : context.oklSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.14) : context.oklDivider,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: thumb,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 360,
+                  placeholder: (c, u) => Container(color: context.oklScaffold),
+                  errorWidget: (c, u, e) => Container(color: context.oklScaffold),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: titleColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: subColor, fontSize: 10, height: 1.15),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(LucideIcons.users, size: 11, color: AppColors.primary),
+                          const SizedBox(width: 3),
+                          Text(
+                            '$going',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(LucideIcons.clock, size: 11, color: subColor),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              when,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: subColor,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(LucideIcons.mapPin, size: 10, color: subColor),
+                          const SizedBox(width: 2),
+                          Flexible(
+                            child: Text(
+                              distance,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                              style: TextStyle(
+                                color: subColor,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -672,17 +1568,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
       child: _ExploreFilterChip(
         label: g.title,
         selected: selected,
-        onTap: () {
-          setState(() => _selectedGroupId = g.id);
-          OklFeedback.snack(context, 'Filtre : ${g.title} (démo)');
-        },
+        onTap: () => setState(() => _selectedGroupId = g.id),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredSpots;
+    final venues = _filteredVenues;
+    final certifiedEvents = _filteredCertifiedEvents;
+    final eventsMainList = certifiedEvents.isEmpty
+        ? _filteredEvents
+        : _filteredEvents.where((e) => !e.certified).toList(growable: false);
+    final ambiances = _filteredAmbiances;
+    final gatherings = _filteredGatherings;
+    final asks = _filteredParticipationAsks;
     final bottomPad = oklMainShellListBottomPadding(context);
     final isDark = context.oklMeetIsDark;
     final titleColor = isDark ? Colors.white : context.oklOnSurface;
@@ -720,7 +1620,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     child: OklPillSearchBar(
                                       controller: _searchController,
                                       focusNode: _searchFocus,
-                                      hintText: 'Ville, lieu, ambiance…',
+                                      hintText: 'Événement, bar, ambiance, groupe…',
                                       autofocus: true,
                                       onSubmitted: (q) {
                                         if (q.trim().isEmpty) return;
@@ -756,7 +1656,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      'Explorer',
+                                      'Sorties',
                                       style: TextStyle(
                                         color: titleColor,
                                         fontSize: 22,
@@ -780,12 +1680,32 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Filtres',
+                        'Événements, ambiances & lieux près de toi',
+                        style: TextStyle(
+                          color: titleColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.35,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Certifiés Oklifor, soirées, restos, bars, clubs, rassemblements — et des personnes qui cherchent des participant·e·s pour un plan concret.',
+                        style: TextStyle(
+                          color: subColor,
+                          fontSize: 13,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Ton envie du moment',
                         style: TextStyle(
                           color: isDark
                               ? Colors.white.withValues(alpha: 0.48)
@@ -809,210 +1729,567 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                 ),
               ),
+              if (certifiedEvents.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 12, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Événements certifiés Oklifor',
+                                    style: TextStyle(
+                                      color: titleColor,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.25,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Sélection équipe — partenaires & plans vérifiés (démo).',
+                                    style: TextStyle(
+                                      color: subColor,
+                                      fontSize: 11.5,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _sectionVoirButton(
+                              context,
+                              onPressed: () => _pushSeeAllCertifiedEvents(context),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 158,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.only(right: 4),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: certifiedEvents.length,
+                            separatorBuilder: (context, _) => const SizedBox(width: 12),
+                            itemBuilder: (context, i) {
+                              final e = certifiedEvents[i];
+                              return _buildEventCarouselCard(
+                                context,
+                                title: e.title,
+                                venue: e.venue,
+                                dayLabel: e.dayLabel,
+                                time: e.time,
+                                distance: e.distance,
+                                imageUrl: e.url,
+                                certified: e.certified,
+                                onTap: () => _openEventSheet(context, e),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (eventsMainList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, certifiedEvents.isNotEmpty ? 16 : 12, 12, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    certifiedEvents.isEmpty
+                                        ? 'Événements à proximité'
+                                        : 'Autres événements près de toi',
+                                    style: TextStyle(
+                                      color: titleColor,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.25,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Ouvre la fiche pour dire que tu viens (démo).',
+                                    style: TextStyle(
+                                      color: subColor,
+                                      fontSize: 11.5,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _sectionVoirButton(
+                              context,
+                              onPressed: () => _pushSeeAllOtherEvents(context),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 158,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.only(right: 4),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: eventsMainList.length,
+                            separatorBuilder: (context, _) => const SizedBox(width: 12),
+                            itemBuilder: (context, i) {
+                              final e = eventsMainList[i];
+                              return _buildEventCarouselCard(
+                                context,
+                                title: e.title,
+                                venue: e.venue,
+                                dayLabel: e.dayLabel,
+                                time: e.time,
+                                distance: e.distance,
+                                imageUrl: e.url,
+                                certified: e.certified,
+                                onTap: () => _openEventSheet(context, e),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (ambiances.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Ambiances à proximité',
+                                    style: TextStyle(
+                                      color: titleColor,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.25,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Tendance du soir autour de toi (démo).',
+                                    style: TextStyle(
+                                      color: subColor,
+                                      fontSize: 11.5,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _sectionVoirButton(
+                              context,
+                              onPressed: () => _pushSeeAllAmbiances(context),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 92,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.only(right: 4),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: ambiances.length,
+                            separatorBuilder: (context, _) => const SizedBox(width: 10),
+                            itemBuilder: (context, i) {
+                              final a = ambiances[i];
+                              return _buildAmbianceCard(
+                                context,
+                                label: a.label,
+                                hint: a.hint,
+                                imageUrl: a.url,
+                                onTap: () => OklFeedback.snack(
+                                  context,
+                                  'Ambiance « ${a.label} » (démo)',
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Profils à proximité',
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.25,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        height: 108,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _nearbyProfiles.length,
-                          separatorBuilder: (context, _) => const SizedBox(width: 12),
-                          itemBuilder: (context, i) {
-                            final p = _nearbyProfiles[i];
-                            return Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(22),
-                                onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => NearbyProfilePreviewScreen(
-                                      name: p.name,
-                                      area: p.area,
-                                      vibe: p.vibe,
-                                      distance: p.distance,
-                                      avatarUrl: p.avatarUrl,
-                                    ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Demandes de participation',
+                                  style: TextStyle(
+                                    color: titleColor,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.25,
                                   ),
                                 ),
-                                child: Container(
-                                  width: 212,
-                                  height: 108,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 12,
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Complète un groupe ou réponds à un plan concret (démo).',
+                                  style: TextStyle(
+                                    color: subColor,
+                                    fontSize: 11.5,
+                                    height: 1.3,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.white.withValues(alpha: 0.08)
-                                        : context.oklSurface,
-                                    borderRadius: BorderRadius.circular(22),
-                                    border: Border.all(
+                                ),
+                              ],
+                            ),
+                          ),
+                          _sectionVoirButton(
+                            context,
+                            onPressed: () => _pushSeeAllParticipation(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (asks.isEmpty)
+                        Text(
+                          'Aucune demande pour ce filtre — élargis ton ambiance ou ta recherche.',
+                          style: TextStyle(color: subColor, fontSize: 13, height: 1.4),
+                        )
+                      else
+                        SizedBox(
+                          height: 114,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: asks.length,
+                            separatorBuilder: (context, _) => const SizedBox(width: 12),
+                            itemBuilder: (context, i) {
+                              final p = asks[i];
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(18),
+                                  onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => NearbyProfilePreviewScreen(
+                                        name: p.name,
+                                        area: p.area,
+                                        vibe: p.ask,
+                                        distance: p.distance,
+                                        avatarUrl: p.avatarUrl,
+                                        slot: p.slot,
+                                        participationAsk: true,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Container(
+                                    width: 236,
+                                    padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+                                    decoration: BoxDecoration(
                                       color: isDark
-                                          ? Colors.white.withValues(alpha: 0.14)
-                                          : context.oklDivider,
+                                          ? Colors.white.withValues(alpha: 0.08)
+                                          : context.oklSurface,
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: isDark
+                                            ? Colors.white.withValues(alpha: 0.14)
+                                            : context.oklDivider,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: isDark ? 0.35 : 0.08,
+                                          ),
+                                          blurRadius: isDark ? 20 : 14,
+                                          offset: Offset(0, isDark ? 10 : 6),
+                                        ),
+                                      ],
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: isDark ? 0.35 : 0.08,
-                                        ),
-                                        blurRadius: isDark ? 20 : 14,
-                                        offset: Offset(0, isDark ? 10 : 6),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: isDark
-                                                ? Colors.white.withValues(alpha: 0.2)
-                                                : context.oklDivider,
-                                          ),
-                                        ),
-                                        child: ClipOval(
-                                          child: CachedNetworkImage(
-                                            imageUrl: p.avatarUrl,
-                                            width: 44,
-                                            height: 44,
-                                            fit: BoxFit.cover,
-                                            memCacheWidth: 180,
-                                            placeholder: (ctx, url) => Container(
-                                              width: 44,
-                                              height: 44,
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
                                               color: isDark
-                                                  ? Colors.white.withValues(alpha: 0.06)
-                                                  : context.oklScaffold,
+                                                  ? Colors.white.withValues(alpha: 0.2)
+                                                  : context.oklDivider,
                                             ),
-                                            errorWidget: (ctx, url, error) => Container(
-                                              width: 44,
-                                              height: 44,
-                                              color: isDark
-                                                  ? Colors.white.withValues(alpha: 0.06)
-                                                  : context.oklScaffold,
-                                              child: Icon(
-                                                LucideIcons.imageOff,
-                                                size: 16,
-                                                color: context.oklOnSurfaceMuted(0.4),
+                                          ),
+                                          child: ClipOval(
+                                            child: CachedNetworkImage(
+                                              imageUrl: p.avatarUrl,
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                              memCacheWidth: 160,
+                                              placeholder: (ctx, url) => Container(
+                                                width: 40,
+                                                height: 40,
+                                                color: isDark
+                                                    ? Colors.white.withValues(alpha: 0.06)
+                                                    : context.oklScaffold,
+                                              ),
+                                              errorWidget: (ctx, url, error) => Container(
+                                                width: 40,
+                                                height: 40,
+                                                color: isDark
+                                                    ? Colors.white.withValues(alpha: 0.06)
+                                                    : context.oklScaffold,
+                                                child: Icon(
+                                                  LucideIcons.imageOff,
+                                                  size: 16,
+                                                  color: context.oklOnSurfaceMuted(0.4),
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              p.name,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: titleColor,
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 14,
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      p.name,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        color: titleColor,
+                                                        fontWeight: FontWeight.w800,
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.primary.withValues(alpha: 0.12),
+                                                      borderRadius: BorderRadius.circular(999),
+                                                    ),
+                                                    child: Text(
+                                                      p.slot,
+                                                      style: TextStyle(
+                                                        color: AppColors.primary,
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                            Text(
-                                              p.area,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.white.withValues(alpha: 0.62)
-                                                    : context.oklOnSurfaceMuted(0.62),
-                                                fontSize: 12,
+                                              const SizedBox(height: 1),
+                                              Text(
+                                                p.area,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: isDark
+                                                      ? Colors.white.withValues(alpha: 0.55)
+                                                      : context.oklOnSurfaceMuted(0.58),
+                                                  fontSize: 10,
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              p.vibe,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.white.withValues(alpha: 0.72)
-                                                    : context.oklOnSurfaceMuted(0.72),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                p.ask,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: isDark
+                                                      ? Colors.white.withValues(alpha: 0.78)
+                                                      : context.oklOnSurfaceMuted(0.78),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  height: 1.2,
+                                                ),
                                               ),
-                                            ),
-                                            Text(
-                                              p.distance,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.white.withValues(alpha: 0.45)
-                                                    : context.oklOnSurfaceMuted(0.48),
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
+                                              const SizedBox(height: 3),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    LucideIcons.mapPin,
+                                                    size: 11,
+                                                    color: isDark
+                                                        ? Colors.white.withValues(alpha: 0.42)
+                                                        : context.oklOnSurfaceMuted(0.45),
+                                                  ),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    p.distance,
+                                                    style: TextStyle(
+                                                      color: isDark
+                                                          ? Colors.white.withValues(alpha: 0.42)
+                                                          : context.oklOnSurfaceMuted(0.48),
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const Spacer(),
+                                                  Icon(
+                                                    LucideIcons.userPlus,
+                                                    size: 13,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Lieux',
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.35,
+              if (gatherings.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Rassemblements & groupes',
+                                    style: TextStyle(
+                                      color: titleColor,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.25,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Rejoins un créneau ou un covoit (démo).',
+                                    style: TextStyle(
+                                      color: subColor,
+                                      fontSize: 11.5,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _sectionVoirButton(
+                              context,
+                              onPressed: () => _pushSeeAllGatherings(context),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: Text(
-                          filtered.isEmpty
-                              ? '0 résultat'
-                              : '${filtered.length} lieu${filtered.length > 1 ? 'x' : ''}',
-                          style: TextStyle(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.45)
-                                : context.oklOnSurfaceMuted(0.48),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 90,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.only(right: 4),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: gatherings.length,
+                            separatorBuilder: (context, _) => const SizedBox(width: 12),
+                            itemBuilder: (context, i) {
+                              final g = gatherings[i];
+                              return _buildGatheringCard(
+                                context,
+                                title: g.title,
+                                subtitle: g.subtitle,
+                                going: g.going,
+                                when: g.when,
+                                distance: g.distance,
+                                imageUrl: g.url,
+                                onTap: () => OklFeedback.snack(
+                                  context,
+                                  'Groupe « ${g.title} » (démo)',
+                                ),
+                              );
+                            },
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Restos, bars & boîtes',
+                              style: TextStyle(
+                                color: titleColor,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.35,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              venues.isEmpty
+                                  ? '0 lieu'
+                                  : '${venues.length} lieu${venues.length > 1 ? 'x' : ''}',
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.45)
+                                    : context.oklOnSurfaceMuted(0.48),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _sectionVoirButton(
+                        context,
+                        onPressed: () => _pushSeeAllVenues(context),
                       ),
                     ],
                   ),
@@ -1020,7 +2297,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(14, 0, 14, bottomPad),
-                sliver: filtered.isEmpty
+                sliver: venues.isEmpty
                     ? SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 28),
@@ -1061,7 +2338,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  'Aucun lieu ne correspond',
+                                  'Aucun lieu pour cette ambiance',
                                   style: TextStyle(
                                     color: titleColor,
                                     fontSize: 16,
@@ -1070,7 +2347,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'Essaye un autre filtre ou une autre recherche pour « ${_groups.firstWhere((g) => g.id == _selectedGroupId).title} ».',
+                                  'Essaie un autre filtre « ${_groups.firstWhere((g) => g.id == _selectedGroupId).title} » ou élargis ta recherche.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: subColor,
@@ -1086,33 +2363,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     : SliverGrid(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          mainAxisSpacing: 14,
-                          crossAxisSpacing: 14,
-                          childAspectRatio: 0.72,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.02,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, i) {
-                            final s = filtered[i];
+                            final s = venues[i];
                             return Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () => _openSpotSheet(context, s),
-                                borderRadius: BorderRadius.circular(26),
+                                onTap: () => _openVenueSheet(context, s),
+                                borderRadius: BorderRadius.circular(18),
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(26),
+                                    borderRadius: BorderRadius.circular(18),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withValues(
-                                          alpha: isDark ? 0.55 : 0.12,
+                                          alpha: isDark ? 0.45 : 0.1,
                                         ),
-                                        blurRadius: isDark ? 24 : 16,
-                                        offset: Offset(0, isDark ? 14 : 8),
+                                        blurRadius: isDark ? 18 : 12,
+                                        offset: Offset(0, isDark ? 10 : 6),
                                       ),
                                     ],
                                   ),
                                   child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(26),
+                                    borderRadius: BorderRadius.circular(18),
                                     child: Stack(
                                       fit: StackFit.expand,
                                       children: [
@@ -1132,17 +2409,60 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                             ),
                                           ),
                                         ),
-                                        const DecoratedBox(
+                                        DecoratedBox(
                                           decoration: BoxDecoration(
                                             gradient: LinearGradient(
                                               begin: Alignment.topCenter,
                                               end: Alignment.bottomCenter,
-                                              stops: [0.0, 0.35, 1.0],
+                                              stops: const [0.0, 0.55, 1.0],
                                               colors: [
-                                                Color(0x66000000),
+                                                Colors.black.withValues(alpha: 0.08),
                                                 Colors.transparent,
-                                                Color(0xD8000000),
+                                                Colors.black.withValues(alpha: 0.35),
                                               ],
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 8,
+                                          left: 8,
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(999),
+                                            child: BackdropFilter(
+                                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 7,
+                                                  vertical: 4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withValues(alpha: 0.35),
+                                                  borderRadius: BorderRadius.circular(999),
+                                                  border: Border.all(
+                                                    color: Colors.white.withValues(alpha: 0.2),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      _venueKindIcon(s.kind),
+                                                      size: 11,
+                                                      color: Colors.white.withValues(alpha: 0.95),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      _venueKindShortLabel(s.kind),
+                                                      style: TextStyle(
+                                                        color: Colors.white.withValues(alpha: 0.95),
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w800,
+                                                        letterSpacing: 0.15,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -1151,111 +2471,36 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                           right: 0,
                                           bottom: 0,
                                           child: Container(
-                                            padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
+                                            padding: const EdgeInsets.fromLTRB(9, 20, 9, 8),
                                             decoration: BoxDecoration(
                                               gradient: LinearGradient(
                                                 begin: Alignment.topCenter,
                                                 end: Alignment.bottomCenter,
+                                                stops: const [0.0, 0.45, 1.0],
                                                 colors: [
                                                   Colors.transparent,
-                                                  Colors.black.withValues(alpha: 0.82),
+                                                  Colors.black.withValues(alpha: 0.25),
+                                                  Colors.black.withValues(alpha: 0.75),
                                                 ],
                                               ),
                                             ),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  s.title,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w800,
-                                                    letterSpacing: -0.25,
+                                            child: Text(
+                                              s.title,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: -0.25,
+                                                height: 1.12,
+                                                shadows: [
+                                                  Shadow(
+                                                    offset: Offset(0, 1),
+                                                    blurRadius: 4,
+                                                    color: Color(0x66000000),
                                                   ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Text(
-                                                  s.subtitle,
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    color: Colors.white.withValues(alpha: 0.88),
-                                                    fontSize: 11.5,
-                                                    height: 1.25,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Row(
-                                                  children: [
-                                                    Icon(
-                                                      LucideIcons.users,
-                                                      size: 14,
-                                                      color: Colors.white.withValues(alpha: 0.92),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Flexible(
-                                                      child: Text(
-                                                        _meetCrowdLabelForSpot(s.title),
-                                                        maxLines: 1,
-                                                        softWrap: false,
-                                                        overflow: TextOverflow.ellipsis,
-                                                        style: TextStyle(
-                                                          color: Colors.white.withValues(alpha: 0.88),
-                                                          fontSize: 11,
-                                                          fontWeight: FontWeight.w700,
-                                                          height: 1.1,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Icon(
-                                                      LucideIcons.clock,
-                                                      size: 14,
-                                                      color: Colors.white.withValues(alpha: 0.92),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Flexible(
-                                                      child: Text(
-                                                        _meetMomentLabelForSpot(s.title),
-                                                        maxLines: 1,
-                                                        softWrap: false,
-                                                        overflow: TextOverflow.ellipsis,
-                                                        style: TextStyle(
-                                                          color: Colors.white.withValues(alpha: 0.88),
-                                                          fontSize: 11,
-                                                          fontWeight: FontWeight.w700,
-                                                          height: 1.1,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          top: 12,
-                                          right: 12,
-                                          child: ClipOval(
-                                            child: BackdropFilter(
-                                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                              child: Container(
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black.withValues(alpha: 0.32),
-                                                  shape: BoxShape.circle,
-                                                  border: Border.all(
-                                                    color: Colors.white.withValues(alpha: 0.18),
-                                                  ),
-                                                ),
-                                                child: Icon(
-                                                  LucideIcons.mapPin,
-                                                  size: 15,
-                                                  color: Colors.white.withValues(alpha: 0.92),
-                                                ),
+                                                ],
                                               ),
                                             ),
                                           ),
@@ -1267,7 +2512,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ),
                             );
                           },
-                          childCount: filtered.length,
+                          childCount: venues.length,
                         ),
                       ),
               ),

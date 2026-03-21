@@ -114,8 +114,8 @@ class _MainShellState extends State<MainShell> {
                     onTap: () => context.go(_routes[0]),
                   ),
                   _NavItem(
-                    icon: LucideIcons.compass,
-                    label: 'Explorer',
+                    icon: LucideIcons.heartHandshake,
+                    label: 'Sorties',
                     index: 1,
                     selected: selectedIndex == 1,
                     onTap: () => context.go(_routes[1]),

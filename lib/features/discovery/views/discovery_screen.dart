@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
@@ -14,7 +15,10 @@ class _DemoProfile {
   final String name;
   final int age;
   final String location;
+  /// Photo réseau (Unsplash, etc.).
   final String imageUrl;
+  /// Si renseigné, affichage depuis les assets à la place de [imageUrl].
+  final String? imageAsset;
   final List<String> tags;
   final String relationGoal;
   final String ethnicity;
@@ -28,6 +32,7 @@ class _DemoProfile {
     required this.age,
     required this.location,
     required this.imageUrl,
+    this.imageAsset,
     required this.tags,
     required this.relationGoal,
     required this.ethnicity,
@@ -38,8 +43,52 @@ class _DemoProfile {
   });
 }
 
+Widget _buildDemoProfileImage(
+  BuildContext context,
+  _DemoProfile profile, {
+  required BoxFit fit,
+  int? memCacheWidth,
+  FilterQuality filterQuality = FilterQuality.medium,
+  Widget? placeholder,
+  Widget? errorWidget,
+}) {
+  final asset = profile.imageAsset;
+  if (asset != null && asset.isNotEmpty) {
+    return Image.asset(
+      asset,
+      fit: fit,
+      filterQuality: filterQuality,
+      errorBuilder: (ctx, err, stackTrace) =>
+          errorWidget ??
+          Container(
+            color: Colors.black.withValues(alpha: 0.5),
+            alignment: Alignment.center,
+            child: Icon(
+              LucideIcons.imageOff,
+              color: Colors.white.withValues(alpha: 0.55),
+              size: 48,
+            ),
+          ),
+    );
+  }
+  return CachedNetworkImage(
+    imageUrl: profile.imageUrl,
+    fit: fit,
+    filterQuality: filterQuality,
+    memCacheWidth: memCacheWidth,
+    fadeInDuration: const Duration(milliseconds: 200),
+    placeholder: placeholder != null
+        ? (ctx, url) => placeholder
+        : (ctx, url) => Container(color: context.oklSurface),
+    errorWidget: errorWidget != null
+        ? (ctx, url, err) => errorWidget
+        : (ctx, url, err) => Container(color: context.oklSurface),
+  );
+}
+
 /// Images Unsplash haute définition (portraits & ambiance claire).
 const _profiles = <_DemoProfile>[
+  
   _DemoProfile(
     name: 'Afi',
     age: 24,
@@ -259,7 +308,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                         shellBottomInset: shellBottom,
                         dockHeight: dockH,
                         onPass: () {
-                          OklFeedback.snack(context, 'Profil passé');
                           if (index < _profiles.length - 1) {
                             _pageController.nextPage(
                               duration: const Duration(milliseconds: 320),
@@ -268,7 +316,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                           }
                         },
                         onLike: () {
-                          OklFeedback.snack(context, 'Like envoyé à ${p.name}');
                           if (index < _profiles.length - 1) {
                             _pageController.nextPage(
                               duration: const Duration(milliseconds: 320),
@@ -276,9 +323,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                             );
                           }
                         },
-                        onSuper: () {
-                          OklFeedback.snack(context, 'Super Like pour ${p.name}');
-                        },
+                        onSuper: () {},
                         onOpenDetails: () => _openProfileQuickInfo(context, p),
                         onOpenLives: () => _openProfileLive(context, p),
                       );
@@ -333,12 +378,13 @@ class _ProfileDetailsScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               child: AspectRatio(
                 aspectRatio: 4 / 5,
-                child: CachedNetworkImage(
-                  imageUrl: profile.imageUrl,
+                child: _buildDemoProfileImage(
+                  context,
+                  profile,
                   fit: BoxFit.cover,
                   memCacheWidth: 900,
-                  placeholder: (ctx, url) => Container(color: ctx.oklSurface),
-                  errorWidget: (ctx, url, error) => Container(color: ctx.oklSurface),
+                  placeholder: Container(color: context.oklSurface),
+                  errorWidget: Container(color: context.oklSurface),
                 ),
               ),
             ),
@@ -543,12 +589,13 @@ class _LiveFriendsScreen extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  CachedNetworkImage(
-                    imageUrl: host.imageUrl,
+                  _buildDemoProfileImage(
+                    context,
+                    host,
                     fit: BoxFit.cover,
                     memCacheWidth: 1000,
-                    placeholder: (ctx, url) => Container(color: ctx.oklSurface),
-                    errorWidget: (ctx, url, error) => Container(color: ctx.oklSurface),
+                    placeholder: Container(color: context.oklSurface),
+                    errorWidget: Container(color: context.oklSurface),
                   ),
                   const DecoratedBox(
                     decoration: BoxDecoration(
@@ -622,12 +669,15 @@ class _LiveFriendsScreen extends StatelessWidget {
               child: Row(
                 children: [
                   ClipOval(
-                    child: CachedNetworkImage(
-                      imageUrl: friend.imageUrl,
+                    child: SizedBox(
                       width: 50,
                       height: 50,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 120,
+                      child: _buildDemoProfileImage(
+                        context,
+                        friend,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 120,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1440,15 +1490,93 @@ class _ReelPage extends StatefulWidget {
   State<_ReelPage> createState() => _ReelPageState();
 }
 
-class _ReelPageState extends State<_ReelPage> {
+class _ReelPageState extends State<_ReelPage>
+    with SingleTickerProviderStateMixin {
   double _dragX = 0;
+  late final AnimationController _heartBurst;
+
+  static const _tiktokHeart = Color(0xFFFF3359);
+
+  @override
+  void initState() {
+    super.initState();
+    _heartBurst = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 780),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          _heartBurst.reset();
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _heartBurst.dispose();
+    super.dispose();
+  }
+
+  void _handleLike() {
+    HapticFeedback.lightImpact();
+    _heartBurst.forward(from: 0);
+    widget.onLike();
+  }
+
+  Widget _buildTikTokHeartBurst() {
+    return AnimatedBuilder(
+      animation: _heartBurst,
+      builder: (context, child) {
+        final t = _heartBurst.value;
+        if (t <= 0) return const SizedBox.shrink();
+
+        double opacity;
+        if (t < 0.28) {
+          opacity = Curves.easeOut.transform(t / 0.28);
+        } else if (t < 0.52) {
+          opacity = 1;
+        } else {
+          opacity = 1 - Curves.easeIn.transform((t - 0.52) / 0.48);
+        }
+
+        double scale;
+        if (t < 0.42) {
+          scale = Curves.elasticOut.transform(t / 0.42) * 1.12;
+        } else {
+          scale = 1.12 - 0.1 * Curves.easeOut.transform((t - 0.42) / 0.58);
+        }
+
+        return IgnorePointer(
+          child: Center(
+            child: Transform.scale(
+              scale: scale,
+              child: Opacity(
+                opacity: opacity.clamp(0.0, 1.0),
+                child: Icon(
+                  Icons.favorite_rounded,
+                  size: 132,
+                  color: _tiktokHeart,
+                  shadows: const [
+                    Shadow(
+                      color: Color(0x99000000),
+                      blurRadius: 28,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = widget.profile;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onDoubleTap: widget.onLike,
+      onDoubleTap: _handleLike,
       onHorizontalDragStart: (_) => _dragX = 0,
       onHorizontalDragUpdate: (d) => _dragX += d.delta.dx,
       onHorizontalDragEnd: (_) {
@@ -1459,13 +1587,13 @@ class _ReelPageState extends State<_ReelPage> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CachedNetworkImage(
-            imageUrl: p.imageUrl,
+          _buildDemoProfileImage(
+            context,
+            p,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.high,
             memCacheWidth: widget.cacheWidth,
-            fadeInDuration: const Duration(milliseconds: 200),
-            placeholder: (ctx, url) => Container(
+            placeholder: Container(
               color: Colors.black.withValues(alpha: 0.45),
               alignment: Alignment.center,
               child: const SizedBox(
@@ -1477,7 +1605,7 @@ class _ReelPageState extends State<_ReelPage> {
                 ),
               ),
             ),
-            errorWidget: (ctx, url, error) => Container(
+            errorWidget: Container(
               color: Colors.black.withValues(alpha: 0.5),
               alignment: Alignment.center,
               child: Icon(
@@ -1511,6 +1639,7 @@ class _ReelPageState extends State<_ReelPage> {
                     ),
             ),
           ),
+          Positioned.fill(child: _buildTikTokHeartBurst()),
           Positioned(
             left: 18,
             right: 18,
@@ -1596,7 +1725,7 @@ class _ReelPageState extends State<_ReelPage> {
             child: _MeetActionDock(
               onPass: widget.onPass,
               onSuper: widget.onSuper,
-              onLike: widget.onLike,
+              onLike: _handleLike,
             ),
           ).animate().fadeIn(duration: 320.ms, delay: 70.ms),
         ],

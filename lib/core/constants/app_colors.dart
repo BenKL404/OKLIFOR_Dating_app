@@ -35,7 +35,6 @@ class AppColors {
   // Functional
   static const Color green  = Color(0xFF25D366); // WhatsApp green
   static const Color blue   = Color(0xFF0095F6); // IG blue
-  static const Color story  = Color(0xFFC13584); // IG story gradient
 
   static const LinearGradient togoAccentGradient = LinearGradient(
     begin: Alignment.topLeft,
@@ -52,12 +51,6 @@ class AppColors {
       Color(0xE6000000),
     ],
     stops: [0.0, 0.35, 1.0],
-  );
-
-  static const LinearGradient igStoryGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFFFCAF45), Color(0xFFE1306C), Color(0xFF833AB4)],
   );
 
   static const LinearGradient primaryGradient = LinearGradient(

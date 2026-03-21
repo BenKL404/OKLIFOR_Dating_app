@@ -461,7 +461,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                                       : 0,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: AppColors.togoRed,
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                               ),

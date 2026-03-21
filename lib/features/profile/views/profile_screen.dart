@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../models/user_profile.dart';
 import 'account_verification_screen.dart';
@@ -106,25 +107,26 @@ class ProfileScreen extends StatelessWidget {
                   Positioned(
                     left: 20,
                     bottom: 20,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppColors.igStoryGradient,
-                      ),
-                      child: CircleAvatar(
-                        radius: 44,
-                        backgroundColor: context.oklScaffold,
+                    child: OklStoryGaugeRing(
+                      outerSize: 94,
+                      strokeWidth: 3,
+                      child: SizedBox(
+                        width: 88,
+                        height: 88,
                         child: CircleAvatar(
-                          radius: 41,
-                          backgroundColor: context.oklSurface,
-                          child: ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: profile.avatarUrl,
-                              width: 82,
-                              height: 82,
-                              fit: BoxFit.cover,
-                              memCacheWidth: 164,
+                          radius: 44,
+                          backgroundColor: context.oklScaffold,
+                          child: CircleAvatar(
+                            radius: 41,
+                            backgroundColor: context.oklSurface,
+                            child: ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: profile.avatarUrl,
+                                width: 82,
+                                height: 82,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 164,
+                              ),
                             ),
                           ),
                         ),

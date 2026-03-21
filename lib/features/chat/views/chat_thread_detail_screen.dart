@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
@@ -50,36 +51,66 @@ class _DirectDetailBody extends StatelessWidget {
                 const SizedBox(height: 8),
                 Hero(
                   tag: 'thread_avatar_${thread.id}',
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: thread.hasStory ? AppColors.igStoryGradient : null,
-                      color: thread.hasStory ? null : context.oklDivider,
-                    ),
-                    child: CircleAvatar(
-                      radius: 56,
-                      backgroundColor: context.oklSurface,
-                      child: CircleAvatar(
-                        radius: 52,
-                        backgroundColor: context.oklScaffold,
-                        child: ClipOval(
-                          child: CachedNetworkImage(
-                            imageUrl: thread.avatarUrl,
-                            width: 104,
-                            height: 104,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 208,
-                            placeholder: (c, u) => Container(
-                              width: 104,
-                              height: 104,
-                              color: context.oklSurface,
+                  child: thread.hasStory
+                      ? OklStoryGaugeRing(
+                          outerSize: 120,
+                          strokeWidth: 3,
+                          child: SizedBox(
+                            width: 112,
+                            height: 112,
+                            child: CircleAvatar(
+                              radius: 56,
+                              backgroundColor: context.oklSurface,
+                              child: CircleAvatar(
+                                radius: 52,
+                                backgroundColor: context.oklScaffold,
+                                child: ClipOval(
+                                  child: CachedNetworkImage(
+                                    imageUrl: thread.avatarUrl,
+                                    width: 104,
+                                    height: 104,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 208,
+                                    placeholder: (c, u) => Container(
+                                      width: 104,
+                                      height: 104,
+                                      color: context.oklSurface,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: context.oklDivider,
+                          ),
+                          child: CircleAvatar(
+                            radius: 56,
+                            backgroundColor: context.oklSurface,
+                            child: CircleAvatar(
+                              radius: 52,
+                              backgroundColor: context.oklScaffold,
+                              child: ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: thread.avatarUrl,
+                                  width: 104,
+                                  height: 104,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 208,
+                                  placeholder: (c, u) => Container(
+                                    width: 104,
+                                    height: 104,
+                                    color: context.oklSurface,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 18),
                 Text(

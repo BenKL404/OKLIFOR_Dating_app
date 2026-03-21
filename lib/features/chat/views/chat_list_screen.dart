@@ -12,6 +12,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
+import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../models/chat_models.dart';
 import 'conversation_screen.dart';
 import 'create_group_screen.dart';
@@ -1144,51 +1145,96 @@ class _ChatTile extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: chat.hasStory ? AppColors.igStoryGradient : null,
-                      color: chat.hasStory ? null : Colors.transparent,
-                    ),
-                    child: CircleAvatar(
-                      radius: 26,
-                      backgroundColor: context.oklScaffold,
-                      child: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: context.oklSurface,
-                        child: ClipOval(
-                          child: CachedNetworkImage(
-                            imageUrl: chat.avatarUrl,
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 96,
-                            filterQuality: FilterQuality.medium,
-                            placeholder: (c, u) => Container(
-                              width: 48,
-                              height: 48,
-                              color: context.oklSurface,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.togoGold,
+                  chat.hasStory
+                      ? OklStoryGaugeRing(
+                          outerSize: 56,
+                          strokeWidth: 2,
+                          child: SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: CircleAvatar(
+                              radius: 26,
+                              backgroundColor: context.oklScaffold,
+                              child: CircleAvatar(
+                                radius: 24,
+                                backgroundColor: context.oklSurface,
+                                child: ClipOval(
+                                  child: CachedNetworkImage(
+                                    imageUrl: chat.avatarUrl,
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 96,
+                                    filterQuality: FilterQuality.medium,
+                                    placeholder: (c, u) => Container(
+                                      width: 48,
+                                      height: 48,
+                                      color: context.oklSurface,
+                                      child: const Center(
+                                        child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.togoGold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    errorWidget: (c, u, e) => Icon(
+                                      LucideIcons.user,
+                                      color: context.oklOnSurfaceMuted(0.55),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                            errorWidget: (c, u, e) => Icon(
-                              LucideIcons.user,
-                              color: context.oklOnSurfaceMuted(0.55),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.transparent,
+                          ),
+                          child: CircleAvatar(
+                            radius: 26,
+                            backgroundColor: context.oklScaffold,
+                            child: CircleAvatar(
+                              radius: 24,
+                              backgroundColor: context.oklSurface,
+                              child: ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: chat.avatarUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 96,
+                                  filterQuality: FilterQuality.medium,
+                                  placeholder: (c, u) => Container(
+                                    width: 48,
+                                    height: 48,
+                                    color: context.oklSurface,
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.togoGold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  errorWidget: (c, u, e) => Icon(
+                                    LucideIcons.user,
+                                    color: context.oklOnSurfaceMuted(0.55),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
                   if (chat.online)
                     Positioned(
                       bottom: 0,
@@ -1315,7 +1361,7 @@ class _ChatTile extends StatelessWidget {
 class _StoryBubble extends StatelessWidget {
   final String name;
   final bool isMine;
-  /// Anneau dégradé (ex. statut texte publié à l’instant).
+  /// Anneau jauge rouge (ex. statut texte publié à l’instant).
   final bool showActiveStoryRing;
   final String? imageUrl;
   final VoidCallback onTap;
@@ -1346,54 +1392,70 @@ class _StoryBubble extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(2.5),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: !isMine || showActiveStoryRing
-                          ? AppColors.igStoryGradient
-                          : null,
-                      color: isMine && !showActiveStoryRing ? context.oklSurface : null,
-                      border: isMine && !showActiveStoryRing
-                          ? Border.all(color: context.oklDivider, width: 1.5)
-                          : null,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: context.oklScaffold,
-                        shape: BoxShape.circle,
-                      ),
-                      child: ClipOval(
-                        child: isMine
-                            ? (imageUrl != null
-                                ? CachedNetworkImage(
-                                    imageUrl: imageUrl!,
-                                    width: 52,
-                                    height: 52,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 104,
-                                  )
-                                : Container(
+                  if (!isMine || showActiveStoryRing)
+                    OklStoryGaugeRing(
+                      outerSize: 58,
+                      strokeWidth: 2.5,
+                      child: SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: ClipOval(
+                          child: isMine
+                              ? (imageUrl != null
+                                  ? CachedNetworkImage(
+                                      imageUrl: imageUrl!,
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 104,
+                                    )
+                                  : Container(
+                                      width: 52,
+                                      height: 52,
+                                      color: context.oklSurface,
+                                    ))
+                              : CachedNetworkImage(
+                                  imageUrl: imageUrl ?? '',
+                                  width: 52,
+                                  height: 52,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 104,
+                                  placeholder: (c, u) => Container(
                                     width: 52,
                                     height: 52,
                                     color: context.oklSurface,
-                                  ))
-                            : CachedNetworkImage(
-                                imageUrl: imageUrl ?? '',
-                                width: 52,
-                                height: 52,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 104,
-                                placeholder: (c, u) => Container(
+                                  ),
+                                ),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: context.oklSurface,
+                        border: Border.all(color: context.oklDivider, width: 1.5),
+                      ),
+                      child: Center(
+                        child: ClipOval(
+                          child: imageUrl != null
+                              ? CachedNetworkImage(
+                                  imageUrl: imageUrl!,
+                                  width: 52,
+                                  height: 52,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 104,
+                                )
+                              : Container(
                                   width: 52,
                                   height: 52,
                                   color: context.oklSurface,
                                 ),
-                              ),
+                        ),
                       ),
                     ),
-                  ),
                   if (isMine)
                     Positioned(
                       right: -1,

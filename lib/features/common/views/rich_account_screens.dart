@@ -282,7 +282,7 @@ class HelpCenterScreen extends StatelessWidget {
             onTap: () => _openDoc(context, 'Premiers pas', [
               'Complète ton profil avec des photos nettes et une bio sincère.',
               'Utilise Rencontres pour swiper, et Messages pour échanger en toute sécurité.',
-              'Les filtres dans Explorer t’aident à trouver des lieux et des ambiances adaptées.',
+              'L’onglet Sorties te propose des idées de lieux et des ambiances pour planifier un rendez-vous.',
             ]),
           ),
           _HelpTile(
