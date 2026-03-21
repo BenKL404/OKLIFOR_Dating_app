@@ -33,9 +33,19 @@ flutter run -d windows   # Windows
 ## Qualité du code
 
 ```bash
-dart analyze
+flutter analyze
 flutter test
 ```
+
+## CI (GitHub Actions)
+
+Sur chaque push ou pull request vers `main`, `master` ou `develop`, le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) exécute :
+
+1. `flutter pub get`
+2. `flutter analyze`
+3. `flutter test`
+
+Après avoir poussé le dépôt sur GitHub, consulte l’onglet **Actions** du repo pour voir les résultats. Tu peux ajouter une protection de branche (**Settings → Branches → Branch protection rules**) pour exiger que ce workflow soit vert avant merge.
 
 ## Structure (aperçu)
 
