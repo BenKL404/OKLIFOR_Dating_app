@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Brand
-  static const Color primary    = Color(0xFFE8315B);
-  static const Color primaryDark = Color(0xFFC0183A);
+  // Brand (vert Togo — remplace le rose pour preview)
+  static const Color primary    = Color(0xFF006A4E);
+  static const Color primaryDark = Color(0xFF004A38);
   static const Color secondary  = Color(0xFFFF6B35);
 
   // IG/WA inspired
@@ -63,7 +63,7 @@ class AppColors {
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFE8315B), Color(0xFFC0183A)],
+    colors: [primary, primaryDark],
   );
 
   static const LinearGradient cardOverlay = LinearGradient(

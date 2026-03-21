@@ -9,6 +9,10 @@ import '../../../core/utils/okl_feedback.dart';
 import '../models/chat_models.dart';
 import 'chat_image_viewer_screen.dart';
 import 'chat_thread_detail_screen.dart';
+import 'conversation_search_screen.dart';
+import 'conversation_media_screen.dart';
+import 'conversation_mute_screen.dart';
+import 'share_contact_screen.dart';
 
 /// Conversation 1:1 ou groupe avec bulles riches (texte, image, vocal, lieu, système).
 class ConversationScreen extends StatefulWidget {
@@ -254,7 +258,23 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     label: 'Contact',
                     onTap: () {
                       Navigator.pop(ctx);
-                      OklFeedback.snack(context, 'Partage de contact (démo)');
+                      Navigator.of(context, rootNavigator: true).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ShareContactScreen(
+                            onPick: (c) {
+                              _pushDemoMessage(
+                                ChatMessage(
+                                  id: 'vc${DateTime.now().millisecondsSinceEpoch}',
+                                  kind: ChatMessageKind.text,
+                                  text: '👤 Contact partagé : ${c.name}',
+                                  mine: true,
+                                  time: formatTimeNow(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      );
                     },
                   ),
                   _AttachTile(
@@ -262,7 +282,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     label: 'Audio',
                     onTap: () {
                       Navigator.pop(ctx);
-                      OklFeedback.snack(context, 'Fichier audio (démo)');
+                      _pushDemoMessage(
+                        ChatMessage(
+                          id: 'aud${DateTime.now().millisecondsSinceEpoch}',
+                          kind: ChatMessageKind.text,
+                          text: '🎵 ma_piste_audio.m4a (démo)',
+                          mine: true,
+                          time: formatTimeNow(),
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -322,7 +350,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ),
               onTap: () {
                 Navigator.pop(ctx);
-                OklFeedback.snack(context, 'Recherche — démo');
+                Navigator.of(context, rootNavigator: true).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ConversationSearchScreen(
+                      threadName: widget.thread.name,
+                      messages: List<ChatMessage>.from(_messages),
+                    ),
+                  ),
+                );
               },
             ),
             ListTile(
@@ -337,7 +372,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ),
               onTap: () {
                 Navigator.pop(ctx);
-                OklFeedback.snack(context, 'Galerie de la conversation — démo');
+                Navigator.of(context, rootNavigator: true).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ConversationMediaScreen(
+                      thread: widget.thread,
+                      messages: List<ChatMessage>.from(_messages),
+                    ),
+                  ),
+                );
               },
             ),
             ListTile(
@@ -352,7 +394,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ),
               onTap: () {
                 Navigator.pop(ctx);
-                OklFeedback.snack(context, 'Silencieux activé (démo)');
+                Navigator.of(context, rootNavigator: true).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ConversationMuteScreen(threadName: widget.thread.name),
+                  ),
+                );
               },
             ),
             if (widget.thread.isGroup)
@@ -368,7 +414,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  OklFeedback.snack(context, 'Quitter le groupe — démo');
+                  OklFeedback.confirm(
+                    context,
+                    title: 'Quitter le groupe ?',
+                    body: 'Tu ne recevras plus les messages de « ${widget.thread.name} ».',
+                    confirmLabel: 'Quitter',
+                    onConfirm: () {
+                      _popConversationRoot();
+                      OklFeedback.snack(context, 'Tu as quitté le groupe');
+                    },
+                  );
                 },
               ),
           ],

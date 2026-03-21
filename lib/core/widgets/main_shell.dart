@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../constants/app_colors.dart';
+import '../constants/layout_constants.dart';
 import '../theme/theme_extensions.dart';
 import '../utils/okl_feedback.dart';
 
@@ -26,6 +27,26 @@ class _MainShellState extends State<MainShell> {
   }
 
   static const _routes = ['/discovery', '/explore', '/chats', '/profile'];
+
+  /// Même base que le scaffold (profil, réglages, onglets) — pas de teinte bleue ni surface blanche isolée.
+  static BoxDecoration _navBarDecorationFor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return BoxDecoration(
+      color: context.oklScaffold,
+      border: Border(
+        top: BorderSide(color: context.oklDivider, width: 0.5),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: isDark
+              ? Colors.black.withValues(alpha: 0.32)
+              : Colors.black.withValues(alpha: 0.06),
+          blurRadius: isDark ? 14 : 10,
+          offset: const Offset(0, -2),
+        ),
+      ],
+    );
+  }
 
   void _onPopInvoked(bool didPop, dynamic result) {
     if (didPop) return;
@@ -69,67 +90,51 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
     final selectedIndex = _tabIndexForPath(path);
-    final isDiscovery = path.startsWith('/discovery');
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onPopInvoked,
       child: Scaffold(
         backgroundColor: context.oklScaffold,
-        extendBody: isDiscovery,
+        extendBody: true,
         body: widget.child,
-        bottomNavigationBar: ClipRect(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: isDiscovery
-                  ? Colors.transparent
-                  : context.oklScaffold.withValues(alpha: 0.92),
-              border: isDiscovery
-                  ? null
-                  : Border(
-                      top: BorderSide(color: context.oklDivider, width: 0.5),
-                    ),
-            ),
-            child: SafeArea(
-              top: false,
-              child: SizedBox(
-                height: 62,
-                child: Row(
-                  children: [
-                    _NavItem(
-                      icon: LucideIcons.sparkles,
-                      label: 'Découvrir',
-                      index: 0,
-                      selected: selectedIndex == 0,
-                      overMedia: isDiscovery,
-                      onTap: () => context.go(_routes[0]),
-                    ),
-                    _NavItem(
-                      icon: LucideIcons.compass,
-                      label: 'Explorer',
-                      index: 1,
-                      selected: selectedIndex == 1,
-                      overMedia: isDiscovery,
-                      onTap: () => context.go(_routes[1]),
-                    ),
-                    _NavItem(
-                      icon: LucideIcons.messageCircle,
-                      label: 'Messages',
-                      index: 2,
-                      selected: selectedIndex == 2,
-                      overMedia: isDiscovery,
-                      onTap: () => context.go(_routes[2]),
-                    ),
-                    _NavItem(
-                      icon: LucideIcons.user,
-                      label: 'Profil',
-                      index: 3,
-                      selected: selectedIndex == 3,
-                      overMedia: isDiscovery,
-                      onTap: () => context.go(_routes[3]),
-                    ),
-                  ],
-                ),
+        bottomNavigationBar: DecoratedBox(
+          decoration: _navBarDecorationFor(context),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: kOklMainNavContentHeight,
+              child: Row(
+                children: [
+                  _NavItem(
+                    icon: LucideIcons.home,
+                    label: 'Rencontres',
+                    index: 0,
+                    selected: selectedIndex == 0,
+                    onTap: () => context.go(_routes[0]),
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.compass,
+                    label: 'Explorer',
+                    index: 1,
+                    selected: selectedIndex == 1,
+                    onTap: () => context.go(_routes[1]),
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.messageCircle,
+                    label: 'Messages',
+                    index: 2,
+                    selected: selectedIndex == 2,
+                    onTap: () => context.go(_routes[2]),
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.user,
+                    label: 'Profil',
+                    index: 3,
+                    selected: selectedIndex == 3,
+                    onTap: () => context.go(_routes[3]),
+                  ),
+                ],
               ),
             ),
           ),
@@ -144,8 +149,6 @@ class _NavItem extends StatelessWidget {
   final String label;
   final int index;
   final bool selected;
-  /// Sur Découvrir : barre sur le reel — couleurs adaptées (sans ombre).
-  final bool overMedia;
   final VoidCallback onTap;
 
   const _NavItem({
@@ -153,20 +156,15 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.index,
     required this.selected,
-    this.overMedia = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isLightBar =
-        !overMedia && Theme.of(context).brightness == Brightness.light;
-
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = selected
-        ? (isLightBar ? AppColors.togoGoldOnLight : AppColors.togoGold)
-        : overMedia
-            ? Colors.white.withValues(alpha: 0.92)
-            : context.oklOnSurfaceMuted(0.55);
+        ? AppColors.primary
+        : (isDark ? Colors.white : Colors.black);
 
     final labelStyle = TextStyle(
       fontSize: 10,
@@ -178,31 +176,18 @@ class _NavItem extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: accent, size: 22),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: labelStyle,
-              ),
-              const SizedBox(height: 2),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: selected ? 4 : 0,
-                height: selected ? 4 : 0,
-                decoration: const BoxDecoration(
-                  color: AppColors.togoGreen,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: accent, size: 22),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: labelStyle,
+            ),
+          ],
         ),
       ),
     );

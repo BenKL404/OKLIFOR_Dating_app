@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-/// Pastille surface du thème (clair / sombre), icône [ColorScheme.onSurface] par défaut.
+/// Pastille surface du thème légèrement transparente, icône [ColorScheme.onSurface] par défaut.
 class OklAppBarIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
@@ -25,11 +25,13 @@ class OklAppBarIconButton extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final bgColor = useOverlayStyle
         ? (overlaySelected
-              ? Colors.white.withValues(alpha: 0.22)
-              : Colors.black.withValues(alpha: 0.28))
-        : cs.surface;
+              ? Colors.white.withValues(alpha: 0.14)
+              : Colors.black.withValues(alpha: 0.18))
+        : cs.surface.withValues(alpha: 0.26);
     final borderColor = useOverlayStyle
-        ? (overlaySelected ? Colors.white70 : Colors.white30)
+        ? (overlaySelected
+            ? Colors.white.withValues(alpha: 0.45)
+            : Colors.white.withValues(alpha: 0.18))
         : Colors.transparent;
     final resolvedIconColor = useOverlayStyle
         ? Colors.white.withValues(alpha: overlaySelected ? 0.98 : 0.9)

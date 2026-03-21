@@ -8,6 +8,7 @@ import '../../../core/utils/okl_feedback.dart';
 import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import '../models/user_profile.dart';
+import '../../common/views/rich_account_screens.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -521,7 +522,9 @@ class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
                 _ActionSettingRow(
                   icon: LucideIcons.userX,
                   title: 'Utilisateurs bloques',
-                  onTap: () => OklFeedback.snack(context, 'Liste des utilisateurs bloques (demo)'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const BlockedUsersScreen()),
+                  ),
                 ),
               ],
             ),
@@ -599,13 +602,17 @@ class _SecuritySettingsPageState extends State<_SecuritySettingsPage> {
                 _ActionSettingRow(
                   icon: LucideIcons.keyRound,
                   title: 'Changer PIN de securite',
-                  onTap: () => OklFeedback.snack(context, 'Changement du PIN (demo)'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const ChangePinScreen()),
+                  ),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.smartphone,
                   title: 'Sessions actives',
-                  onTap: () => OklFeedback.snack(context, 'Gestion des sessions (demo)'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const ActiveSessionsScreen()),
+                  ),
                 ),
               ],
             ),
@@ -638,6 +645,10 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
   }
 
   Future<void> _openThemeSheet() async {
+    if (kOklLightThemeBlocked) {
+      OklFeedback.snack(context, 'Thème clair désactivé pour l’instant');
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -674,8 +685,10 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                 ),
                 ...[
                   ThemeMode.dark,
-                  ThemeMode.light,
-                  ThemeMode.system,
+                  if (!kOklLightThemeBlocked) ...[
+                    ThemeMode.light,
+                    ThemeMode.system,
+                  ],
                 ].map((mode) {
                   final current = ref.watch(themeModeProvider);
                   return ListTile(
@@ -728,13 +741,17 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                 _ActionSettingRow(
                   icon: LucideIcons.languages,
                   title: 'Langue de l application',
-                  onTap: () => OklFeedback.snack(context, 'Français (par defaut)'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const LanguageSettingsScreen()),
+                  ),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.palette,
                   title: 'Theme',
-                  valueSubtitle: _themeLabel(themeMode),
+                  valueSubtitle: kOklLightThemeBlocked
+                      ? 'Sombre (fixe)'
+                      : _themeLabel(themeMode),
                   onTap: _openThemeSheet,
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
@@ -794,19 +811,25 @@ class _HelpSupportPage extends StatelessWidget {
                 _ActionSettingRow(
                   icon: LucideIcons.bookOpen,
                   title: 'Centre d aide',
-                  onTap: () => OklFeedback.snack(context, 'Articles d aide (demo)'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const HelpCenterScreen()),
+                  ),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.mail,
                   title: 'Contacter le support',
-                  onTap: () => OklFeedback.snack(context, 'support@oklifor.app'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const ContactSupportScreen()),
+                  ),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.bug,
                   title: 'Signaler un bug',
-                  onTap: () => OklFeedback.snack(context, 'Formulaire de bug (demo)'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const BugReportScreen()),
+                  ),
                 ),
               ],
             ),
@@ -898,6 +921,14 @@ class _FaqItem extends StatelessWidget {
 class _LegalSettingsPage extends StatelessWidget {
   const _LegalSettingsPage();
 
+  void _openLegal(BuildContext context, String title, List<String> paragraphs) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OklLegalDocumentScreen(title: title, paragraphs: paragraphs),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -922,19 +953,31 @@ class _LegalSettingsPage extends StatelessWidget {
                 _ActionSettingRow(
                   icon: LucideIcons.fileCheck,
                   title: 'Conditions d utilisation',
-                  onTap: () => OklFeedback.snack(context, 'Conditions Oklifor (demo)'),
+                  onTap: () => _openLegal(context, 'Conditions d’utilisation', [
+                    'En utilisant Oklifor, tu acceptes de respecter les lois en vigueur et de fournir des informations sincères sur ton identité lorsque tu choisis de te vérifier.',
+                    'L’application est fournie « en l’état » dans cette version démo ; les fonctionnalités peuvent évoluer.',
+                    'Pour toute question juridique : legal@oklifor.app (démo).',
+                  ]),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.shield,
                   title: 'Politique de confidentialite',
-                  onTap: () => OklFeedback.snack(context, 'Politique de confidentialite (demo)'),
+                  onTap: () => _openLegal(context, 'Politique de confidentialité', [
+                    'Nous limitons la collecte aux données nécessaires au fonctionnement de l’app (profil, messages, médias que tu envoies).',
+                    'Tu peux ajuster la visibilité (distance, statut en ligne) dans Paramètres > Confidentialité.',
+                    'Cette version démo ne constitue pas un document juridique définitif.',
+                  ]),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.scale,
                   title: 'Regles de la communaute',
-                  onTap: () => OklFeedback.snack(context, 'Regles de la communaute (demo)'),
+                  onTap: () => _openLegal(context, 'Règles de la communauté', [
+                    'Respect et consentement : pas de harcèlement, pas de contenu illégal.',
+                    'Signale les profils ou messages problématiques depuis le menu conversation ou le profil.',
+                    'Les organisateurs d’événements communautaires doivent veiller à la sécurité des participants.',
+                  ]),
                 ),
               ],
             ),

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
@@ -10,6 +11,9 @@ import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import 'invite_friends_screen.dart';
 import 'settings_screen.dart';
+import 'friend_requests_list_screen.dart';
+import 'profile_stat_detail_screen.dart';
+import '../../common/views/rich_account_screens.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -312,9 +316,43 @@ class ProfileScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _StatItem(value: '128', label: 'Likes'),
-                      _StatItem(value: '24', label: 'Matchs'),
-                      _StatItem(value: '17', label: 'Demandes'),
+                      _StatItem(
+                        value: '128',
+                        label: 'Likes',
+                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ProfileStatDetailScreen(
+                              title: 'Likes reçus',
+                              value: '128',
+                              hint:
+                                  'Personnes qui ont aimé ton profil ou répondu à tes statuts cette semaine (démo).',
+                            ),
+                          ),
+                        ),
+                      ),
+                      _StatItem(
+                        value: '24',
+                        label: 'Matchs',
+                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ProfileStatDetailScreen(
+                              title: 'Matchs',
+                              value: '24',
+                              hint:
+                                  'Conversations ouvertes après un double intérêt. Continue à compléter ton profil pour en obtenir plus (démo).',
+                            ),
+                          ),
+                        ),
+                      ),
+                      _StatItem(
+                        value: '17',
+                        label: 'Demandes',
+                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const FriendRequestsListScreen(),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 18),
@@ -395,9 +433,10 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ),
                       TextButton(
-                        onPressed: () => OklFeedback.snack(
-                          context,
-                          'Toutes les demandes (démo)',
+                        onPressed: () => Navigator.of(context, rootNavigator: true).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const FriendRequestsListScreen(),
+                          ),
                         ),
                         style: TextButton.styleFrom(
                           foregroundColor: AppColors.primary,
@@ -469,6 +508,12 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ),
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: oklMainShellListBottomPadding(context),
+            ),
+            sliver: const SliverToBoxAdapter(child: SizedBox.shrink()),
+          ),
         ],
       ),
     );
@@ -518,16 +563,16 @@ class _ProfileChip extends StatelessWidget {
 
 class _StatItem extends StatelessWidget {
   final String value, label;
-  const _StatItem({required this.value, required this.label});
+  final VoidCallback onTap;
+
+  const _StatItem({required this.value, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          OklFeedback.snack(context, '$label : détail à venir');
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -702,7 +747,21 @@ class _CommunitySection extends StatelessWidget {
           child: Column(
             children: [
               for (int i = 0; i < items.length; i++) ...[
-                _CommunityRow(item: items[i]),
+                _CommunityRow(
+                  item: items[i],
+                  onOpen: () => Navigator.of(context, rootNavigator: true).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => OklLegalDocumentScreen(
+                        title: items[i].title,
+                        paragraphs: [
+                          items[i].subtitle,
+                          'Fiche d’activité Oklifor (démo) : bientôt actions rapides (message, rappel, partage) depuis cet écran.',
+                          'En attendant le backend, utilise Messages et Rencontres pour poursuivre la conversation.',
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
                 if (i != items.length - 1)
                   Divider(height: 1, color: context.oklDivider),
               ],
@@ -716,15 +775,16 @@ class _CommunitySection extends StatelessWidget {
 
 class _CommunityRow extends StatelessWidget {
   final ({IconData icon, String title, String subtitle}) item;
+  final VoidCallback onOpen;
 
-  const _CommunityRow({required this.item});
+  const _CommunityRow({required this.item, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => OklFeedback.snack(context, item.title),
+        onTap: onOpen,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(

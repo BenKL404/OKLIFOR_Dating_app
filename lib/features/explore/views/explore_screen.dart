@@ -1,11 +1,15 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
+import 'nearby_profile_preview_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -51,250 +55,257 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = context.oklMeetIsDark;
+    final muted = dark
+        ? Colors.white.withValues(alpha: 0.62)
+        : context.oklOnSurfaceMuted(0.62);
+    final onTitle = dark ? Colors.white : context.oklOnSurface;
+    final chipBg = dark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Color.alphaBlend(
+            context.oklOnSurface.withValues(alpha: 0.06),
+            context.oklSurface,
+          );
+    final chipBorder =
+        dark ? Colors.white.withValues(alpha: 0.16) : context.oklDivider;
+    final chipFg =
+        dark ? Colors.white.withValues(alpha: 0.85) : context.oklOnSurface;
+    final ph = context.oklSurface;
+
     return Scaffold(
       backgroundColor: context.oklScaffold,
       appBar: AppBar(
-        backgroundColor: context.oklScaffold,
-        leading: const OklAppBarBackButton(rootNavigator: true),
-        automaticallyImplyLeading: false,
-        title: Text(details.title),
+        backgroundColor: dark ? Colors.transparent : context.oklScaffold,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft),
+          color: onTitle,
+          onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+        title: Text(
+          details.title,
+          style: TextStyle(
+            color: onTitle,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
       ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.paddingOf(context).bottom + 18),
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: AspectRatio(
-              aspectRatio: 16 / 10,
-              child: CachedNetworkImage(
-                imageUrl: details.heroUrl,
-                fit: BoxFit.cover,
-                memCacheWidth: 1000,
-                placeholder: (ctx, url) => Container(color: ctx.oklSurface),
-                errorWidget: (ctx, url, error) => Container(
-                  color: ctx.oklSurface,
-                  child: Center(
-                    child: Icon(
-                      LucideIcons.imageOff,
-                      color: ctx.oklOnSurfaceMuted(0.55),
+      body: Container(
+        decoration: dark ? context.oklMeetCanvasDecoration : null,
+        color: dark ? null : context.oklScaffold,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(16, 4, 16, MediaQuery.paddingOf(context).bottom + 22),
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: AspectRatio(
+                aspectRatio: 16 / 10,
+                child: CachedNetworkImage(
+                  imageUrl: details.heroUrl,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 1000,
+                  placeholder: (ctx, url) => Container(color: ph),
+                  errorWidget: (ctx, url, error) => Container(
+                    color: ph,
+                    child: Center(
+                      child: Icon(
+                        LucideIcons.imageOff,
+                        color: context.oklOnSurfaceMuted(0.45),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            details.subtitle,
-            style: TextStyle(
-              color: context.oklOnSurface,
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                LucideIcons.mapPin,
-                size: 16,
-                color: Theme.of(context).textTheme.bodyMedium?.color ??
-                    context.oklOnSurfaceMuted(0.62),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  details.locality,
-                  style: TextStyle(
-                    color: Theme.of(context).textTheme.bodyMedium?.color ??
-                        context.oklOnSurfaceMuted(0.62),
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () => OklFeedback.snack(
-                  context,
-                  'Ouverture carte de ${details.title} (demo)',
-                ),
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).textTheme.bodyMedium?.color ??
-                      context.oklOnSurfaceMuted(0.62),
-                ),
-                icon: Icon(
-                  LucideIcons.navigation,
-                  size: 16,
-                  color: Theme.of(context).textTheme.bodyMedium?.color ??
-                      context.oklOnSurfaceMuted(0.62),
-                ),
-                label: const Text('Localiser'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _ZoneInfoCard(
-            title: 'Narration de la zone',
-            child: Text(
-              details.narration,
+            const SizedBox(height: 16),
+            Text(
+              details.subtitle,
               style: TextStyle(
-                color: Theme.of(context).textTheme.bodyMedium?.color ??
-                    context.oklOnSurfaceMuted(0.62),
-                height: 1.45,
+                color: onTitle,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
               ),
             ),
-          ),
-          _ZoneInfoCard(
-            title: 'Brise-glace',
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            const SizedBox(height: 8),
+            Row(
               children: [
-                for (final b in details.icebreakers)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: context.oklSurface,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: context.oklDivider),
-                    ),
-                    child: Text(
-                      b,
-                      style: TextStyle(
-                        color: context.oklOnSurfaceMuted(0.62),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                Icon(LucideIcons.mapPin, size: 16, color: muted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    details.locality,
+                    style: TextStyle(color: muted, fontSize: 13),
                   ),
-              ],
-            ),
-          ),
-          _ZoneInfoCard(
-            title: 'Matchs suggérés',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      LucideIcons.users,
-                      size: 16,
-                      color: Theme.of(context).textTheme.bodyMedium?.color ??
-                          context.oklOnSurfaceMuted(0.62),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${details.suggestedMatches} personnes intéressées (démo)',
-                      style: TextStyle(
-                        color: context.oklOnSurface,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
                 ),
-                const SizedBox(height: 10),
                 TextButton.icon(
                   onPressed: () => OklFeedback.snack(
                     context,
-                    'Ouverture des profils pour ${details.title} (démo)',
+                    'Ouverture carte de ${details.title} (demo)',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor:
+                        dark ? AppColors.togoGold : AppColors.primary,
                   ),
                   icon: Icon(
-                    LucideIcons.sparkles,
+                    LucideIcons.navigation,
                     size: 16,
-                    color: context.oklOnSurfaceMuted(0.62),
+                    color: dark ? AppColors.togoGold : AppColors.primary,
                   ),
-                  label: Text(
-                    'Voir les profils compatibles',
-                    style: TextStyle(
-                      color: context.oklOnSurfaceMuted(0.62),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
+                  label: const Text('Localiser'),
                 ),
               ],
             ),
-          ),
-          _ZoneInfoCard(
-            title: 'Points d interet',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final item in details.highlights)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        Icon(
-                          LucideIcons.dot,
-                          size: 16,
-                          color: Theme.of(context).textTheme.bodyMedium?.color ??
-                              context.oklOnSurfaceMuted(0.62),
+            const SizedBox(height: 14),
+            _ZoneInfoCard(
+              title: 'Narration de la zone',
+              child: Text(
+                details.narration,
+                style: TextStyle(color: muted, height: 1.45, fontSize: 13.5),
+              ),
+            ),
+            _ZoneInfoCard(
+              title: 'Brise-glace',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final b in details.icebreakers)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: chipBg,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: chipBorder),
+                      ),
+                      child: Text(
+                        b,
+                        style: TextStyle(
+                          color: chipFg,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            item,
-                            style: TextStyle(
-                              color: Theme.of(context).textTheme.bodyMedium?.color ??
-                                  context.oklOnSurfaceMuted(0.62),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            _ZoneInfoCard(
+              title: 'Matchs suggérés',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(LucideIcons.users, size: 16, color: muted),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${details.suggestedMatches} personnes intéressées (démo)',
+                        style: TextStyle(
+                          color: onTitle,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: () => OklFeedback.snack(
+                      context,
+                      'Ouverture des profils pour ${details.title} (démo)',
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor:
+                          dark ? AppColors.togoGold : AppColors.primary,
+                    ),
+                    icon: Icon(
+                      LucideIcons.sparkles,
+                      size: 16,
+                      color: dark ? AppColors.togoGold : AppColors.primary,
+                    ),
+                    label: const Text(
+                      'Voir les profils compatibles',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _ZoneInfoCard(
+              title: 'Points d interet',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final item in details.highlights)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.dot, size: 16, color: muted),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: TextStyle(color: muted, fontSize: 13),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          _ZoneInfoCard(
-            title: 'Infos utiles',
-            child: Column(
-              children: [
-                _MetaLine(label: 'Periode ideale', value: details.bestPeriod),
-                const SizedBox(height: 6),
-                _MetaLine(label: 'Langues', value: details.languages),
-                const SizedBox(height: 6),
-                _MetaLine(label: 'Conseil securite', value: details.safetyNote),
-              ],
+            _ZoneInfoCard(
+              title: 'Infos utiles',
+              child: Column(
+                children: [
+                  _MetaLine(label: 'Periode ideale', value: details.bestPeriod),
+                  const SizedBox(height: 6),
+                  _MetaLine(label: 'Langues', value: details.languages),
+                  const SizedBox(height: 6),
+                  _MetaLine(label: 'Conseil securite', value: details.safetyNote),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Galerie de la zone',
-            style: TextStyle(
-              color: context.oklOnSurface,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
+            const SizedBox(height: 6),
+            Text(
+              'Galerie de la zone',
+              style: TextStyle(
+                color: onTitle,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-                  height: 124,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: details.galleryUrls.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final url = details.galleryUrls[index];
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 1.2,
-                    child: CachedNetworkImage(
-                      imageUrl: url,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 360,
-                      placeholder: (ctx, url) => Container(color: ctx.oklSurface),
-                      errorWidget: (ctx, url, error) => Container(color: ctx.oklSurface),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 124,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: details.galleryUrls.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final url = details.galleryUrls[index];
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AspectRatio(
+                      aspectRatio: 1.2,
+                      child: CachedNetworkImage(
+                        imageUrl: url,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 360,
+                        placeholder: (ctx, url) => Container(color: ph),
+                        errorWidget: (ctx, url, error) => Container(color: ph),
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -308,13 +319,20 @@ class _ZoneInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = context.oklMeetIsDark;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: context.oklSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.oklDivider),
+        color: dark
+            ? Colors.white.withValues(alpha: 0.07)
+            : context.oklSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: dark
+              ? Colors.white.withValues(alpha: 0.12)
+              : context.oklDivider,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,7 +340,9 @@ class _ZoneInfoCard extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              color: context.oklOnSurface,
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.92)
+                  : context.oklOnSurface,
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),
@@ -343,6 +363,7 @@ class _MetaLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = context.oklMeetIsDark;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -351,7 +372,9 @@ class _MetaLine extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: context.oklOnSurfaceMuted(0.55),
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.48)
+                  : context.oklOnSurfaceMuted(0.5),
               fontSize: 12,
             ),
           ),
@@ -361,8 +384,9 @@ class _MetaLine extends StatelessWidget {
           child: Text(
             value,
             style: TextStyle(
-              color: Theme.of(context).textTheme.bodyMedium?.color ??
-                  context.oklOnSurfaceMuted(0.62),
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.78)
+                  : context.oklOnSurfaceMuted(0.78),
               fontSize: 12.5,
             ),
           ),
@@ -659,506 +683,603 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredSpots;
+    final bottomPad = oklMainShellListBottomPadding(context);
+    final isDark = context.oklMeetIsDark;
+    final titleColor = isDark ? Colors.white : context.oklOnSurface;
+    final subColor =
+        isDark ? Colors.white.withValues(alpha: 0.55) : context.oklOnSurfaceMuted(0.55);
 
     return Scaffold(
       backgroundColor: context.oklScaffold,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _searchMode
-                        ? Row(
-                            children: [
-                              OklAppBarIconButton(
-                                icon: LucideIcons.arrowLeft,
-                                onPressed: _exitSearch,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OklPillSearchBar(
-                                  controller: _searchController,
-                                  focusNode: _searchFocus,
-                                  hintText: 'Ville, lieu, ambiance…',
-                                  autofocus: true,
-                                  onSubmitted: (q) {
-                                    if (q.trim().isEmpty) return;
-                                    OklFeedback.snack(
-                                      context,
-                                      'Résultats pour « $q » (démo)',
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                                Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Rencontres',
+      body: Container(
+        decoration: context.oklMeetCanvasDecoration,
+        child: SafeArea(
+          bottom: false,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: context.oklMeetHeaderScrimGradient,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 12, 10),
+                        child: _searchMode
+                            ? Row(
+                                children: [
+                                  OklAppBarIconButton(
+                                    icon: LucideIcons.arrowLeft,
+                                    onPressed: _exitSearch,
+                                    useOverlayStyle: isDark,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: OklPillSearchBar(
+                                      controller: _searchController,
+                                      focusNode: _searchFocus,
+                                      hintText: 'Ville, lieu, ambiance…',
+                                      autofocus: true,
+                                      onSubmitted: (q) {
+                                        if (q.trim().isEmpty) return;
+                                        OklFeedback.snack(
+                                          context,
+                                          'Résultats pour « $q » (démo)',
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 3,
+                                    height: 36,
+                                    margin: const EdgeInsets.only(top: 1),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(2),
+                                      gradient: const LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          AppColors.togoGreen,
+                                          AppColors.togoGold,
+                                          AppColors.togoRed,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Explorer',
                                       style: TextStyle(
-                                        color: context.oklOnSurface,
-                                        fontSize: 30,
+                                        color: titleColor,
+                                        fontSize: 22,
                                         fontWeight: FontWeight.w800,
-                                        letterSpacing: -1,
+                                        letterSpacing: -0.85,
                                         height: 1.05,
                                       ),
                                     ),
-            
-                                  ],
-                                ),
+                                  ),
+                                  OklAppBarIconButton(
+                                    icon: LucideIcons.search,
+                                    onPressed: _enterSearch,
+                                    useOverlayStyle: isDark,
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 10),
-                              OklAppBarIconButton(
-                                icon: LucideIcons.search,
-                                onPressed: _enterSearch,
-                              ),
-                            ],
-                          ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Filtres',
-                      style: TextStyle(
-                        color: context.oklOnSurfaceMuted(0.55),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 44,
-                      child: ListView.builder(
-                        padding: EdgeInsets.zero,
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _groups.length,
-                        itemBuilder: _groupItem,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Profils à proximité',
-                    style: TextStyle(
-                      color: context.oklOnSurface,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.2,
                     ),
                   ),
-                  const SizedBox(height:4),
-                  SizedBox(
-                    height: 105,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _nearbyProfiles.length,
-                      separatorBuilder: (context, _) =>
-                          const SizedBox(width: 12),
-                      itemBuilder: (context, i) {
-                        final p = _nearbyProfiles[i];
-                              return Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(18),
-                                  onTap: () => OklFeedback.snack(
-                                    context,
-                                    'Profil suggéré : ${p.name} (démo)',
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Filtres',
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.48)
+                              : context.oklOnSurfaceMuted(0.5),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 44,
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _groups.length,
+                          itemBuilder: _groupItem,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Profils à proximité',
+                        style: TextStyle(
+                          color: titleColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.25,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 108,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _nearbyProfiles.length,
+                          separatorBuilder: (context, _) => const SizedBox(width: 12),
+                          itemBuilder: (context, i) {
+                            final p = _nearbyProfiles[i];
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(22),
+                                onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => NearbyProfilePreviewScreen(
+                                      name: p.name,
+                                      area: p.area,
+                                      vibe: p.vibe,
+                                      distance: p.distance,
+                                      avatarUrl: p.avatarUrl,
+                                    ),
                                   ),
-                                  child: Container(
-                                    width: 205,
-                                    height: 105,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
+                                ),
+                                child: Container(
+                                  width: 212,
+                                  height: 108,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.08)
+                                        : context.oklSurface,
+                                    borderRadius: BorderRadius.circular(22),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.14)
+                                          : context.oklDivider,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: context.oklSurface,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: context.oklDivider),
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        ClipOval(
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: isDark ? 0.35 : 0.08,
+                                        ),
+                                        blurRadius: isDark ? 20 : 14,
+                                        offset: Offset(0, isDark ? 10 : 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: isDark
+                                                ? Colors.white.withValues(alpha: 0.2)
+                                                : context.oklDivider,
+                                          ),
+                                        ),
+                                        child: ClipOval(
                                           child: CachedNetworkImage(
                                             imageUrl: p.avatarUrl,
-                                            width: 42,
-                                            height: 42,
+                                            width: 44,
+                                            height: 44,
                                             fit: BoxFit.cover,
                                             memCacheWidth: 180,
                                             placeholder: (ctx, url) => Container(
-                                              width: 42,
-                                              height: 42,
-                                              color: ctx.oklSurface,
+                                              width: 44,
+                                              height: 44,
+                                              color: isDark
+                                                  ? Colors.white.withValues(alpha: 0.06)
+                                                  : context.oklScaffold,
                                             ),
                                             errorWidget: (ctx, url, error) => Container(
-                                              width: 42,
-                                              height: 42,
-                                              color: ctx.oklSurface,
-                                              child: const Center(
-                                                child: Icon(LucideIcons.imageOff, size: 16),
+                                              width: 44,
+                                              height: 44,
+                                              color: isDark
+                                                  ? Colors.white.withValues(alpha: 0.06)
+                                                  : context.oklScaffold,
+                                              child: Icon(
+                                                LucideIcons.imageOff,
+                                                size: 16,
+                                                color: context.oklOnSurfaceMuted(0.4),
                                               ),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                p.name,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: context.oklOnSurface,
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                              Text(
-                                                p.area,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: context.oklOnSurfaceMuted(0.62),
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                p.vibe,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: context.oklOnSurfaceMuted(0.62),
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                p.distance,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: context.oklOnSurfaceMuted(0.5),
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Lieux',
-                      style: TextStyle(
-                        color: context.oklOnSurface,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        filtered.isEmpty ? '0 résultat' : '${filtered.length} lieu${filtered.length > 1 ? 'x' : ''}',
-                        style: TextStyle(
-                          color: context.oklOnSurfaceMuted(0.55),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              sliver: filtered.isEmpty
-                  ? SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: context.oklSurface,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: context.oklDivider),
-                          ),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: context.oklScaffold,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: context.oklDivider),
-                                ),
-                                child: Icon(
-                                  LucideIcons.mapPinOff,
-                                  color: Theme.of(context).textTheme.bodyMedium?.color ??
-                                      context.oklOnSurfaceMuted(0.62),
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Aucun lieu ne correspond',
-                                style: TextStyle(
-                                  color: context.oklOnSurface,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Essaye un autre filtre ou une autre recherche pour « ${_groups.firstWhere((g) => g.id == _selectedGroupId).title} ».',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                                          context.oklOnSurfaceMuted(0.62))
-                                      .withValues(alpha: 0.95),
-                                  fontSize: 13,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  : SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 0.72,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) {
-                          final s = filtered[i];
-                          return Material(
-                            color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                            elevation: 0,
-                            borderRadius: BorderRadius.circular(20),
-                            clipBehavior: Clip.antiAlias,
-                            child: InkWell(
-                              onTap: () => _openSpotSheet(context, s),
-                              borderRadius: BorderRadius.circular(20),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: context.oklDivider, width: 1),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(19),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      CachedNetworkImage(
-                                        imageUrl: s.url,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.high,
-                                        memCacheWidth: 600,
-                                        placeholder: (ctx, url) => Container(
-                                          color: ctx.oklSurface,
-                                        ),
-                                        errorWidget: (ctx, url, error) => Container(
-                                          color: ctx.oklSurface,
-                                          alignment: Alignment.center,
-                                          child: Icon(
-                                            LucideIcons.imageOff,
-                                            color: ctx.oklOnSurfaceMuted(0.55),
-                                          ),
-                                        ),
                                       ),
-                                      const DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          gradient: AppColors.cardOverlay,
-                                        ),
-                                      ),
-                                      Positioned(
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        child: Container(
-                                          padding: const EdgeInsets.fromLTRB(12, 24, 12, 12),
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                Colors.transparent,
-                                                Colors.black.withValues(alpha: 0.75),
-                                              ],
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              p.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: titleColor,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14,
+                                              ),
                                             ),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                s.title,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w800,
-                                                  letterSpacing: -0.2,
-                                                ),
+                                            Text(
+                                              p.area,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.white.withValues(alpha: 0.62)
+                                                    : context.oklOnSurfaceMuted(0.62),
+                                                fontSize: 12,
                                               ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                s.subtitle,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: Colors.white.withValues(alpha: 0.88),
-                                                  fontSize: 11.5,
-                                                  height: 1.25,
-                                                ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              p.vibe,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.white.withValues(alpha: 0.72)
+                                                    : context.oklOnSurfaceMuted(0.72),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
                                               ),
-                                              const SizedBox(height: 8),
-                                              Row(
-                                                children: [
-                                                  Icon(
-                                                    LucideIcons.users,
-                                                    size: 14,
-                                                    color: Colors.white.withValues(
-                                                        alpha: 0.92),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Flexible(
-                                                    child: Text(
-                                                      _meetCrowdLabelForSpot(
-                                                          s.title),
-                                                      maxLines: 1,
-                                                      softWrap: false,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        color: Colors.white.withValues(
-                                                            alpha: 0.88),
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.w700,
-                                                        height: 1.1,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Icon(
-                                                    LucideIcons.clock,
-                                                    size: 14,
-                                                    color: Colors.white.withValues(
-                                                        alpha: 0.92),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Flexible(
-                                                    child: Text(
-                                                      _meetMomentLabelForSpot(
-                                                          s.title),
-                                                      maxLines: 1,
-                                                      softWrap: false,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        color: Colors.white.withValues(
-                                                            alpha: 0.88),
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.w700,
-                                                        height: 1.1,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
+                                            ),
+                                            Text(
+                                              p.distance,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.white.withValues(alpha: 0.45)
+                                                    : context.oklOnSurfaceMuted(0.48),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
                                               ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 10,
-                                        right: 10,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(alpha: 0.45),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white24),
-                                          ),
-                                          child: Icon(
-                                            LucideIcons.mapPin,
-                                            size: 15,
-                                            color: Colors.white.withValues(alpha: 0.92),
-                                          ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                        childCount: filtered.length,
+                            );
+                          },
+                        ),
                       ),
-                    ),
-            ),
-          ],
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Lieux',
+                        style: TextStyle(
+                          color: titleColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.35,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          filtered.isEmpty
+                              ? '0 résultat'
+                              : '${filtered.length} lieu${filtered.length > 1 ? 'x' : ''}',
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.45)
+                                : context.oklOnSurfaceMuted(0.48),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(14, 0, 14, bottomPad),
+                sliver: filtered.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 28),
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.07)
+                                  : context.oklSurface,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : context.oklDivider,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.08)
+                                        : context.oklScaffold,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.14)
+                                          : context.oklDivider,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    LucideIcons.mapPinOff,
+                                    color: context.oklOnSurfaceMuted(0.55),
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Aucun lieu ne correspond',
+                                  style: TextStyle(
+                                    color: titleColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Essaye un autre filtre ou une autre recherche pour « ${_groups.firstWhere((g) => g.id == _selectedGroupId).title} ».',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: subColor,
+                                    fontSize: 13,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 14,
+                          childAspectRatio: 0.72,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            final s = filtered[i];
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _openSpotSheet(context, s),
+                                borderRadius: BorderRadius.circular(26),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(26),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: isDark ? 0.55 : 0.12,
+                                        ),
+                                        blurRadius: isDark ? 24 : 16,
+                                        offset: Offset(0, isDark ? 14 : 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(26),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        CachedNetworkImage(
+                                          imageUrl: s.url,
+                                          fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.high,
+                                          memCacheWidth: 600,
+                                          placeholder: (ctx, url) =>
+                                              Container(color: ctx.oklSurface),
+                                          errorWidget: (ctx, url, error) => Container(
+                                            color: ctx.oklSurface,
+                                            alignment: Alignment.center,
+                                            child: Icon(
+                                              LucideIcons.imageOff,
+                                              color: context.oklOnSurfaceMuted(0.4),
+                                            ),
+                                          ),
+                                        ),
+                                        const DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              stops: [0.0, 0.35, 1.0],
+                                              colors: [
+                                                Color(0x66000000),
+                                                Colors.transparent,
+                                                Color(0xD8000000),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          left: 0,
+                                          right: 0,
+                                          bottom: 0,
+                                          child: Container(
+                                            padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [
+                                                  Colors.transparent,
+                                                  Colors.black.withValues(alpha: 0.82),
+                                                ],
+                                              ),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  s.title,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w800,
+                                                    letterSpacing: -0.25,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  s.subtitle,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: Colors.white.withValues(alpha: 0.88),
+                                                    fontSize: 11.5,
+                                                    height: 1.25,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      LucideIcons.users,
+                                                      size: 14,
+                                                      color: Colors.white.withValues(alpha: 0.92),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Flexible(
+                                                      child: Text(
+                                                        _meetCrowdLabelForSpot(s.title),
+                                                        maxLines: 1,
+                                                        softWrap: false,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: TextStyle(
+                                                          color: Colors.white.withValues(alpha: 0.88),
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w700,
+                                                          height: 1.1,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Icon(
+                                                      LucideIcons.clock,
+                                                      size: 14,
+                                                      color: Colors.white.withValues(alpha: 0.92),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Flexible(
+                                                      child: Text(
+                                                        _meetMomentLabelForSpot(s.title),
+                                                        maxLines: 1,
+                                                        softWrap: false,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: TextStyle(
+                                                          color: Colors.white.withValues(alpha: 0.88),
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w700,
+                                                          height: 1.1,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 12,
+                                          right: 12,
+                                          child: ClipOval(
+                                            child: BackdropFilter(
+                                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withValues(alpha: 0.32),
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: Colors.white.withValues(alpha: 0.18),
+                                                  ),
+                                                ),
+                                                child: Icon(
+                                                  LucideIcons.mapPin,
+                                                  size: 15,
+                                                  color: Colors.white.withValues(alpha: 0.92),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          childCount: filtered.length,
+                        ),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Puce horizontale pour les filtres (lisible, style app moderne).
+/// Puce filtre (verre, cohérente avec Rencontres).
 class _ExploreFilterChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -1172,39 +1293,46 @@ class _ExploreFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = context.oklMeetIsDark;
+    final unselectedFill = dark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Color.alphaBlend(
+            context.oklOnSurface.withValues(alpha: 0.06),
+            context.oklSurface,
+          );
+    final unselectedBorder = dark
+        ? Colors.white.withValues(alpha: 0.2)
+        : context.oklDivider;
+    final labelColor = selected
+        ? Colors.white
+        : (dark
+            ? Colors.white.withValues(alpha: 0.78)
+            : context.oklOnSurfaceMuted(0.78));
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: selected
-                ? Theme.of(context).colorScheme.surfaceContainerHigh
-                : context.oklSurface,
             borderRadius: BorderRadius.circular(999),
+            color: selected ? AppColors.primary : unselectedFill,
             border: Border.all(
-              color: selected
-                  ? (Theme.of(context).textTheme.bodyMedium?.color ??
-                          context.oklOnSurfaceMuted(0.62))
-                      .withValues(alpha: 0.45)
-                  : context.oklDivider,
-              width: selected ? 1.5 : 1,
+              color: selected ? AppColors.primaryDark : unselectedBorder,
+              width: selected ? 1.25 : 1,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: selected
-                  ? context.oklOnSurface
-                  : (Theme.of(context).textTheme.bodyMedium?.color ??
-                      context.oklOnSurfaceMuted(0.62)),
+              color: labelColor,
               fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-              letterSpacing: -0.1,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              letterSpacing: -0.15,
             ),
           ),
         ),

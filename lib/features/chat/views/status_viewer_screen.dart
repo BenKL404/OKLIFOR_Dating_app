@@ -86,7 +86,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
     _progressController = AnimationController(
       vsync: this,
       duration: _storyDuration,
-    )..addListener(() => setState(() {}));
+    )..addListener(_onProgressTick);
     _commentController.addListener(_syncCanSend);
     _startStoryCycle();
   }
@@ -97,10 +97,16 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
     setState(() => _canSend = hasText);
   }
 
+  void _onProgressTick() {
+    if (!mounted || _isClosing) return;
+    setState(() {});
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _autoAdvance?.cancel();
+    _progressController.removeListener(_onProgressTick);
     _commentController.removeListener(_syncCanSend);
     _commentController.dispose();
     _progressController.dispose();
@@ -136,6 +142,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
 
   void _scheduleNextTick(Duration duration) {
     _autoAdvance?.cancel();
+    if (_isClosing) return;
     if (duration <= Duration.zero) {
       _goNext();
       return;
@@ -149,18 +156,19 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
   }
 
   void _pauseStory() {
+    if (_isClosing) return;
     _autoAdvance?.cancel();
     _progressController.stop();
   }
 
   void _resumeStoryIfNeeded() {
-    if (_pausedByTouch || _pausedByKeyboard) return;
+    if (_isClosing || _pausedByTouch || _pausedByKeyboard) return;
     _progressController.forward();
     _scheduleNextTick(_remainingDuration());
   }
 
   void _goNext() {
-    if (_pausedByTouch || _pausedByKeyboard) return;
+    if (_isClosing || _pausedByTouch || _pausedByKeyboard) return;
     if (_currentIndex >= widget.stories.length - 1) {
       _closeViewer();
       return;
@@ -172,7 +180,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
   }
 
   void _goPrevious() {
-    if (_pausedByTouch || _pausedByKeyboard) return;
+    if (_isClosing || _pausedByTouch || _pausedByKeyboard) return;
     if (_currentIndex <= 0) return;
     _pageController.previousPage(
       duration: const Duration(milliseconds: 240),
@@ -180,18 +188,22 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
     );
   }
 
-  Future<void> _closeViewer() async {
+  /// [PopScope] met la route en `doNotPop` : [Navigator.maybePop] ne dépile pas
+  /// mais retourne quand même « géré » → il faut un [Navigator.pop] impératif.
+  void _closeViewer() {
     if (!mounted || _isClosing) return;
     _isClosing = true;
     _autoAdvance?.cancel();
-
-    final rootNav = Navigator.of(context, rootNavigator: true);
-    final didPopRoot = await rootNav.maybePop();
+    _progressController.stop();
+    if (mounted) {
+      setState(() => _verticalDragOffset = 0);
+    }
     if (!mounted) return;
-
-    if (!didPopRoot) {
-      final localNav = Navigator.of(context);
-      await localNav.maybePop();
+    final nav = Navigator.of(context, rootNavigator: true);
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      _isClosing = false;
     }
   }
 
@@ -212,28 +224,62 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
       body: Listener(
         behavior: HitTestBehavior.translucent,
         onPointerDown: (event) {
+          if (_isClosing) return;
           _pausedByTouch = true;
           _pointerDownAt = DateTime.now();
           _pointerDownPos = event.localPosition;
           _pauseStory();
         },
+        onPointerMove: (event) {
+          if (_isClosing || _pointerDownPos == null) return;
+          final dx = (event.localPosition.dx - _pointerDownPos!.dx).abs();
+          final dy = event.localPosition.dy - _pointerDownPos!.dy;
+          // Glisser vers le bas pour fermer (priorité au geste vertical)
+          if (dy > 12 && dy > dx * 0.75) {
+            setState(() {
+              _verticalDragOffset = dy.clamp(0, 220);
+            });
+          }
+        },
         onPointerUp: (event) {
+          if (_isClosing) return;
+
+          if (_verticalDragOffset >= _closeDragThreshold) {
+            _pausedByTouch = false;
+            _pointerDownAt = null;
+            _pointerDownPos = null;
+            _closeViewer();
+            return;
+          }
+
+          final dragForDismiss = _verticalDragOffset;
+          if (_verticalDragOffset > 0) {
+            setState(() => _verticalDragOffset = 0);
+          }
+
           final size = MediaQuery.sizeOf(context);
+          final padding = MediaQuery.paddingOf(context);
+          // Ne pas traiter la barre du haut (progress, avatar, X, ⋮) comme zone précédent/suivant.
+          final storyTapTop = padding.top + 96;
           final downAt = _pointerDownAt;
           final downPos = _pointerDownPos;
           final elapsed = downAt == null ? null : DateTime.now().difference(downAt);
           final moved = downPos == null
               ? double.infinity
               : (event.localPosition - downPos).distance;
-          final isTapZone = event.localPosition.dy < (size.height - _tapBottomExclusionHeight);
+          final isStoryTapZone = event.localPosition.dy >= storyTapTop &&
+              event.localPosition.dy < (size.height - _tapBottomExclusionHeight);
           final isRealTap = !_pausedByKeyboard &&
               elapsed != null &&
               elapsed <= _tapMaxDuration &&
               moved <= _tapMaxDistance &&
-              isTapZone;
+              isStoryTapZone &&
+              dragForDismiss < 8;
 
           _pausedByTouch = false;
-          _resumeStoryIfNeeded();
+          if (!_isClosing) {
+            _resumeStoryIfNeeded();
+          }
           _pointerDownAt = null;
           _pointerDownPos = null;
 
@@ -246,25 +292,16 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
           }
         },
         onPointerCancel: (_) {
+          if (_isClosing) return;
+          if (_verticalDragOffset > 0) {
+            setState(() => _verticalDragOffset = 0);
+          }
           _pausedByTouch = false;
           _pointerDownAt = null;
           _pointerDownPos = null;
-          _resumeStoryIfNeeded();
-        },
-        child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onVerticalDragUpdate: (details) {
-          if (details.delta.dy <= 0) return;
-          setState(() {
-            _verticalDragOffset = (_verticalDragOffset + details.delta.dy).clamp(0, 220);
-          });
-        },
-        onVerticalDragEnd: (_) {
-          if (_verticalDragOffset > _closeDragThreshold) {
-            _closeViewer();
-            return;
+          if (!_isClosing) {
+            _resumeStoryIfNeeded();
           }
-          setState(() => _verticalDragOffset = 0);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
@@ -274,6 +311,8 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
         children: [
           PageView.builder(
             controller: _pageController,
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
             itemCount: stories.length,
             onPageChanged: (i) {
               setState(() => _currentIndex = i);
@@ -470,7 +509,44 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                       const SizedBox(width: 8),
                       OklAppBarIconButton(
                         icon: LucideIcons.moreVertical,
-                        onPressed: () {},
+                        onPressed: () => showModalBottomSheet<void>(
+                          context: context,
+                          backgroundColor: context.oklSurface,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                          ),
+                          builder: (ctx) => SafeArea(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  leading: Icon(LucideIcons.flag, color: ctx.oklOnSurfaceMuted(0.62)),
+                                  title: Text('Signaler ce statut', style: TextStyle(color: ctx.oklOnSurface)),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    OklFeedback.snack(context, 'Signalement envoyé (démo)');
+                                  },
+                                ),
+                                ListTile(
+                                  leading: Icon(LucideIcons.volumeX, color: ctx.oklOnSurfaceMuted(0.62)),
+                                  title: Text('Réduire les statuts de ${current.name}', style: TextStyle(color: ctx.oklOnSurface)),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    OklFeedback.snack(context, 'Préférences mises à jour (démo)');
+                                  },
+                                ),
+                                ListTile(
+                                  leading: Icon(LucideIcons.info, color: ctx.oklOnSurfaceMuted(0.62)),
+                                  title: Text('Infos sur les statuts', style: TextStyle(color: ctx.oklOnSurface)),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    OklFeedback.snack(context, 'Les statuts disparaissent après lecture (démo)');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -588,7 +664,6 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
         ],
       ),
         ),
-      ),
       ),
     ),
     );

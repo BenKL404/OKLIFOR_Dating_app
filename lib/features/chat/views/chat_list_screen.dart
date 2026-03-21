@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
@@ -776,66 +779,104 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final hasArchived = archivedChats.isNotEmpty;
     final extraArchivedItems = (hasArchived && _showArchived) ? archivedChats.length : 0;
     final totalItems = visibleChats.length + (hasArchived ? 1 : 0) + extraArchivedItems;
+    final isDark = context.oklMeetIsDark;
+    final titleColor = isDark ? Colors.white : context.oklOnSurface;
 
     return Scaffold(
       backgroundColor: context.oklScaffold,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-              child: _searchMode
-                  ? Row(
-                      children: [
-                        OklAppBarIconButton(
-                          icon: LucideIcons.arrowLeft,
-                          onPressed: _exitSearch,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OklPillSearchBar(
-                            controller: _searchController,
-                            focusNode: _searchFocus,
-                            hintText: 'Nom ou mot-clé…',
-                            autofocus: true,
-                            onSubmitted: (q) {
-                              if (q.trim().isEmpty) return;
-                              OklFeedback.snack(context, 'Recherche « $q » — bientôt disponible');
-                            },
-                          ),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Messages',
-                          style: TextStyle(
-                            color: context.oklOnSurface,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.8,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            OklAppBarIconButton(
-                              icon: LucideIcons.search,
-                              onPressed: _enterSearch,
-                            ),
-                            const SizedBox(width: 10),
-                            OklAppBarIconButton(
-                              icon: LucideIcons.edit,
-                              onPressed: () => _openComposeMenu(context),
-                            ),
-                          ],
-                        ),
-                      ],
+      body: Container(
+        decoration: context.oklMeetCanvasDecoration,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: context.oklMeetHeaderScrimGradient,
                     ),
-            ),
-            const SizedBox(height: 18),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 12, 10),
+                      child: _searchMode
+                          ? Row(
+                              children: [
+                                OklAppBarIconButton(
+                                  icon: LucideIcons.arrowLeft,
+                                  onPressed: _exitSearch,
+                                  useOverlayStyle: isDark,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OklPillSearchBar(
+                                    controller: _searchController,
+                                    focusNode: _searchFocus,
+                                    hintText: 'Nom ou mot-clé…',
+                                    autofocus: true,
+                                    onSubmitted: (q) {
+                                      if (q.trim().isEmpty) return;
+                                      OklFeedback.snack(
+                                        context,
+                                        'Recherche « $q » — bientôt disponible',
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 3,
+                                  height: 36,
+                                  margin: const EdgeInsets.only(top: 1),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(2),
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        AppColors.togoGreen,
+                                        AppColors.togoGold,
+                                        AppColors.togoRed,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Messages',
+                                    style: TextStyle(
+                                      color: titleColor,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.85,
+                                      height: 1.05,
+                                    ),
+                                  ),
+                                ),
+                                OklAppBarIconButton(
+                                  icon: LucideIcons.search,
+                                  onPressed: _enterSearch,
+                                  useOverlayStyle: isDark,
+                                ),
+                                const SizedBox(width: 4),
+                                OklAppBarIconButton(
+                                  icon: LucideIcons.edit,
+                                  onPressed: () => _openComposeMenu(context),
+                                  useOverlayStyle: isDark,
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
             SizedBox(
               height: 96,
               child: ListView(
@@ -873,6 +914,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
             Divider(height: 1, color: context.oklDivider),
             Expanded(
               child: ListView.builder(
+                padding: EdgeInsets.only(
+                  bottom: oklMainShellListBottomPadding(context),
+                ),
                 itemCount: totalItems,
                 itemBuilder: (context, i) {
                   final archiveHeaderIndex = hasArchived ? 0 : -1;
@@ -935,12 +979,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openComposeMenu(context),
-        backgroundColor: AppColors.primary,
-        elevation: 0,
-        shape: const CircleBorder(),
-        child: const Icon(LucideIcons.messageSquarePlus, color: Colors.white),
+      ),
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(
+          bottom: oklMainShellBottomOverlay(context) + 8,
+        ),
+        child: FloatingActionButton(
+          onPressed: () => _openComposeMenu(context),
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          shape: const CircleBorder(),
+          child: const Icon(LucideIcons.messageSquarePlus, color: Colors.white),
+        ),
       ),
     );
   }

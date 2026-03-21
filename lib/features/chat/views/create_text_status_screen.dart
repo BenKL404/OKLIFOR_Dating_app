@@ -33,7 +33,7 @@ class _CreateTextStatusScreenState extends State<CreateTextStatusScreen> {
     Color(0xFF2C1810),
     Color(0xFF4A1942),
     Color(0xFF1A1A2E),
-    Color(0xFFC0183A),
+    AppColors.primaryDark,
   ];
 
   int _selectedBg = 0;

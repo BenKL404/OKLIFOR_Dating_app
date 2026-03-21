@@ -5,7 +5,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
-import '../models/chat_models.dart';
+import '../models/chat_models.dart'
+    show ChatContact, ChatThread, demoMembersForGroup, demoPeerBioForThread, kDemoContacts;
 
 /// Détails du contact ou du groupe depuis l’en-tête de conversation.
 class ChatThreadDetailScreen extends StatelessWidget {
@@ -278,8 +279,11 @@ class _GroupDetailBody extends StatelessWidget {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () =>
-                            OklFeedback.snack(context, 'Ajouter un membre (démo)'),
+                        onPressed: () => Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => _GroupInviteScreen(thread: thread),
+                          ),
+                        ),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
@@ -291,8 +295,11 @@ class _GroupDetailBody extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     OutlinedButton(
-                      onPressed: () =>
-                          OklFeedback.snack(context, 'Paramètres du groupe (démo)'),
+                      onPressed: () => Navigator.of(context, rootNavigator: true).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _GroupSettingsScreen(thread: thread),
+                        ),
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: context.oklOnSurface,
                         side: BorderSide(color: context.oklDivider),
@@ -650,6 +657,15 @@ class _GroupMediaSubPage extends StatelessWidget {
   final ChatThread thread;
   const _GroupMediaSubPage({required this.thread});
 
+  static const _urls = <String>[
+    'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=600&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=600&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=600&q=80&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&q=80&auto=format&fit=crop',
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -658,13 +674,173 @@ class _GroupMediaSubPage extends StatelessWidget {
         backgroundColor: context.oklScaffold,
         leading: const OklAppBarBackButton(rootNavigator: true),
         automaticallyImplyLeading: false,
-        title: const Text('Médias du groupe'),
+        title: Text('Médias · ${thread.name}'),
       ),
-      body: Center(
-        child: Text(
-          'Galerie du groupe ${thread.name} (démo)',
-          style: TextStyle(color: context.oklOnSurfaceMuted(0.62)),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _urls.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
         ),
+        itemBuilder: (context, i) => ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: CachedNetworkImage(
+            imageUrl: _urls[i],
+            fit: BoxFit.cover,
+            memCacheWidth: 400,
+            placeholder: (c, u) => Container(color: context.oklSurface),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupInviteScreen extends StatefulWidget {
+  final ChatThread thread;
+  const _GroupInviteScreen({required this.thread});
+
+  @override
+  State<_GroupInviteScreen> createState() => _GroupInviteScreenState();
+}
+
+class _GroupInviteScreenState extends State<_GroupInviteScreen> {
+  final Set<String> _selected = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Inviter des membres'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                  child: Text(
+                    'Sélectionne des contacts à ajouter à « ${widget.thread.name} » (démo).',
+                    style: TextStyle(color: context.oklOnSurfaceMuted(0.62), height: 1.35),
+                  ),
+                ),
+                for (final c in kDemoContacts)
+                  CheckboxListTile(
+                    value: _selected.contains(c.id),
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == true) {
+                          _selected.add(c.id);
+                        } else {
+                          _selected.remove(c.id);
+                        }
+                      });
+                    },
+                    title: Text(c.name, style: TextStyle(color: context.oklOnSurface)),
+                    secondary: CircleAvatar(
+                      backgroundImage: CachedNetworkImageProvider(c.avatarUrl),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: FilledButton(
+                onPressed: () {
+                  if (_selected.isEmpty) {
+                    OklFeedback.snack(context, 'Choisis au moins un contact');
+                    return;
+                  }
+                  Navigator.of(context).pop();
+                  OklFeedback.snack(context, '${_selected.length} invitation(s) envoyée(s) (démo)');
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                child: Text('Inviter (${_selected.length})'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupSettingsScreen extends StatefulWidget {
+  final ChatThread thread;
+  const _GroupSettingsScreen({required this.thread});
+
+  @override
+  State<_GroupSettingsScreen> createState() => _GroupSettingsScreenState();
+}
+
+class _GroupSettingsScreenState extends State<_GroupSettingsScreen> {
+  late final TextEditingController _name;
+  bool _onlyAdmins = false;
+  bool _muteAll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.thread.name);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: const OklAppBarBackButton(rootNavigator: true),
+        automaticallyImplyLeading: false,
+        title: const Text('Paramètres du groupe'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(labelText: 'Nom du groupe'),
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            title: Text('Seuls les admins peuvent modifier le nom', style: TextStyle(color: context.oklOnSurface)),
+            value: _onlyAdmins,
+            onChanged: (v) => setState(() => _onlyAdmins = v),
+          ),
+          SwitchListTile(
+            title: Text('Couper les notifs du groupe', style: TextStyle(color: context.oklOnSurface)),
+            value: _muteAll,
+            onChanged: (v) => setState(() => _muteAll = v),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () {
+              OklFeedback.snack(context, 'Paramètres enregistrés (démo)');
+              Navigator.of(context).pop();
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Enregistrer'),
+          ),
+        ],
       ),
     );
   }

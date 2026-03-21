@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/okl_feedback.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 
@@ -122,7 +123,7 @@ class _OtpScreenState extends State<OtpScreen> {
               const SizedBox(height: 24),
               Center(
                 child: TextButton.icon(
-                  onPressed: () {},
+                  onPressed: () => OklFeedback.snack(context, 'Nouveau code envoyé (démo)'),
                   icon: const Icon(LucideIcons.refreshCcw,
                       size: 15, color: AppColors.primary),
                   label: const Text('Renvoyer le code',

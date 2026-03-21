@@ -1,8 +1,11 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
@@ -209,64 +212,98 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomBarSpace = MediaQuery.paddingOf(context).bottom + 68;
+    final topPad = MediaQuery.paddingOf(context).top + 80;
+    final shellBottom = oklMainShellBottomOverlay(context);
+    const dockH = 92.0;
 
+    final isDark = context.oklMeetIsDark;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: context.oklScaffold,
       extendBody: true,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          PageView.builder(
-            controller: _pageController,
-            scrollDirection: Axis.vertical,
-            allowImplicitScrolling: false,
-            itemCount: _profiles.length,
-            onPageChanged: (i) {
-              setState(() => _currentIndex = i);
-            },
-            itemBuilder: (context, index) {
-              final p = _profiles[index];
-              return _ReelPage(
-                profile: p,
-                cacheWidth: _cacheWidth(context),
-                bottomInset: bottomBarSpace,
-                onPass: () {
-                  OklFeedback.snack(context, 'Profil passé');
-                  if (index < _profiles.length - 1) {
-                    _pageController.nextPage(
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeOutCubic,
-                    );
-                  }
-                },
-                onLike: () {
-                  OklFeedback.snack(context, 'Like envoyé à ${p.name}');
-                  if (index < _profiles.length - 1) {
-                    _pageController.nextPage(
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeOutCubic,
-                    );
-                  }
-                },
-                onSuper: () {
-                  OklFeedback.snack(context, 'Super Like pour ${p.name}');
-                },
-                onOpenDetails: () => _openProfileQuickInfo(context, p),
-                onOpenLives: () => _openProfileLive(context, p),
-              );
-            },
-          ),
-          _DiscoveryTopBar(
-            onFilters: () => _openDiscoveryFilters(context),
-            onBell: () => Navigator.of(context, rootNavigator: true).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const _NotificationsScreen(),
+      body: Container(
+        decoration: context.oklMeetCanvasDecoration,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned(
+              top: topPad,
+              left: 14,
+              right: 14,
+              bottom: 12,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.55 : 0.14,
+                      ),
+                      blurRadius: isDark ? 32 : 22,
+                      offset: Offset(0, isDark ? 18 : 12),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: PageView.builder(
+                    controller: _pageController,
+                    scrollDirection: Axis.vertical,
+                    allowImplicitScrolling: false,
+                    itemCount: _profiles.length,
+                    onPageChanged: (i) => setState(() => _currentIndex = i),
+                    itemBuilder: (context, index) {
+                      final p = _profiles[index];
+                      return _ReelPage(
+                        profile: p,
+                        cacheWidth: _cacheWidth(context),
+                        shellBottomInset: shellBottom,
+                        dockHeight: dockH,
+                        onPass: () {
+                          OklFeedback.snack(context, 'Profil passé');
+                          if (index < _profiles.length - 1) {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 320),
+                              curve: Curves.easeOutCubic,
+                            );
+                          }
+                        },
+                        onLike: () {
+                          OklFeedback.snack(context, 'Like envoyé à ${p.name}');
+                          if (index < _profiles.length - 1) {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 320),
+                              curve: Curves.easeOutCubic,
+                            );
+                          }
+                        },
+                        onSuper: () {
+                          OklFeedback.snack(context, 'Super Like pour ${p.name}');
+                        },
+                        onOpenDetails: () => _openProfileQuickInfo(context, p),
+                        onOpenLives: () => _openProfileLive(context, p),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
-            onInfo: () => _openProfileLive(context, _profiles[_currentIndex]),
-          ),
-        ],
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _MeetHeader(
+                currentIndex: _currentIndex,
+                totalProfiles: _profiles.length,
+                onFilters: () => _openDiscoveryFilters(context),
+                onBell: () => Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const _NotificationsScreen(),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -661,70 +698,104 @@ class _LiveFriendsScreen extends StatelessWidget {
   }
 }
 
-class _DiscoveryTopBar extends StatelessWidget {
+class _MeetHeader extends StatelessWidget {
+  final int currentIndex;
+  final int totalProfiles;
   final VoidCallback onFilters;
   final VoidCallback onBell;
-  final VoidCallback onInfo;
 
-  const _DiscoveryTopBar({
+  const _MeetHeader({
+    required this.currentIndex,
+    required this.totalProfiles,
     required this.onFilters,
     required this.onBell,
-    required this.onInfo,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+    final dark = context.oklMeetIsDark;
+    final sub = dark
+        ? Colors.white.withValues(alpha: 0.55)
+        : context.oklOnSurfaceMuted(0.55);
+    final titleColor = dark ? Colors.white : context.oklOnSurface;
+    final overlayBtns = dark;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: context.oklMeetHeaderScrimGradient,
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 4,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(2),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppColors.togoGreen,
-                          AppColors.togoGold,
-                          AppColors.togoRed,
-                        ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 3,
+                        height: 36,
+                        margin: const EdgeInsets.only(top: 1),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(2),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              AppColors.togoGreen,
+                              AppColors.togoGold,
+                              AppColors.togoRed,
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Oklifor',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.8,
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Rencontres',
+                          style: TextStyle(
+                            color: titleColor,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.85,
+                            height: 1.05,
+                          ),
+                        ),
+                      ),
+                      if (totalProfiles > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            '${currentIndex + 1}/$totalProfiles',
+                            style: TextStyle(
+                              color: sub,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      OklAppBarIconButton(
+                        icon: LucideIcons.slidersHorizontal,
+                        onPressed: onFilters,
+                        useOverlayStyle: overlayBtns,
+                      ),
+                      const SizedBox(width: 4),
+                      OklAppBarIconButton(
+                        icon: LucideIcons.bell,
+                        onPressed: onBell,
+                        useOverlayStyle: overlayBtns,
+                      ),
+                    ],
                   ),
                 ],
               ),
-              Row(
-                children: [
-                  OklAppBarIconButton(icon: LucideIcons.slidersHorizontal, onPressed: onFilters),
-                  const SizedBox(width: 8),
-                  OklAppBarIconButton(icon: LucideIcons.bell, onPressed: onBell),
-                  const SizedBox(width: 8),
-                  OklAppBarIconButton(icon: LucideIcons.radio, onPressed: onInfo),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -789,7 +860,7 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Filtres de découverte',
+                      'Filtres de rencontre',
                       style: TextStyle(
                         color: context.oklOnSurface,
                         fontSize: 20,
@@ -799,7 +870,7 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Affine ton fil : critères principaux, options rapides et résumé en un coup d’œil.',
+                      'Affine tes rencontres : critères, options rapides et résumé en un coup d’œil.',
                       style: TextStyle(
                         color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
                         fontSize: 13,
@@ -1342,10 +1413,11 @@ class _NotificationsScreen extends StatelessWidget {
   }
 }
 
-class _ReelPage extends StatelessWidget {
+class _ReelPage extends StatefulWidget {
   final _DemoProfile profile;
   final int cacheWidth;
-  final double bottomInset;
+  final double shellBottomInset;
+  final double dockHeight;
   final VoidCallback onPass;
   final VoidCallback onLike;
   final VoidCallback onSuper;
@@ -1355,7 +1427,8 @@ class _ReelPage extends StatelessWidget {
   const _ReelPage({
     required this.profile,
     required this.cacheWidth,
-    required this.bottomInset,
+    required this.shellBottomInset,
+    required this.dockHeight,
     required this.onPass,
     required this.onLike,
     required this.onSuper,
@@ -1364,29 +1437,34 @@ class _ReelPage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    double dragX = 0;
+  State<_ReelPage> createState() => _ReelPageState();
+}
 
+class _ReelPageState extends State<_ReelPage> {
+  double _dragX = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.profile;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onDoubleTap: onLike,
-      onHorizontalDragUpdate: (d) => dragX += d.delta.dx,
+      onDoubleTap: widget.onLike,
+      onHorizontalDragStart: (_) => _dragX = 0,
+      onHorizontalDragUpdate: (d) => _dragX += d.delta.dx,
       onHorizontalDragEnd: (_) {
-        // Swipe vers la gauche pour ouvrir le profil complet.
-        if (dragX < -90) onOpenDetails();
-        // Swipe vers la droite pour ouvrir la page des lives.
-        if (dragX > 90) onOpenLives();
-        dragX = 0;
+        if (_dragX < -90) widget.onOpenDetails();
+        if (_dragX > 90) widget.onOpenLives();
+        _dragX = 0;
       },
       child: Stack(
         fit: StackFit.expand,
         children: [
           CachedNetworkImage(
-            imageUrl: profile.imageUrl,
+            imageUrl: p.imageUrl,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.high,
-            memCacheWidth: cacheWidth,
-            fadeInDuration: const Duration(milliseconds: 180),
+            memCacheWidth: widget.cacheWidth,
+            fadeInDuration: const Duration(milliseconds: 200),
             placeholder: (ctx, url) => Container(
               color: Colors.black.withValues(alpha: 0.45),
               alignment: Alignment.center,
@@ -1409,44 +1487,34 @@ class _ReelPage extends StatelessWidget {
               ),
             ),
           ),
-          const DecoratedBox(
-            decoration: BoxDecoration(gradient: AppColors.togoHeroOverlay),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: Theme.of(context).brightness == Brightness.dark
+                  ? const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: [0.0, 0.2, 0.52, 1.0],
+                      colors: [
+                        Color(0x73000000),
+                        Colors.transparent,
+                        Color(0x28000000),
+                        Color(0xE8000000),
+                      ],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: const Alignment(0, 0.42),
+                      colors: [
+                        Colors.black.withValues(alpha: 0.34),
+                        Colors.transparent,
+                      ],
+                    ),
+            ),
           ),
-          // Colonne d’actions (style IG)
           Positioned(
-            right: 10,
-            bottom: bottomInset + 8,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _SideAction(
-                  icon: LucideIcons.x,
-                  color: AppColors.togoRed,
-                  label: 'Passer',
-                  onTap: onPass,
-                ),
-                const SizedBox(height: 18),
-                _SideAction(
-                  icon: LucideIcons.star,
-                  color: AppColors.togoGold,
-                  label: 'Super',
-                  onTap: onSuper,
-                ),
-                const SizedBox(height: 18),
-                _SideAction(
-                  icon: LucideIcons.heart,
-                  color: AppColors.togoGreen,
-                  label: 'Like',
-                  onTap: onLike,
-                ),
-              ],
-            ).animate().fadeIn(duration: 350.ms, delay: 80.ms),
-          ),
-          // Infos bas
-          Positioned(
-            left: 16,
-            right: 72,
-            bottom: bottomInset,
+            left: 18,
+            right: 18,
+            bottom: widget.shellBottomInset + widget.dockHeight + 8,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -1455,52 +1523,64 @@ class _ReelPage extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (final t in profile.tags) ...[
-                        _TogoChip(label: t),
+                      for (final t in p.tags.take(3)) ...[
+                        _MeetTagChip(label: t),
                         const SizedBox(width: 8),
                       ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '${profile.name}, ${profile.age}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
+                GestureDetector(
+                  onTap: widget.onOpenDetails,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '${p.name}, ${p.age}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.85,
+                            height: 1.05,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Image.asset(
-                      'assets/images/certify_icon.png',
-                      width: 26,
-                      height: 26,
-                      fit: BoxFit.contain,
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Image.asset(
+                        'assets/images/certify_icon.png',
+                        width: 26,
+                        height: 26,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        LucideIcons.chevronRight,
+                        color: Colors.white.withValues(alpha: 0.45),
+                        size: 22,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
                     Icon(
                       LucideIcons.mapPin,
-                      color: Colors.white.withValues(alpha: 0.85),
+                      color: Colors.white.withValues(alpha: 0.82),
                       size: 15,
                     ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        profile.location,
+                        p.location,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.88),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -1509,70 +1589,137 @@ class _ReelPage extends StatelessWidget {
               ],
             ),
           ),
+          Positioned(
+            left: 10,
+            right: 10,
+            bottom: widget.shellBottomInset + 6,
+            child: _MeetActionDock(
+              onPass: widget.onPass,
+              onSuper: widget.onSuper,
+              onLike: widget.onLike,
+            ),
+          ).animate().fadeIn(duration: 320.ms, delay: 70.ms),
         ],
       ),
     );
   }
 }
 
-class _SideAction extends StatefulWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final VoidCallback onTap;
+class _MeetActionDock extends StatelessWidget {
+  final VoidCallback onPass;
+  final VoidCallback onSuper;
+  final VoidCallback onLike;
 
-  const _SideAction({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.onTap,
+  const _MeetActionDock({
+    required this.onPass,
+    required this.onSuper,
+    required this.onLike,
   });
 
   @override
-  State<_SideAction> createState() => _SideActionState();
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.34),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _MeetDockAction(
+                icon: LucideIcons.x,
+                label: 'Passer',
+                accent: AppColors.togoRed,
+                onTap: onPass,
+                large: true,
+              ),
+              _MeetDockAction(
+                icon: LucideIcons.star,
+                label: 'Super',
+                accent: AppColors.togoGold,
+                onTap: onSuper,
+                large: false,
+              ),
+              _MeetDockAction(
+                icon: LucideIcons.heart,
+                label: 'Like',
+                accent: AppColors.togoGreen,
+                onTap: onLike,
+                large: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _SideActionState extends State<_SideAction> {
-  bool _pressed = false;
+class _MeetDockAction extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color accent;
+  final VoidCallback onTap;
+  final bool large;
 
-  void _setPressed(bool v) {
-    if (_pressed == v) return;
-    setState(() => _pressed = v);
-  }
+  const _MeetDockAction({
+    required this.icon,
+    required this.label,
+    required this.accent,
+    required this.onTap,
+    required this.large,
+  });
+
+  @override
+  State<_MeetDockAction> createState() => _MeetDockActionState();
+}
+
+class _MeetDockActionState extends State<_MeetDockAction> {
+  bool _down = false;
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = _pressed
-        ? widget.color
-        : Colors.white.withValues(alpha: 0.88);
-    final labelColor = _pressed
-        ? Colors.white.withValues(alpha: 0.92)
-        : Colors.white.withValues(alpha: 0.78);
-
+    final dim = widget.large ? 52.0 : 44.0;
     return GestureDetector(
       onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
+      onTapDown: (_) => setState(() => _down = true),
+      onTapUp: (_) => setState(() => _down = false),
+      onTapCancel: () => setState(() => _down = false),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 52,
-            height: 52,
+            duration: const Duration(milliseconds: 110),
+            width: dim,
+            height: dim,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.black.withValues(alpha: 0.4),
-              border: Border.all(color: Colors.white24),
+              color: _down
+                  ? widget.accent.withValues(alpha: 0.38)
+                  : Colors.white.withValues(alpha: 0.1),
+              border: Border.all(
+                color: _down ? widget.accent : Colors.white.withValues(alpha: 0.22),
+                width: _down ? 2.0 : 1.2,
+              ),
             ),
-            child: Icon(widget.icon, color: iconColor, size: 24),
+            child: Icon(
+              widget.icon,
+              color: Colors.white.withValues(alpha: 0.95),
+              size: widget.large ? 26 : 21,
+            ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
           Text(
             widget.label,
             style: TextStyle(
-              color: labelColor,
+              color: Colors.white.withValues(alpha: 0.76),
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -1583,22 +1730,19 @@ class _SideActionState extends State<_SideAction> {
   }
 }
 
-class _TogoChip extends StatelessWidget {
+class _MeetTagChip extends StatelessWidget {
   final String label;
 
-  const _TogoChip({required this.label});
+  const _MeetTagChip({required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.togoGreen.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.togoGold.withValues(alpha: 0.65),
-          width: 1,
-        ),
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
       ),
       child: Text(
         label,

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// À `true`, l’app reste en [ThemeMode.dark] (clair et système ignorés).
+const bool kOklLightThemeBlocked = false;
+
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw StateError('sharedPreferencesProvider doit être surchargé dans main()');
 });
@@ -14,6 +17,7 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
 
   @override
   ThemeMode build() {
+    if (kOklLightThemeBlocked) return ThemeMode.dark;
     final prefs = ref.read(sharedPreferencesProvider);
     return _decode(prefs.getString(_key));
   }
@@ -27,7 +31,7 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
-    state = mode;
     await ref.read(sharedPreferencesProvider).setString(_key, mode.name);
+    state = kOklLightThemeBlocked ? ThemeMode.dark : mode;
   }
 }
