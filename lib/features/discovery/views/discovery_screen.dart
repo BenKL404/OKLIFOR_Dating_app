@@ -15,9 +15,8 @@ class _DemoProfile {
   final String name;
   final int age;
   final String location;
-  /// Photo réseau (Unsplash, etc.).
+  /// Photo (URL distante, ex. Unsplash).
   final String imageUrl;
-  /// Si renseigné, affichage depuis les assets à la place de [imageUrl].
   final List<String> tags;
   final String relationGoal;
   final String ethnicity;
@@ -50,7 +49,6 @@ Widget _buildDemoProfileImage(
   Widget? placeholder,
   Widget? errorWidget,
 }) {
-
   return CachedNetworkImage(
     imageUrl: profile.imageUrl,
     fit: fit,
@@ -68,7 +66,6 @@ Widget _buildDemoProfileImage(
 
 /// Images Unsplash haute définition (portraits & ambiance claire).
 const _profiles = <_DemoProfile>[
-
   _DemoProfile(
     name: 'Afi',
     age: 24,
@@ -1646,9 +1643,11 @@ class _ReelPageState extends State<_ReelPage>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Flexible(
+                      Expanded(
                         child: Text(
                           '${p.name}, ${p.age}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
@@ -1659,13 +1658,12 @@ class _ReelPageState extends State<_ReelPage>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Image.asset(
-                        'assets/images/certify_icon.png',
-                        width: 26,
-                        height: 26,
-                        fit: BoxFit.contain,
+                      Icon(
+                        LucideIcons.badgeCheck,
+                        color: AppColors.togoGold,
+                        size: 26,
                       ),
-                      const SizedBox(width: 2),
+                      const SizedBox(width: 4),
                       Icon(
                         LucideIcons.chevronRight,
                         color: Colors.white.withValues(alpha: 0.45),

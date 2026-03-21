@@ -178,11 +178,10 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                         child: profile.hasOkliforCertificate
-                            ? Image.asset(
-                                'assets/images/certify_icon.png',
-                                width: 22,
-                                height: 22,
-                                fit: BoxFit.contain,
+                            ? Icon(
+                                LucideIcons.badgeCheck,
+                                color: AppColors.togoGold,
+                                size: 22,
                               )
                             : Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

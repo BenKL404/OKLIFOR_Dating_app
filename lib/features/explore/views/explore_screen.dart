@@ -439,7 +439,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       title: 'Pulse Club',
       subtitle: 'Boîte · DJ & dancefloor',
       url:
-          'https://images.unsplash.com/photo-1571266025683-ea67b9ea6ec8?w=800&q=85&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=85&auto=format&fit=crop',
       kind: 'club',
       groupIds: <String>['all', 'soir', 'weekend'],
     ),
@@ -447,7 +447,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       title: 'Café des Arts',
       subtitle: 'Café-concert · brunch le dimanche',
       url:
-          'https://images.unsplash.com/photo-1554118811-1e0d79424c94?w=800&q=85&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=85&auto=format&fit=crop',
       kind: 'cafe',
       groupIds: <String>['all', 'calme', 'culture', 'weekend'],
     ),
@@ -463,7 +463,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       title: 'Underground',
       subtitle: 'Club · électro & live',
       url:
-          'https://images.unsplash.com/photo-1574391884720-bdbc281977aa?w=800&q=85&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=85&auto=format&fit=crop',
       kind: 'club',
       groupIds: <String>['all', 'soir', 'culture', 'weekend'],
     ),
@@ -502,7 +502,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       time: '19 h',
       distance: '2,1 km',
       url:
-          'https://images.unsplash.com/photo-1540575467063-27aef4de018b?w=800&q=85&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&q=85&auto=format&fit=crop',
       certified: true,
       groupIds: <String>['all', 'soir', 'culture', 'calme'],
     ),
@@ -569,7 +569,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       label: 'Soirée club',
       hint: 'Files en hausse près de toi',
       url:
-          'https://images.unsplash.com/photo-1571266025683-ea67b9ea6ec8?w=600&q=80&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=600&q=80&auto=format&fit=crop',
       groupIds: <String>['all', 'soir', 'weekend'],
     ),
     (
@@ -597,7 +597,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       label: 'Afterwork',
       hint: 'Créneau 18 h – 21 h',
       url:
-          'https://images.unsplash.com/photo-1540575467063-27aef4de018b?w=600&q=80&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1528605105345-5344ea358e29?w=600&q=80&auto=format&fit=crop',
       groupIds: <String>['all', 'soir', 'culture', 'calme'],
     ),
   ];
