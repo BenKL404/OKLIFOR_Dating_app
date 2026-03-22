@@ -9,6 +9,8 @@ import '../../../core/utils/okl_feedback.dart';
 import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import '../models/user_profile.dart';
+import '../models/vip_subscription.dart';
+import 'vip_pass_screen.dart';
 import '../../common/views/rich_account_screens.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -84,6 +86,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Abonnement',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ValueListenableBuilder<VipSubscriptionState>(
+            valueListenable: VipSession.subscription,
+            builder: (context, vip, _) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: Column(
+                  children: [
+                    _ActionSettingRow(
+                      icon: LucideIcons.crown,
+                      title: vip.isActive ? 'Pass VIP actif' : 'Obtenir mon Pass VIP',
+                      valueSubtitle: vip.isActive ? 'Jusqu’au ${vip.expiresLabelFr}' : 'Mobile Money (démo)',
+                      onTap: () => _openSubPage(const VipPassScreen()),
+                    ),
+                    if (vip.isActive) ...[
+                      Divider(height: 1, color: Theme.of(context).dividerColor),
+                      _ActionSettingRow(
+                        icon: LucideIcons.rotateCcw,
+                        title: 'Réinitialiser le VIP (démo)',
+                        valueSubtitle: 'Pour retester le parcours',
+                        onTap: () => VipSession.deactivateDemo(),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
           ),
           const SizedBox(height: 24),
           Text(

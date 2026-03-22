@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/flows/okl_flows.dart';
+import '../../common/views/contact_qr_hub_screen.dart';
 
 /// Utilisateur dont le profil est public : peut recevoir une invitation.
 class _PublicProfileUser {
@@ -72,6 +73,21 @@ class InviteFriendsScreen extends StatelessWidget {
         leading: const OklAppBarBackButton(),
         automaticallyImplyLeading: false,
         title: const Text('Inviter des amis'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Center(
+              child: OklAppBarIconButton(
+                icon: LucideIcons.qrCode,
+                onPressed: () => Navigator.of(context, rootNavigator: true).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ContactQrHubScreen(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(

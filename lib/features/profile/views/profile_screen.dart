@@ -8,12 +8,15 @@ import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../models/user_profile.dart';
+import '../models/vip_subscription.dart';
+import 'vip_pass_screen.dart';
 import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import 'invite_friends_screen.dart';
 import 'settings_screen.dart';
 import 'friend_requests_list_screen.dart';
 import 'profile_stat_detail_screen.dart';
+import '../../common/views/contact_qr_hub_screen.dart';
 import '../../common/views/rich_account_screens.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -68,9 +71,14 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<UserProfile>(
-      valueListenable: ProfileSession.profile,
-      builder: (context, profile, _) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        ProfileSession.profile,
+        VipSession.subscription,
+      ]),
+      builder: (context, _) {
+        final profile = ProfileSession.profile.value;
+        final vip = VipSession.subscription.value;
         return Scaffold(
       backgroundColor: context.oklScaffold,
       body: CustomScrollView(
@@ -170,6 +178,10 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (vip.isActive) ...[
+                        const SizedBox(width: 6),
+                        Icon(LucideIcons.crown, color: AppColors.togoGold, size: 22),
+                      ],
                       const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
@@ -314,6 +326,13 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 18),
+                  _ProfileVipBanner(
+                    vip: vip,
+                    onOpenPass: () => Navigator.of(context, rootNavigator: true).push<void>(
+                      MaterialPageRoute<void>(builder: (_) => const VipPassScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -413,6 +432,33 @@ class ProfileScreen extends StatelessWidget {
                             ),
                             child: Icon(
                               LucideIcons.userPlus,
+                              color: context.oklOnSurfaceMuted(0.62),
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Material(
+                        color: context.oklSurface,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const ContactQrHubScreen(),
+                            ),
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: context.oklDivider),
+                            ),
+                            child: Icon(
+                              LucideIcons.qrCode,
                               color: context.oklOnSurfaceMuted(0.62),
                               size: 18,
                             ),
@@ -519,6 +565,137 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
       },
+    );
+  }
+}
+
+class _ProfileVipBanner extends StatelessWidget {
+  final VipSubscriptionState vip;
+  final VoidCallback onOpenPass;
+
+  const _ProfileVipBanner({
+    required this.vip,
+    required this.onOpenPass,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (vip.isActive) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onOpenPass,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.togoGold.withValues(alpha: 0.2),
+                  AppColors.primary.withValues(alpha: 0.08),
+                ],
+              ),
+              border: Border.all(color: AppColors.togoGold.withValues(alpha: 0.45)),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.crown, color: AppColors.togoGold, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pass VIP actif',
+                        style: TextStyle(
+                          color: context.oklOnSurface,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Valable jusqu’au ${vip.expiresLabelFr} · ${vip.planLabelFr}',
+                        style: TextStyle(
+                          color: context.oklOnSurfaceMuted(0.65),
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  LucideIcons.chevronRight,
+                  color: context.oklOnSurfaceMuted(0.5),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpenPass,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: AppColors.togoGold.withValues(alpha: 0.18),
+            border: Border.all(color: AppColors.togoGold.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(LucideIcons.crown, color: AppColors.togoGold, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Obtenir mon Pass VIP',
+                      style: TextStyle(
+                        color: context.oklOnSurface,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mobile Money (démo) · voir qui t’a liké, badge VIP, boost Sorties',
+                      style: TextStyle(
+                        color: context.oklOnSurfaceMuted(0.68),
+                        fontSize: 12.5,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                LucideIcons.chevronRight,
+                color: context.oklOnSurfaceMuted(0.5),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
