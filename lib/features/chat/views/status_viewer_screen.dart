@@ -6,7 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 
 class StatusStory {
   final String name;
@@ -524,7 +524,16 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                                   title: Text('Signaler ce statut', style: TextStyle(color: ctx.oklOnSurface)),
                                   onTap: () {
                                     Navigator.pop(ctx);
-                                    OklFeedback.snack(context, 'Signalement envoyé (démo)');
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      OklFlows.pushResult(
+                                        context,
+                                        icon: LucideIcons.flag,
+                                        title: 'Signalement envoyé',
+                                        subtitle:
+                                            'Merci — nous modérons sous 24 à 48 h.',
+                                        primaryLabel: 'OK',
+                                      );
+                                    });
                                   },
                                 ),
                                 ListTile(
@@ -532,7 +541,16 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                                   title: Text('Réduire les statuts de ${current.name}', style: TextStyle(color: ctx.oklOnSurface)),
                                   onTap: () {
                                     Navigator.pop(ctx);
-                                    OklFeedback.snack(context, 'Préférences mises à jour (démo)');
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      OklFlows.pushResult(
+                                        context,
+                                        icon: LucideIcons.volumeX,
+                                        title: 'Préférences mises à jour',
+                                        subtitle:
+                                            'Nous afficherons moins souvent les statuts de ${current.name}.',
+                                        primaryLabel: 'Compris',
+                                      );
+                                    });
                                   },
                                 ),
                                 ListTile(
@@ -540,7 +558,16 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                                   title: Text('Infos sur les statuts', style: TextStyle(color: ctx.oklOnSurface)),
                                   onTap: () {
                                     Navigator.pop(ctx);
-                                    OklFeedback.snack(context, 'Les statuts disparaissent après lecture (démo)');
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      OklFlows.pushResult(
+                                        context,
+                                        icon: LucideIcons.info,
+                                        title: 'À propos des statuts',
+                                        subtitle:
+                                            'Les statuts disparaissent après lecture ou au bout de 24 h. Tu peux réagir en message privé.',
+                                        primaryLabel: 'OK',
+                                      );
+                                    });
                                   },
                                 ),
                               ],
@@ -605,9 +632,13 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                             suffixIcon: Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: GestureDetector(
-                                onTap: () => OklFeedback.snack(
+                                onTap: () => OklFlows.pushResult(
                                   context,
-                                  'Options piece jointe (demo)',
+                                  icon: LucideIcons.paperclip,
+                                  title: 'Pièce jointe',
+                                  subtitle:
+                                      'Photos, GIF et stickers seront disponibles dans la version finale.',
+                                  primaryLabel: 'OK',
                                 ),
                                 child: Icon(
                                   LucideIcons.plus,
@@ -624,7 +655,13 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                           ),
                           onSubmitted: (value) {
                             if (value.trim().isEmpty) return;
-                            OklFeedback.snack(context, 'Reponse envoyee');
+                            OklFlows.pushResult(
+                              context,
+                              icon: LucideIcons.send,
+                              title: 'Réponse envoyée',
+                              subtitle: 'Ton message est visible pour ${current.name} (démo).',
+                              primaryLabel: 'OK',
+                            );
                             _commentController.clear();
                           },
                         ),
@@ -636,7 +673,13 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                     onTap: () {
                       final text = _commentController.text.trim();
                       if (text.isNotEmpty) {
-                        OklFeedback.snack(context, 'Reponse envoyee');
+                        OklFlows.pushResult(
+                          context,
+                          icon: LucideIcons.send,
+                          title: 'Réponse envoyée',
+                          subtitle: 'Ton message est visible pour ${current.name} (démo).',
+                          primaryLabel: 'OK',
+                        );
                         _commentController.clear();
                       }
                     },

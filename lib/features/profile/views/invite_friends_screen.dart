@@ -4,7 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 
 /// Utilisateur dont le profil est public : peut recevoir une invitation.
 class _PublicProfileUser {
@@ -209,9 +209,13 @@ class _InviteUserTile extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               FilledButton(
-                onPressed: () => OklFeedback.snack(
+                onPressed: () => OklFlows.pushResult(
                   context,
-                  'Invitation envoyée à ${user.name}',
+                  icon: LucideIcons.send,
+                  title: 'Invitation envoyée',
+                  subtitle:
+                      '${user.name} recevra un lien pour te rejoindre sur Oklifor.',
+                  primaryLabel: 'OK',
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,

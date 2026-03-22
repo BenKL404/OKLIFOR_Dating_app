@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/theme/theme_extensions.dart';
-import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
+import 'explore_ambiance_gathering_screens.dart';
 import 'explore_see_all_screens.dart';
 import 'nearby_profile_preview_screen.dart';
 
@@ -142,9 +143,10 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => OklFeedback.snack(
+                  onPressed: () => OklFlows.pushMap(
                     context,
-                    'Ouverture carte de ${details.title} (demo)',
+                    placeTitle: details.title,
+                    locality: details.locality,
                   ),
                   style: TextButton.styleFrom(
                     foregroundColor:
@@ -214,9 +216,11 @@ class _ExploreZoneDetailsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   TextButton.icon(
-                    onPressed: () => OklFeedback.snack(
+                    onPressed: () => OklFlows.pushMatchingProfiles(
                       context,
-                      'Ouverture des profils pour ${details.title} (démo)',
+                      headline: 'Même envie',
+                      contextLabel:
+                          'Membres ouverts aux sorties proches de ${details.title}. Propose un lieu ou un créneau en message.',
                     ),
                     style: TextButton.styleFrom(
                       foregroundColor:
@@ -354,6 +358,63 @@ class _ZoneInfoCard extends StatelessWidget {
       ),
     );
   }
+}
+
+_ZoneDetailsData _exploreZoneDetailsDataForVenue(
+  ({
+    String title,
+    String subtitle,
+    String url,
+    String kind,
+    List<String> groupIds,
+  }) v, {
+  required List<
+          ({
+            String title,
+            String subtitle,
+            String url,
+            String kind,
+            List<String> groupIds,
+          })>
+      venueCatalog,
+}) {
+  final kindFr = switch (v.kind) {
+    'restaurant' => 'restaurant',
+    'bar' => 'bar',
+    'club' => 'boîte de nuit',
+    'lounge' => 'lounge',
+    'cafe' => 'café',
+    'plage' => 'spot plage',
+    _ => 'lieu de sortie',
+  };
+  return _ZoneDetailsData(
+    title: v.title,
+    subtitle: v.subtitle,
+    heroUrl: v.url,
+    locality: 'Autour de toi · démo',
+    narration:
+        '${v.title} est un $kindFr à ajouter à ta liste : sortie en groupe, afterwork ou rendez-vous, '
+        'avec une adresse concrète plutôt qu’un vague « on verra ».',
+    highlights: const [
+      'Horaires variables le week-end',
+      'Pense à réserver aux heures de pointe',
+      'Idéal pour briser la glace sur place',
+    ],
+    bestPeriod: 'Selon le type de soirée (démo)',
+    safetyNote: 'Privilégie les trajets connus le soir ; sort de groupe possible.',
+    languages: 'Français, langues locales',
+    icebreakers: [
+      'Tu viens pour manger, danser ou juste discuter ?',
+      'On s’y retrouve directement ou on fait un point avant ?',
+      'Tu connais déjà la carte / la musique ici ?',
+    ],
+    suggestedMatches: 12,
+    galleryUrls: [
+      v.url,
+      venueCatalog[1].url,
+      venueCatalog[4].url,
+    ],
+  );
 }
 
 class _MetaLine extends StatelessWidget {
@@ -912,6 +973,68 @@ class _ExploreScreenState extends State<ExploreScreen> {
         .toList(growable: false);
   }
 
+  void _pushExploreSearchResults(BuildContext context, String rawQ) {
+    final q = rawQ.toLowerCase();
+    bool hit(String s) => s.toLowerCase().contains(q);
+
+    final events = _nearbyEvents
+        .where((e) => _matchesGroup(e.groupIds))
+        .where(
+          (e) => hit(e.title) || hit(e.venue) || hit(e.dayLabel),
+        )
+        .toList(growable: false);
+
+    final venues = _venues
+        .where((v) => _matchesGroup(v.groupIds))
+        .where((v) => hit(v.title) || hit(v.subtitle))
+        .toList(growable: false);
+
+    final ambiances = _ambiancesNearby
+        .where((a) => _matchesGroup(a.groupIds))
+        .where((a) => hit(a.label) || hit(a.hint))
+        .toList(growable: false);
+
+    final gatherings = _gatherings
+        .where((g) => _matchesGroup(g.groupIds))
+        .where(
+          (g) => hit(g.title) || hit(g.subtitle) || hit(g.when),
+        )
+        .toList(growable: false);
+
+    final asks = _participationAsks
+        .where((p) => _matchesGroup(p.groupIds))
+        .where(
+          (p) => hit(p.name) || hit(p.area) || hit(p.ask),
+        )
+        .toList(growable: false);
+
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ExploreSearchResultsScreen(
+          query: rawQ,
+          events: events,
+          venues: venues,
+          ambiances: ambiances,
+          gatherings: gatherings,
+          participationAsks: asks,
+          onEventTap: _openEventSheet,
+          onVenueTap: (ctx, v) {
+            Navigator.of(ctx, rootNavigator: true).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => _ExploreZoneDetailsScreen(
+                  details: _exploreZoneDetailsDataForVenue(
+                    v,
+                    venueCatalog: _venues,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _openVenueSheet(
     BuildContext context,
     ({
@@ -1026,7 +1149,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 child: FilledButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
-                    OklFeedback.snack(context, 'Participation enregistrée (démo)');
+                    OklFlows.pushResult(
+                      context,
+                      icon: LucideIcons.partyPopper,
+                      title: 'Participation enregistrée',
+                      subtitle:
+                          'Les organisateurs peuvent te contacter pour confirmer les détails. Vérifie tes notifications.',
+                      bullets: const [
+                        'Rappel automatique la veille (simulation).',
+                        'Tu peux annuler depuis l’événement dans Sorties.',
+                      ],
+                      primaryLabel: 'Parfait',
+                    );
                   },
                   icon: const Icon(LucideIcons.userPlus, size: 20),
                   label: const Text('Je participe / intéressé·e'),
@@ -1052,41 +1186,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       String kind,
       List<String> groupIds,
     }) v,
-  ) {
-    final kindFr = switch (v.kind) {
-      'restaurant' => 'restaurant',
-      'bar' => 'bar',
-      'club' => 'boîte de nuit',
-      'lounge' => 'lounge',
-      'cafe' => 'café',
-      'plage' => 'spot plage',
-      _ => 'lieu de sortie',
-    };
-    return _ZoneDetailsData(
-      title: v.title,
-      subtitle: v.subtitle,
-      heroUrl: v.url,
-      locality: 'Autour de toi · démo',
-      narration:
-          '${v.title} est un $kindFr à ajouter à ta liste : sortie en groupe, afterwork ou rendez-vous, '
-          'avec une adresse concrète plutôt qu’un vague « on verra ».',
-      highlights: const [
-        'Horaires variables le week-end',
-        'Pense à réserver aux heures de pointe',
-        'Idéal pour briser la glace sur place',
-      ],
-      bestPeriod: 'Selon le type de soirée (démo)',
-      safetyNote: 'Privilégie les trajets connus le soir ; sort de groupe possible.',
-      languages: 'Français, langues locales',
-      icebreakers: [
-        'Tu viens pour manger, danser ou juste discuter ?',
-        'On s’y retrouve directement ou on fait un point avant ?',
-        'Tu connais déjà la carte / la musique ici ?',
-      ],
-      suggestedMatches: 12,
-      galleryUrls: [v.url, _venues[1].url, _venues[4].url],
-    );
-  }
+  ) =>
+      _exploreZoneDetailsDataForVenue(v, venueCatalog: _venues);
 
   Widget _sectionVoirButton(BuildContext context, {required VoidCallback onPressed}) {
     return TextButton(
@@ -1624,10 +1725,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       autofocus: true,
                                       onSubmitted: (q) {
                                         if (q.trim().isEmpty) return;
-                                        OklFeedback.snack(
-                                          context,
-                                          'Résultats pour « $q » (démo)',
-                                        );
+                                        _pushExploreSearchResults(context, q.trim());
                                       },
                                     ),
                                   ),
@@ -1925,9 +2023,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 label: a.label,
                                 hint: a.hint,
                                 imageUrl: a.url,
-                                onTap: () => OklFeedback.snack(
-                                  context,
-                                  'Ambiance « ${a.label} » (démo)',
+                                onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ExploreAmbianceDetailScreen(
+                                      label: a.label,
+                                      hint: a.hint,
+                                      imageUrl: a.url,
+                                    ),
+                                  ),
                                 ),
                               );
                             },
@@ -2240,9 +2343,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 when: g.when,
                                 distance: g.distance,
                                 imageUrl: g.url,
-                                onTap: () => OklFeedback.snack(
-                                  context,
-                                  'Groupe « ${g.title} » (démo)',
+                                onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ExploreGatheringDetailScreen(
+                                      title: g.title,
+                                      subtitle: g.subtitle,
+                                      going: g.going,
+                                      when: g.when,
+                                      distance: g.distance,
+                                      imageUrl: g.url,
+                                    ),
+                                  ),
                                 ),
                               );
                             },
@@ -2517,6 +2628,444 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Résultats de recherche globaux (Sorties).
+class ExploreSearchResultsScreen extends StatelessWidget {
+  final String query;
+  final List<
+      ({
+        String title,
+        String venue,
+        String dayLabel,
+        String time,
+        String distance,
+        String url,
+        bool certified,
+        List<String> groupIds,
+      })> events;
+  final List<
+      ({
+        String title,
+        String subtitle,
+        String url,
+        String kind,
+        List<String> groupIds,
+      })> venues;
+  final List<
+      ({
+        String label,
+        String hint,
+        String url,
+        List<String> groupIds,
+      })> ambiances;
+  final List<
+      ({
+        String title,
+        String subtitle,
+        int going,
+        String when,
+        String distance,
+        String url,
+        List<String> groupIds,
+      })> gatherings;
+  final List<
+      ({
+        String name,
+        String avatarUrl,
+        String area,
+        String ask,
+        String slot,
+        String distance,
+        List<String> groupIds,
+      })> participationAsks;
+  final void Function(
+    BuildContext context,
+    ({
+      String title,
+      String venue,
+      String dayLabel,
+      String time,
+      String distance,
+      String url,
+      bool certified,
+      List<String> groupIds,
+    }) e,
+  ) onEventTap;
+  final void Function(
+    BuildContext context,
+    ({
+      String title,
+      String subtitle,
+      String url,
+      String kind,
+      List<String> groupIds,
+    }) v,
+  ) onVenueTap;
+
+  const ExploreSearchResultsScreen({
+    super.key,
+    required this.query,
+    required this.events,
+    required this.venues,
+    required this.ambiances,
+    required this.gatherings,
+    required this.participationAsks,
+    required this.onEventTap,
+    required this.onVenueTap,
+  });
+
+  int get _total =>
+      events.length +
+      venues.length +
+      ambiances.length +
+      gatherings.length +
+      participationAsks.length;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = context.oklMeetIsDark;
+    final onTitle = dark ? Colors.white : context.oklOnSurface;
+    final muted = dark
+        ? Colors.white.withValues(alpha: 0.58)
+        : context.oklOnSurfaceMuted(0.58);
+    final bottom = MediaQuery.paddingOf(context).bottom + 20;
+
+    return Scaffold(
+      backgroundColor: context.oklScaffold,
+      appBar: AppBar(
+        backgroundColor: context.oklScaffold,
+        leading: IconButton(
+          icon: Icon(LucideIcons.arrowLeft, color: onTitle),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '« $query »',
+          style: TextStyle(
+            color: onTitle,
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+          ),
+        ),
+      ),
+      body: _total == 0
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.searchX, size: 48, color: muted),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Aucun résultat pour cette recherche',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: onTitle,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Essaie un autre mot-clé ou enlève un filtre d’ambiance.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: muted, fontSize: 14, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : ListView(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, bottom),
+              children: [
+                Text(
+                  '$_total résultat${_total > 1 ? 's' : ''}',
+                  style: TextStyle(color: muted, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                if (events.isNotEmpty) ...[
+                  _SearchSectionTitle(title: 'Événements', color: onTitle),
+                  const SizedBox(height: 10),
+                  for (final e in events)
+                    _SearchTile(
+                      onTap: () => onEventTap(context, e),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: e.url,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 160,
+                          placeholder: (c, u) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                          errorWidget: (c, u, err) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                        ),
+                      ),
+                      title: e.title,
+                      subtitle: '${e.venue} · ${e.dayLabel} · ${e.time}',
+                    ),
+                  const SizedBox(height: 20),
+                ],
+                if (venues.isNotEmpty) ...[
+                  _SearchSectionTitle(title: 'Lieux', color: onTitle),
+                  const SizedBox(height: 10),
+                  for (final v in venues)
+                    _SearchTile(
+                      onTap: () => onVenueTap(context, v),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: v.url,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 160,
+                          placeholder: (c, u) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                          errorWidget: (c, u, err) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                        ),
+                      ),
+                      title: v.title,
+                      subtitle: v.subtitle,
+                    ),
+                  const SizedBox(height: 20),
+                ],
+                if (ambiances.isNotEmpty) ...[
+                  _SearchSectionTitle(title: 'Ambiances', color: onTitle),
+                  const SizedBox(height: 10),
+                  for (final a in ambiances)
+                    _SearchTile(
+                      onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ExploreAmbianceDetailScreen(
+                            label: a.label,
+                            hint: a.hint,
+                            imageUrl: a.url,
+                          ),
+                        ),
+                      ),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: a.url,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 160,
+                          placeholder: (c, u) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                          errorWidget: (c, u, err) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                        ),
+                      ),
+                      title: a.label,
+                      subtitle: a.hint,
+                    ),
+                  const SizedBox(height: 20),
+                ],
+                if (gatherings.isNotEmpty) ...[
+                  _SearchSectionTitle(title: 'Rassemblements', color: onTitle),
+                  const SizedBox(height: 10),
+                  for (final g in gatherings)
+                    _SearchTile(
+                      onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ExploreGatheringDetailScreen(
+                            title: g.title,
+                            subtitle: g.subtitle,
+                            going: g.going,
+                            when: g.when,
+                            distance: g.distance,
+                            imageUrl: g.url,
+                          ),
+                        ),
+                      ),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: g.url,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 160,
+                          placeholder: (c, u) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                          errorWidget: (c, u, err) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                        ),
+                      ),
+                      title: g.title,
+                      subtitle: '${g.going} intéressé·e·s · ${g.when}',
+                    ),
+                  const SizedBox(height: 20),
+                ],
+                if (participationAsks.isNotEmpty) ...[
+                  _SearchSectionTitle(
+                    title: 'Demandes de participation',
+                    color: onTitle,
+                  ),
+                  const SizedBox(height: 10),
+                  for (final p in participationAsks)
+                    _SearchTile(
+                      onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => NearbyProfilePreviewScreen(
+                            name: p.name,
+                            area: p.area,
+                            vibe: p.ask,
+                            distance: p.distance,
+                            avatarUrl: p.avatarUrl,
+                            slot: p.slot,
+                            participationAsk: true,
+                          ),
+                        ),
+                      ),
+                      leading: ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: p.avatarUrl,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 160,
+                          placeholder: (c, u) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                          errorWidget: (c, u, err) => Container(
+                            width: 52,
+                            height: 52,
+                            color: context.oklSurface,
+                          ),
+                        ),
+                      ),
+                      title: p.name,
+                      subtitle: p.ask,
+                    ),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _SearchSectionTitle extends StatelessWidget {
+  final String title;
+  final Color color;
+
+  const _SearchSectionTitle({required this.title, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: TextStyle(
+        color: color,
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.2,
+      ),
+    );
+  }
+}
+
+class _SearchTile extends StatelessWidget {
+  final Widget leading;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _SearchTile({
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: context.oklSurface,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.oklOnSurface,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.oklOnSurfaceMuted(0.58),
+                          fontSize: 12.5,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  LucideIcons.chevronRight,
+                  color: context.oklOnSurfaceMuted(0.4),
+                  size: 20,
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
@@ -391,8 +392,14 @@ class _GroupDetailBody extends StatelessWidget {
                     title: 'Quitter le groupe ?',
                     body: 'Tu pourras être réinvité plus tard.',
                     confirmLabel: 'Quitter',
-                    onConfirm: () =>
-                        OklFeedback.snack(context, 'Groupe quitté (démo)'),
+                    onConfirm: () => OklFlows.pushResult(
+                      context,
+                      icon: LucideIcons.logOut,
+                      title: 'Tu as quitté le groupe',
+                      subtitle:
+                          'Tu ne recevras plus les messages de « ${thread.name} ».',
+                      primaryLabel: 'OK',
+                    ),
                   ),
                 ),
               ],
@@ -589,7 +596,11 @@ class _ContactCallsSubPage extends StatelessWidget {
             ),
             trailing: IconButton(
               icon: const Icon(LucideIcons.phone),
-              onPressed: () => OklFeedback.snack(context, 'Appel de ${thread.name}…'),
+              onPressed: () => OklFlows.pushOutgoingCall(
+                context,
+                contactName: thread.name,
+                avatarUrl: thread.isGroup ? null : thread.avatarUrl,
+              ),
             ),
           );
         },
@@ -665,7 +676,15 @@ class _ContactPrivacySubPage extends StatelessWidget {
           _SimpleActionRow(
             icon: LucideIcons.flag,
             title: 'Signaler ${thread.name}',
-            onTap: () => OklFeedback.snack(context, 'Signalement envoyé (démo)'),
+            onTap: () => OklFlows.pushResult(
+              context,
+              icon: LucideIcons.flag,
+              iconColor: AppColors.togoRed,
+              title: 'Signalement envoyé',
+              subtitle:
+                  'Merci pour ton retour. Notre équipe traitera la demande sous 24 à 48 h.',
+              primaryLabel: 'Compris',
+            ),
           ),
           _SimpleActionRow(
             icon: LucideIcons.userX,
@@ -675,7 +694,14 @@ class _ContactPrivacySubPage extends StatelessWidget {
               title: 'Bloquer ce contact ?',
               body: 'Tu ne recevras plus ses messages.',
               confirmLabel: 'Bloquer',
-              onConfirm: () => OklFeedback.snack(context, 'Contact bloqué (démo)'),
+              onConfirm: () => OklFlows.pushResult(
+                context,
+                icon: LucideIcons.userX,
+                title: 'Contact bloqué',
+                subtitle:
+                    'Tu ne recevras plus de messages de ${thread.name}. Tu peux débloquer depuis Réglages.',
+                primaryLabel: 'OK',
+              ),
             ),
           ),
         ],
@@ -789,11 +815,24 @@ class _GroupInviteScreenState extends State<_GroupInviteScreen> {
               child: FilledButton(
                 onPressed: () {
                   if (_selected.isEmpty) {
-                    OklFeedback.snack(context, 'Choisis au moins un contact');
+                    OklFeedback.alert(
+                      context,
+                      title: 'Sélection requise',
+                      message: 'Choisis au moins un contact à inviter.',
+                    );
                     return;
                   }
-                  Navigator.of(context).pop();
-                  OklFeedback.snack(context, '${_selected.length} invitation(s) envoyée(s) (démo)');
+                  final n = _selected.length;
+                  OklFlows.pushResult(
+                    context,
+                    icon: LucideIcons.userPlus,
+                    title: 'Invitation${n > 1 ? 's' : ''} envoyée${n > 1 ? 's' : ''}',
+                    subtitle:
+                        '$n contact${n > 1 ? 's' : ''} recevront une invitation pour « ${widget.thread.name} ».',
+                    primaryLabel: 'Parfait',
+                  ).then((_) {
+                    if (context.mounted) Navigator.of(context).pop();
+                  });
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -865,8 +904,15 @@ class _GroupSettingsScreenState extends State<_GroupSettingsScreen> {
           const SizedBox(height: 20),
           FilledButton(
             onPressed: () {
-              OklFeedback.snack(context, 'Paramètres enregistrés (démo)');
-              Navigator.of(context).pop();
+              OklFlows.pushResult(
+                context,
+                icon: LucideIcons.check,
+                title: 'Paramètres enregistrés',
+                subtitle: 'Les changements sont appliqués pour ce groupe.',
+                primaryLabel: 'OK',
+              ).then((_) {
+                if (context.mounted) Navigator.of(context).pop();
+              });
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('Enregistrer'),

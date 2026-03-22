@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 
 class ConversationMuteScreen extends StatefulWidget {
   final String threadName;
@@ -51,11 +52,18 @@ class _ConversationMuteScreenState extends State<ConversationMuteScreen> {
           const SizedBox(height: 20),
           FilledButton(
             onPressed: () {
-              OklFeedback.snack(
+              final muted = _muted;
+              OklFlows.pushResult(
                 context,
-                _muted ? 'Conversation en silencieux' : 'Notifications normales',
-              );
-              Navigator.of(context).pop();
+                icon: muted ? LucideIcons.bellOff : LucideIcons.bell,
+                title: muted ? 'Silencieux activé' : 'Notifications normales',
+                subtitle: muted
+                    ? 'Tu ne seras plus alerté·e sauf si tu ouvres la conversation.'
+                    : 'Tu recevras à nouveau les alertes pour ${widget.threadName}.',
+                primaryLabel: 'OK',
+              ).then((_) {
+                if (context.mounted) Navigator.of(context).pop();
+              });
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('Enregistrer'),

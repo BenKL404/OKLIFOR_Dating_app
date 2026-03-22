@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 
@@ -123,7 +123,14 @@ class _OtpScreenState extends State<OtpScreen> {
               const SizedBox(height: 24),
               Center(
                 child: TextButton.icon(
-                  onPressed: () => OklFeedback.snack(context, 'Nouveau code envoyé (démo)'),
+                  onPressed: () => OklFlows.pushResult(
+                    context,
+                    icon: LucideIcons.mail,
+                    title: 'Code renvoyé',
+                    subtitle:
+                        'Un nouveau SMS a été envoyé au ${widget.phoneNumber}. Vérifie ta messagerie.',
+                    primaryLabel: 'OK',
+                  ),
                   icon: const Icon(LucideIcons.refreshCcw,
                       size: 15, color: AppColors.primary),
                   label: const Text('Renvoyer le code',

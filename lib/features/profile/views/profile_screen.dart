@@ -6,7 +6,7 @@ import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../models/user_profile.dart';
 import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
@@ -661,9 +661,12 @@ class _FriendRequestFacebookRow extends StatelessWidget {
                   children: [
                     Expanded(
                       child: FilledButton(
-                        onPressed: () => OklFeedback.snack(
+                        onPressed: () => OklFlows.pushResult(
                           context,
-                          'Demande acceptée : ${user.name}',
+                          icon: LucideIcons.userCheck,
+                          title: 'Demande acceptée',
+                          subtitle: '${user.name} fait partie de tes contacts Oklifor.',
+                          primaryLabel: 'Super',
                         ),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
@@ -686,9 +689,13 @@ class _FriendRequestFacebookRow extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: FilledButton(
-                        onPressed: () => OklFeedback.snack(
+                        onPressed: () => OklFlows.pushResult(
                           context,
-                          'Demande ignorée pour ${user.name}',
+                          icon: LucideIcons.userX,
+                          title: 'Demande ignorée',
+                          subtitle:
+                              'Tu peux toujours retrouver ${user.name} dans les suggestions.',
+                          primaryLabel: 'OK',
                         ),
                         style: FilledButton.styleFrom(
                           backgroundColor: context.oklScaffold,

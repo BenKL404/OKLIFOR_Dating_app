@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../models/chat_models.dart';
 
@@ -38,27 +39,40 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 
   void _toggle(ChatContact c) {
-    setState(() {
-      if (_selectedIds.contains(c.id)) {
-        _selectedIds.remove(c.id);
-      } else {
-        if (_selectedIds.length >= _maxMembers) {
-          OklFeedback.snack(context, 'Maximum $_maxMembers personnes (démo)');
-          return;
-        }
-        _selectedIds.add(c.id);
-      }
-    });
+    if (_selectedIds.contains(c.id)) {
+      setState(() => _selectedIds.remove(c.id));
+      return;
+    }
+    if (_selectedIds.length >= _maxMembers) {
+      OklFlows.pushResult(
+        context,
+        icon: LucideIcons.users,
+        title: 'Limite atteinte',
+        subtitle:
+            'Tu peux ajouter jusqu’à $_maxMembers personnes dans un groupe pour cette démo.',
+        primaryLabel: 'Compris',
+      );
+      return;
+    }
+    setState(() => _selectedIds.add(c.id));
   }
 
   void _submit() {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      OklFeedback.snack(context, 'Donne un nom au groupe');
+      OklFeedback.alert(
+        context,
+        title: 'Nom du groupe',
+        message: 'Donne un nom à ton groupe pour continuer.',
+      );
       return;
     }
     if (_selectedIds.length < 2) {
-      OklFeedback.snack(context, 'Choisis au moins 2 personnes');
+      OklFeedback.alert(
+        context,
+        title: 'Membres',
+        message: 'Choisis au moins deux personnes pour créer un groupe.',
+      );
       return;
     }
     final members =

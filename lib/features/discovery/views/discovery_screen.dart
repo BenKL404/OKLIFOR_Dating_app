@@ -9,7 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 
 class _DemoProfile {
   final String name;
@@ -454,9 +454,18 @@ class _ProfileDetailsScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextButton.icon(
-                    onPressed: () => OklFeedback.snack(
+                    onPressed: () => OklFlows.pushResult(
                       context,
-                      'Profil signale (demo)',
+                      icon: LucideIcons.flag,
+                      iconColor: AppColors.togoRed,
+                      title: 'Signalement enregistré',
+                      subtitle:
+                          'Notre équipe examinera ce profil sous 24 à 48 h. Merci de garder un ton factuel dans ta description.',
+                      bullets: const [
+                        'Tu peux bloquer la personne depuis sa fiche.',
+                        'Les signalements abusifs peuvent limiter ton compte.',
+                      ],
+                      primaryLabel: 'Compris',
                     ),
                     icon: const Icon(LucideIcons.flag, size: 18),
                     label: const Text('Signaler'),
@@ -465,9 +474,13 @@ class _ProfileDetailsScreen extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => OklFeedback.snack(
+                    onPressed: () => OklFlows.pushResult(
                       context,
-                      'Invitation envoyee a ${profile.name}',
+                      icon: LucideIcons.send,
+                      title: 'Invitation envoyée',
+                      subtitle:
+                          '${profile.name} recevra une notification. Tu pourras échanger dès qu’elle aura accepté.',
+                      primaryLabel: 'OK',
                     ),
                     icon: const Icon(LucideIcons.messageCircle, size: 18),
                     label: const Text('Inviter'),
@@ -606,9 +619,10 @@ class _LiveFriendsScreen extends StatelessWidget {
                           ),
                         ),
                         FilledButton.icon(
-                          onPressed: () => OklFeedback.snack(
+                          onPressed: () => OklFlows.pushLiveViewer(
                             context,
-                            'Tu rejoins la live de ${host.name} (demo)',
+                            hostName: host.name,
+                            imageUrl: host.imageUrl,
                           ),
                           icon: const Icon(LucideIcons.play, size: 16),
                           label: const Text('Regarder'),
@@ -705,9 +719,13 @@ class _LiveFriendsScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: () => OklFeedback.snack(
+                    onPressed: () => OklFlows.pushResult(
                       context,
-                      'Invitation envoyee a ${friend.name}',
+                      icon: LucideIcons.userPlus,
+                      title: 'Invitation envoyée',
+                      subtitle:
+                          '${friend.name} verra ta demande dans ses notifications.',
+                      primaryLabel: 'OK',
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
@@ -842,17 +860,210 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
   bool _withPhotoOnly = true;
   bool _sameCity = false;
   bool _newProfiles = false;
+  String _whoLabel = 'Femmes & hommes';
+  int _radiusKm = 25;
+  int _ageMin = 21;
+  int _ageMax = 35;
 
   /// État par défaut après « Réinitialiser » — toute déviation = filtres « actifs » pour le bouton Appliquer.
   bool get _hasNonDefaultFilters =>
       _verifiedOnly ||
       !_withPhotoOnly ||
       _sameCity ||
-      _newProfiles;
+      _newProfiles ||
+      _whoLabel != 'Femmes & hommes' ||
+      _radiusKm != 25 ||
+      _ageMin != 21 ||
+      _ageMax != 35;
 
   void _applyAndClose(BuildContext context) {
     Navigator.pop(context);
-    OklFeedback.snack(context, 'Filtres appliqués');
+  }
+
+  Future<void> _pickWho(BuildContext sheetContext) async {
+    final options = [
+      'Femmes & hommes',
+      'Femmes',
+      'Hommes',
+      'Tous les profils',
+    ];
+    final picked = await showModalBottomSheet<String>(
+      context: sheetContext,
+      useRootNavigator: true,
+      backgroundColor: sheetContext.oklSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Qui voir',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: ctx.oklOnSurface,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final o in options)
+                ListTile(
+                  title: Text(o, style: TextStyle(color: ctx.oklOnSurface, fontWeight: FontWeight.w600)),
+                  trailing: _whoLabel == o ? Icon(LucideIcons.check, color: AppColors.primary) : null,
+                  onTap: () => Navigator.pop(ctx, o),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) setState(() => _whoLabel = picked);
+  }
+
+  Future<void> _pickDistance(BuildContext sheetContext) async {
+    var km = _radiusKm.toDouble();
+    await showModalBottomSheet<void>(
+      context: sheetContext,
+      useRootNavigator: true,
+      backgroundColor: sheetContext.oklSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.paddingOf(ctx).bottom + 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Distance max',
+                    style: TextStyle(
+                      color: ctx.oklOnSurface,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Rayon autour de ta position actuelle.',
+                    style: TextStyle(color: ctx.oklOnSurfaceMuted(0.62), fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${km.round()} km',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                    ),
+                  ),
+                  Slider(
+                    value: km,
+                    min: 5,
+                    max: 100,
+                    divisions: 19,
+                    label: '${km.round()} km',
+                    onChanged: (v) => setModal(() => km = v),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      setState(() => _radiusKm = km.round());
+                      Navigator.pop(ctx);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Enregistrer'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _pickAge(BuildContext sheetContext) async {
+    var minA = _ageMin.toDouble();
+    var maxA = _ageMax.toDouble();
+    await showModalBottomSheet<void>(
+      context: sheetContext,
+      useRootNavigator: true,
+      backgroundColor: sheetContext.oklSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.paddingOf(ctx).bottom + 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Tranche d’âge',
+                    style: TextStyle(
+                      color: ctx.oklOnSurface,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${minA.round()} — ${maxA.round()} ans',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                    ),
+                  ),
+                  RangeSlider(
+                    values: RangeValues(minA, maxA),
+                    min: 18,
+                    max: 55,
+                    divisions: 37,
+                    labels: RangeLabels(
+                      '${minA.round()}',
+                      '${maxA.round()}',
+                    ),
+                    onChanged: (r) => setModal(() {
+                      minA = r.start;
+                      maxA = r.end;
+                    }),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      setState(() {
+                        _ageMin = minA.round();
+                        _ageMax = maxA.round();
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Enregistrer'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -940,13 +1151,13 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          const Wrap(
+                          Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              _FilterSummaryChip(label: 'Femmes & hommes'),
-                              _FilterSummaryChip(label: '≤ 25 km'),
-                              _FilterSummaryChip(label: '21 — 35 ans'),
+                              _FilterSummaryChip(label: _whoLabel),
+                              _FilterSummaryChip(label: '≤ $_radiusKm km'),
+                              _FilterSummaryChip(label: '$_ageMin — $_ageMax ans'),
                             ],
                           ),
                         ],
@@ -965,29 +1176,20 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                     _FilterRow(
                       icon: LucideIcons.users,
                       title: 'Qui voir',
-                      subtitle: 'Femmes, hommes, tous — personnaliser',
-                      onTap: () {
-                        Navigator.pop(context);
-                        OklFeedback.snack(context, 'Préférences enregistrées (démo)');
-                      },
+                      subtitle: _whoLabel,
+                      onTap: () => _pickWho(context),
                     ),
                     _FilterRow(
                       icon: LucideIcons.mapPin,
                       title: 'Distance max',
-                      subtitle: 'Jusqu’à 25 km autour de ta position',
-                      onTap: () {
-                        Navigator.pop(context);
-                        OklFeedback.snack(context, 'Rayon : 25 km');
-                      },
+                      subtitle: 'Jusqu’à $_radiusKm km autour de ta position',
+                      onTap: () => _pickDistance(context),
                     ),
                     _FilterRow(
                       icon: LucideIcons.cake,
                       title: 'Tranche d’âge',
-                      subtitle: '21 — 35 ans — ajuster la plage',
-                      onTap: () {
-                        Navigator.pop(context);
-                        OklFeedback.snack(context, 'Âge : 21 à 35 ans');
-                      },
+                      subtitle: '$_ageMin — $_ageMax ans — ajuster la plage',
+                      onTap: () => _pickAge(context),
                     ),
                     const SizedBox(height: 18),
                     Text(
@@ -1085,8 +1287,11 @@ class _DiscoveryFiltersSheetState extends State<_DiscoveryFiltersSheet> {
                             _withPhotoOnly = true;
                             _sameCity = false;
                             _newProfiles = false;
+                            _whoLabel = 'Femmes & hommes';
+                            _radiusKm = 25;
+                            _ageMin = 21;
+                            _ageMax = 35;
                           });
-                          OklFeedback.snack(context, 'Filtres réinitialisés');
                         },
                         style: TextButton.styleFrom(
                           foregroundColor: context.oklOnSurfaceMuted(0.62),
@@ -1361,7 +1566,36 @@ class _NotificationsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
-              onTap: () => OklFeedback.snack(context, n.title),
+              onTap: () {
+                final actions = switch (n.title) {
+                  'Nouveau like' => [
+                    'Voir le profil',
+                    'Répondre par un message',
+                  ],
+                  'Nouveau match' => [
+                    'Ouvrir la conversation',
+                    'Voir le profil',
+                  ],
+                  'Ami en live' => [
+                    'Regarder le live',
+                    'Réagir avec un emoji',
+                  ],
+                  'Nouvelle demande' => [
+                    'Accepter la demande',
+                    'Voir le profil',
+                    'Refuser',
+                  ],
+                  _ => <String>['Marquer comme lu'],
+                };
+                OklFlows.pushNotificationDetail(
+                  context,
+                  icon: n.icon,
+                  title: n.title,
+                  subtitle: n.subtitle,
+                  time: n.time,
+                  actions: actions,
+                );
+              },
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Row(

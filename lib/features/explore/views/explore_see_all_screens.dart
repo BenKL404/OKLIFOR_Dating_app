@@ -4,8 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
-import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import 'explore_ambiance_gathering_screens.dart';
 import 'nearby_profile_preview_screen.dart';
 
 typedef OklExploreVenue = ({
@@ -513,9 +513,14 @@ class ExploreSeeAllAmbiancesScreen extends StatelessWidget {
                       return Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: () => OklFeedback.snack(
-                            context,
-                            'Ambiance « ${a.label} » — ${a.hint} (démo)',
+                          onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ExploreAmbianceDetailScreen(
+                                label: a.label,
+                                hint: a.hint,
+                                imageUrl: a.url,
+                              ),
+                            ),
                           ),
                           borderRadius: BorderRadius.circular(14),
                           child: Container(
@@ -849,9 +854,17 @@ class ExploreSeeAllGatheringsScreen extends StatelessWidget {
                         color: Colors.transparent,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(16),
-                          onTap: () => OklFeedback.snack(
-                            context,
-                            'Groupe « ${g.title} » — rejoindre (démo)',
+                          onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ExploreGatheringDetailScreen(
+                                title: g.title,
+                                subtitle: g.subtitle,
+                                going: g.going,
+                                when: g.when,
+                                distance: g.distance,
+                                imageUrl: g.url,
+                              ),
+                            ),
                           ),
                           child: Container(
                             height: 96,

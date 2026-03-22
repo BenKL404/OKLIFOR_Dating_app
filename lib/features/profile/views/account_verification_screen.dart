@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../models/user_profile.dart';
 
@@ -133,9 +134,21 @@ class AccountVerificationScreen extends StatelessWidget {
               if (codeCtrl.text.trim() == '123456') {
                 ProfileSession.update((p) => p.copyWith(emailVerified: true));
                 Navigator.pop(ctx);
-                OklFeedback.snack(context, 'E-mail confirmé');
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  OklFlows.pushResult(
+                    context,
+                    icon: LucideIcons.mail,
+                    title: 'E-mail confirmé',
+                    subtitle: 'Ton adresse est vérifiée. Tu recevras les alertes importantes.',
+                    primaryLabel: 'Parfait',
+                  );
+                });
               } else {
-                OklFeedback.snack(context, 'Code incorrect (essaie 123456 en démo)');
+                OklFeedback.alert(
+                  context,
+                  title: 'Code incorrect',
+                  message: 'Essaie le code démo 123456 pour valider l’étape.',
+                );
               }
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
@@ -432,7 +445,13 @@ class _StepPhoneCard extends StatelessWidget {
       trailing: done
           ? const Icon(LucideIcons.checkCircle, color: AppColors.green, size: 22)
           : TextButton(
-              onPressed: () => OklFeedback.snack(context, 'Renvoi du SMS (démo)'),
+              onPressed: () => OklFlows.pushResult(
+                context,
+                icon: LucideIcons.smartphone,
+                title: 'SMS renvoyé',
+                subtitle: 'Un nouveau code arrive sous quelques secondes (simulation).',
+                primaryLabel: 'OK',
+              ),
               child: const Text('Renvoyer'),
             ),
     );
@@ -536,7 +555,13 @@ class _StepIdentityCardState extends State<_StepIdentityCard> {
                 ProfileSession.update(
                   (x) => x.copyWith(idVerified: true, idPendingReview: false),
                 );
-                OklFeedback.snack(context, 'Identité validée (démo)');
+                OklFlows.pushResult(
+                  context,
+                  icon: LucideIcons.badgeCheck,
+                  title: 'Identité validée',
+                  subtitle: 'Ton compte affiche désormais le badge vérifié Oklifor.',
+                  primaryLabel: 'Super',
+                );
               },
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.togoGreen,
@@ -592,7 +617,13 @@ class _StepIdentityCardState extends State<_StepIdentityCard> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     setState(() => _selfieOk = true);
-                    OklFeedback.snack(context, 'Selfie enregistré (démo)');
+                    OklFlows.pushResult(
+                      context,
+                      icon: LucideIcons.camera,
+                      title: 'Selfie enregistré',
+                      subtitle: 'Étape 1 sur 2 — ajoute maintenant ta pièce d’identité.',
+                      primaryLabel: 'Continuer',
+                    );
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.oklOnSurface,
@@ -611,7 +642,13 @@ class _StepIdentityCardState extends State<_StepIdentityCard> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     setState(() => _docOk = true);
-                    OklFeedback.snack(context, 'Pièce importée (démo)');
+                    OklFlows.pushResult(
+                      context,
+                      icon: LucideIcons.fileImage,
+                      title: 'Pièce importée',
+                      subtitle: 'Vérifie que les informations sont lisibles avant envoi.',
+                      primaryLabel: 'OK',
+                    );
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.oklOnSurface,
@@ -634,7 +671,14 @@ class _StepIdentityCardState extends State<_StepIdentityCard> {
                     ProfileSession.update(
                       (x) => x.copyWith(idPendingReview: true),
                     );
-                    OklFeedback.snack(context, 'Dossier envoyé pour examen');
+                    OklFlows.pushResult(
+                      context,
+                      icon: LucideIcons.send,
+                      title: 'Dossier envoyé',
+                      subtitle:
+                          'Notre équipe examine les documents sous 24 à 48 h. Tu seras notifié·e.',
+                      primaryLabel: 'Compris',
+                    );
                   }
                 : null,
             style: FilledButton.styleFrom(

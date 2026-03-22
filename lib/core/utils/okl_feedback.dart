@@ -37,6 +37,46 @@ class OklFeedback {
       );
   }
 
+  /// Remplace les SnackBars pour erreurs / validations courtes (sans ScaffoldMessenger).
+  static void alert(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final t = Theme.of(ctx);
+        return AlertDialog(
+          backgroundColor: t.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            title,
+            style: TextStyle(
+              color: t.colorScheme.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Text(
+            message,
+            style: TextStyle(
+              color: t.textTheme.bodyMedium?.color ?? t.colorScheme.onSurface,
+              fontSize: 14,
+              height: 1.35,
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   static Future<void> confirm(
     BuildContext context, {
     required String title,

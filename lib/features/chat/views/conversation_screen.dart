@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../models/chat_models.dart';
@@ -133,7 +134,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
         _recordingSeconds = 0;
       });
       _afterAppend();
-      OklFeedback.snack(context, 'Note vocale ($duration) — démo');
+      OklFlows.pushResult(
+        context,
+        icon: LucideIcons.mic,
+        title: 'Note vocale envoyée',
+        subtitle: 'Durée : $duration — ton message est dans la conversation.',
+        primaryLabel: 'OK',
+      );
       return;
     }
 
@@ -420,8 +427,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     body: 'Tu ne recevras plus les messages de « ${widget.thread.name} ».',
                     confirmLabel: 'Quitter',
                     onConfirm: () {
-                      _popConversationRoot();
-                      OklFeedback.snack(context, 'Tu as quitté le groupe');
+                      OklFlows.pushResult(
+                        context,
+                        icon: LucideIcons.userMinus,
+                        title: 'Tu as quitté le groupe',
+                        subtitle:
+                            'Tu ne recevras plus les messages de « ${widget.thread.name} ». Tu peux être réinvité·e plus tard.',
+                        primaryLabel: 'Compris',
+                      ).then((_) {
+                        if (context.mounted) _popConversationRoot();
+                      });
                     },
                   );
                 },
@@ -535,7 +550,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
             padding: const EdgeInsets.only(right: 4),
             child: OklAppBarIconButton(
               icon: LucideIcons.phone,
-              onPressed: () => OklFeedback.snack(context, 'Appel vocal (démo)'),
+              onPressed: () => OklFlows.pushOutgoingCall(
+                context,
+                contactName: t.name,
+                avatarUrl: t.isGroup ? null : t.avatarUrl,
+              ),
             ),
           ),
           Padding(

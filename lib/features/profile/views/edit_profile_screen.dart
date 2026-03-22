@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../models/user_profile.dart';
 
@@ -54,7 +55,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _save() {
     final name = _name.text.trim();
     if (name.isEmpty) {
-      OklFeedback.snack(context, 'Indique au moins un prénom ou pseudo');
+      OklFeedback.alert(
+        context,
+        title: 'Profil incomplet',
+        message: 'Indique au moins un prénom ou un pseudo.',
+      );
       return;
     }
     final updated = widget.initial.copyWith(
@@ -66,7 +71,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
     ProfileSession.set(updated);
     Navigator.pop(context, updated);
-    OklFeedback.snack(context, 'Profil mis à jour');
   }
 
   @override
@@ -117,9 +121,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(10),
                   child: InkWell(
-                    onTap: () => OklFeedback.snack(
+                    onTap: () => OklFlows.pushResult(
                       context,
-                      'Changer la photo de couverture (démo)',
+                      icon: LucideIcons.image,
+                      title: 'Photo de couverture',
+                      subtitle:
+                          'Depuis la version complète, tu pourras choisir une image dans ta galerie ou Unsplash. Ici c’est une démo visuelle.',
+                      primaryLabel: 'OK',
                     ),
                     borderRadius: BorderRadius.circular(10),
                     child: const Padding(
@@ -177,9 +185,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         color: AppColors.primary,
                         shape: const CircleBorder(),
                         child: InkWell(
-                          onTap: () => OklFeedback.snack(
+                          onTap: () => OklFlows.pushResult(
                             context,
-                            'Changer la photo de profil (démo)',
+                            icon: LucideIcons.user,
+                            title: 'Photo de profil',
+                            subtitle:
+                                'Tu pourras recadrer et valider une photo nette du visage. Simulation pour l’instant.',
+                            primaryLabel: 'Compris',
                           ),
                           customBorder: const CircleBorder(),
                           child: const Padding(

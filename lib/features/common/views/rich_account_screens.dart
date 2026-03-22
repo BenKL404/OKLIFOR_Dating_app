@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 
 /// Texte long (conditions, politique, articles).
@@ -92,7 +93,13 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                     trailing: TextButton(
                       onPressed: () {
                         setState(() => _blocked.remove(name));
-                        OklFeedback.snack(context, '$name débloqué');
+                        OklFlows.pushResult(
+                          context,
+                          icon: LucideIcons.userCheck,
+                          title: '$name débloqué·e',
+                          subtitle: 'Tu peux à nouveau recevoir des messages de cette personne.',
+                          primaryLabel: 'OK',
+                        );
                       },
                       child: const Text('Débloquer'),
                     ),
@@ -169,11 +176,22 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
           FilledButton(
             onPressed: () {
               if (_n1.text != _n2.text || _n1.text.length < 4) {
-                OklFeedback.snack(context, 'Vérifie les deux nouveaux PIN (4 chiffres min.)');
+                OklFeedback.alert(
+                  context,
+                  title: 'PIN invalide',
+                  message: 'Les deux nouveaux PIN doivent être identiques (4 chiffres minimum).',
+                );
                 return;
               }
-              OklFeedback.snack(context, 'PIN mis à jour (démo)');
-              Navigator.of(context).pop();
+              OklFlows.pushResult(
+                context,
+                icon: LucideIcons.lock,
+                title: 'PIN mis à jour',
+                subtitle: 'Utilise-le pour les prochains accès sensibles.',
+                primaryLabel: 'OK',
+              ).then((_) {
+                if (context.mounted) Navigator.of(context).pop();
+              });
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('Enregistrer'),
@@ -238,9 +256,12 @@ class ActiveSessionsScreen extends StatelessWidget {
               trailing: s.current
                   ? null
                   : TextButton(
-                      onPressed: () => OklFeedback.snack(
+                      onPressed: () => OklFlows.pushResult(
                         context,
-                        'Session « ${s.device} » déconnectée (démo)',
+                        icon: LucideIcons.logOut,
+                        title: 'Session fermée',
+                        subtitle: '« ${s.device} » a été déconnecté·e. Reconnexion possible avec ton numéro.',
+                        primaryLabel: 'OK',
                       ),
                       child: const Text('Déco.'),
                     ),
@@ -389,11 +410,22 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
           FilledButton(
             onPressed: () {
               if (_subject.text.trim().isEmpty || _body.text.trim().isEmpty) {
-                OklFeedback.snack(context, 'Remplis le sujet et le message');
+                OklFeedback.alert(
+                  context,
+                  title: 'Formulaire incomplet',
+                  message: 'Remplis le sujet et le message pour contacter le support.',
+                );
                 return;
               }
-              OklFeedback.snack(context, 'Message envoyé au support (démo)');
-              Navigator.of(context).pop();
+              OklFlows.pushResult(
+                context,
+                icon: LucideIcons.send,
+                title: 'Message envoyé',
+                subtitle: 'Nous répondons sous 24 à 48 h sur support@oklifor.app.',
+                primaryLabel: 'OK',
+              ).then((_) {
+                if (context.mounted) Navigator.of(context).pop();
+              });
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('Envoyer'),
@@ -452,11 +484,22 @@ class _BugReportScreenState extends State<BugReportScreen> {
           FilledButton(
             onPressed: () {
               if (_steps.text.trim().length < 8) {
-                OklFeedback.snack(context, 'Ajoute un peu plus de détail');
+                OklFeedback.alert(
+                  context,
+                  title: 'Plus de détails',
+                  message: 'Décris au moins quelques lignes pour qu’on puisse reproduire le bug.',
+                );
                 return;
               }
-              OklFeedback.snack(context, 'Merci — rapport reçu (démo)');
-              Navigator.of(context).pop();
+              OklFlows.pushResult(
+                context,
+                icon: LucideIcons.bug,
+                title: 'Rapport reçu',
+                subtitle: 'Merci — notre équipe technique analysera ta description.',
+                primaryLabel: 'OK',
+              ).then((_) {
+                if (context.mounted) Navigator.of(context).pop();
+              });
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('Envoyer le rapport'),
@@ -507,11 +550,23 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
             padding: const EdgeInsets.all(20),
             child: FilledButton(
               onPressed: () {
-                OklFeedback.snack(
+                if (_code == 'en') {
+                  OklFeedback.alert(
+                    context,
+                    title: 'English',
+                    message: 'L’interface anglaise arrive bientôt. Le français reste actif pour l’instant.',
+                  );
+                  return;
+                }
+                OklFlows.pushResult(
                   context,
-                  _code == 'fr' ? 'Français conservé' : 'English sera disponible prochainement (démo)',
-                );
-                Navigator.of(context).pop();
+                  icon: LucideIcons.languages,
+                  title: 'Langue',
+                  subtitle: 'Français conservé pour toute l’application.',
+                  primaryLabel: 'OK',
+                ).then((_) {
+                  if (context.mounted) Navigator.of(context).pop();
+                });
               },
               style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
               child: const Text('Appliquer'),

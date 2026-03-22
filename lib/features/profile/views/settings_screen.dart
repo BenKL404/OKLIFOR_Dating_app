@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_settings.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
@@ -65,39 +66,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: LucideIcons.bookLock,
                   title: 'Protection du repertoire',
                   value: _protectDirectory,
-                  onChanged: (v) {
-                    setState(() => _protectDirectory = v);
-                    OklFeedback.snack(
-                      context,
-                      v ? 'Repertoire protege' : 'Protection desactivee',
-                    );
-                  },
+                  onChanged: (v) => setState(() => _protectDirectory = v),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.mapPinOff,
                   title: 'Mode quartier (distance floue)',
                   value: _neighborhoodMode,
-                  onChanged: (v) {
-                    setState(() => _neighborhoodMode = v);
-                    OklFeedback.snack(
-                      context,
-                      v ? 'Distance approximative activee' : 'Distance precise',
-                    );
-                  },
+                  onChanged: (v) => setState(() => _neighborhoodMode = v),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.eyeOff,
                   title: 'Mode incognito',
                   value: _incognito,
-                  onChanged: (v) {
-                    setState(() => _incognito = v);
-                    OklFeedback.snack(
-                      context,
-                      v ? 'Navigation en discret' : 'Mode normal',
-                    );
-                  },
+                  onChanged: (v) => setState(() => _incognito = v),
                 ),
               ],
             ),
@@ -227,8 +210,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'Deconnexion',
                       body: 'Tu pourras te reconnecter avec ton numero.',
                       confirmLabel: 'Me deconnecter',
-                      onConfirm: () =>
-                          OklFeedback.snack(context, 'A bientot sur Oklifor'),
+                      onConfirm: () => OklFlows.pushResult(
+                        context,
+                        icon: LucideIcons.logOut,
+                        title: 'À bientôt sur Oklifor',
+                        subtitle: 'Tu es déconnecté·e. Reconnecte-toi avec ton numéro quand tu veux.',
+                        primaryLabel: 'OK',
+                      ),
                     );
                   },
                 ),
@@ -243,9 +231,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'Supprimer le compte',
                       body: 'Cette action est irreversible.',
                       confirmLabel: 'Supprimer',
-                      onConfirm: () => OklFeedback.snack(
+                      onConfirm: () => OklFlows.pushResult(
                         context,
-                        'Demande de suppression envoyee (demo)',
+                        icon: LucideIcons.trash2,
+                        iconColor: AppColors.togoRed,
+                        title: 'Demande enregistrée',
+                        subtitle:
+                            'Notre équipe traitera la suppression sous quelques jours. Tu recevras un e-mail de confirmation.',
+                        primaryLabel: 'Compris',
                       ),
                     );
                   },
@@ -646,7 +639,11 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
 
   Future<void> _openThemeSheet() async {
     if (kOklLightThemeBlocked) {
-      OklFeedback.snack(context, 'Thème clair désactivé pour l’instant');
+      OklFeedback.alert(
+        context,
+        title: 'Thème clair',
+        message: 'Le thème clair est désactivé pour l’instant dans cette build.',
+      );
       return;
     }
     await showModalBottomSheet<void>(

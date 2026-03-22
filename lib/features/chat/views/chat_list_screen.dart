@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
@@ -18,6 +19,7 @@ import 'conversation_screen.dart';
 import 'create_group_screen.dart';
 import 'create_text_status_screen.dart';
 import 'new_message_screen.dart';
+import 'chat_search_results_screen.dart';
 import 'chat_thread_detail_screen.dart';
 import 'status_viewer_screen.dart';
 
@@ -232,7 +234,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     _myMediaStatusLocalPath = null;
                   });
                   if (!context.mounted) return;
-                  OklFeedback.snack(context, 'Statut publié');
+                  OklFlows.pushResult(
+                    context,
+                    icon: LucideIcons.sparkles,
+                    title: 'Statut publié',
+                    subtitle: 'Tes contacts le verront en haut de Messages.',
+                    primaryLabel: 'Super',
+                  );
                 },
               ),
             ],
@@ -345,14 +353,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
       if (!status.isGranted) {
         if (!mounted || !context.mounted) return;
         if (status.isPermanentlyDenied) {
-          OklFeedback.snack(
+          OklFeedback.alert(
             context,
-            'Permission refusée définitivement. Active-la dans les paramètres.',
+            title: 'Permission requise',
+            message:
+                'L’accès a été refusé définitivement. Active la permission dans les réglages du téléphone.',
           );
         } else {
-          OklFeedback.snack(
+          OklFeedback.alert(
             context,
-            'Permission refusée. Impossible de publier ce média.',
+            title: 'Permission refusée',
+            message: 'Impossible de publier ce média sans accès à la galerie ou à la caméra.',
           );
         }
         return;
@@ -373,9 +384,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
 
     if (!context.mounted) return;
-    OklFeedback.snack(
+    OklFlows.pushResult(
       context,
-      isVideo ? 'Statut vidéo publié (local)' : 'Statut photo publié (local)',
+      icon: isVideo ? LucideIcons.video : LucideIcons.image,
+      title: isVideo ? 'Vidéo ajoutée' : 'Photo ajoutée',
+      subtitle:
+          'Ton statut média est prêt. Les contacts le verront dans la barre des statuts.',
+      primaryLabel: 'OK',
     );
   }
 
@@ -527,7 +542,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
       online: false,
     );
     setState(() => _threads.insert(0, thread));
-    OklFeedback.snack(context, 'Groupe « ${r.name} » créé');
     _openConversation(context, thread);
   }
 
@@ -663,7 +677,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     unreadCount: 0,
                   ),
                 );
-                OklFeedback.snack(context, 'Appel vers ${chat.name}…');
+                OklFlows.pushOutgoingCall(
+                  context,
+                  contactName: chat.name,
+                  avatarUrl: chat.isGroup ? null : chat.avatarUrl,
+                );
               },
             ),
             _SheetAction(
@@ -673,17 +691,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   : 'Mettre en silencieux',
               onTap: () {
                 Navigator.pop(ctx);
-                var mutedAfter = chat.isMuted;
                 _updateThreadById(chat.id, (current) {
-                  mutedAfter = !current.isMuted;
-                  return current.copyWith(isMuted: mutedAfter);
+                  return current.copyWith(isMuted: !current.isMuted);
                 });
-                OklFeedback.snack(
-                  context,
-                  mutedAfter
-                      ? 'Silencieux : ${chat.name}'
-                      : 'Notifications réactivées · ${chat.name}',
-                );
               },
             ),
             _SheetAction(
@@ -691,20 +701,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
               label: chat.isUnread ? 'Marquer comme lu' : 'Marquer comme non lu',
               onTap: () {
                 Navigator.pop(ctx);
-                var unreadAfter = chat.isUnread;
                 _updateThreadById(chat.id, (current) {
-                  unreadAfter = !current.isUnread;
+                  final unreadAfter = !current.isUnread;
                   return current.copyWith(
                     isUnread: unreadAfter,
-                    unreadCount: unreadAfter ? (current.unreadCount > 0 ? current.unreadCount : 1) : 0,
+                    unreadCount: unreadAfter
+                        ? (current.unreadCount > 0 ? current.unreadCount : 1)
+                        : 0,
                   );
                 });
-                OklFeedback.snack(
-                  context,
-                  unreadAfter
-                      ? 'Conversation marquée non lue'
-                      : 'Conversation marquée lue',
-                );
               },
             ),
             _SheetAction(
@@ -716,12 +721,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 _updateThreadById(
                   chat.id,
                   (current) => current.copyWith(isArchived: !current.isArchived),
-                );
-                OklFeedback.snack(
-                  context,
-                  chat.isArchived
-                      ? '« ${chat.name} » désarchivée'
-                      : '« ${chat.name} » archivée',
                 );
               },
             ),
@@ -736,10 +735,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   title: 'Supprimer la discussion',
                   body: 'Cette conversation sera retirée de ta liste.',
                   confirmLabel: 'Supprimer',
-                  onConfirm: () {
-                    _removeThreadById(chat.id);
-                    OklFeedback.snack(context, 'Discussion supprimée');
-                  },
+                  onConfirm: () => _removeThreadById(chat.id),
                 );
               },
             ),
@@ -817,10 +813,30 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                     hintText: 'Nom ou mot-clé…',
                                     autofocus: true,
                                     onSubmitted: (q) {
-                                      if (q.trim().isEmpty) return;
-                                      OklFeedback.snack(
-                                        context,
-                                        'Recherche « $q » — bientôt disponible',
+                                      final t = q.trim();
+                                      if (t.isEmpty) return;
+                                      final results = _visibleChats;
+                                      Navigator.of(context, rootNavigator: true).push<void>(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => ChatSearchResultsScreen(
+                                            query: t,
+                                            threads: results,
+                                            onThreadUpdated: (id, last, time) {
+                                              if (!mounted) return;
+                                              setState(() {
+                                                final i = _threads.indexWhere((x) => x.id == id);
+                                                if (i >= 0) {
+                                                  _threads[i] = _threads[i].copyWith(
+                                                    lastMsg: last,
+                                                    time: time,
+                                                    isUnread: false,
+                                                    unreadCount: 0,
+                                                  );
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
                                       );
                                     },
                                   ),

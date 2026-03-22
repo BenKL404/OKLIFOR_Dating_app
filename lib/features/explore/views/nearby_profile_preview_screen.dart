@@ -4,7 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 
 class NearbyProfilePreviewScreen extends StatelessWidget {
   final String name;
@@ -148,11 +148,14 @@ class NearbyProfilePreviewScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () => OklFeedback.snack(
+            onPressed: () => OklFlows.pushResult(
               context,
-              participationAsk
-                  ? 'Tu proposes de participer au plan de $name (démo)'
-                  : 'Message à $name (démo)',
+              icon: participationAsk ? LucideIcons.userPlus : LucideIcons.messageCircle,
+              title: participationAsk ? 'Demande envoyée' : 'Message prêt',
+              subtitle: participationAsk
+                  ? '$name recevra ta proposition pour ce créneau. Tu seras notifié·e si elle accepte.'
+                  : 'Ouvre la conversation depuis Messages pour continuer avec $name.',
+              primaryLabel: 'OK',
             ),
             icon: Icon(
               participationAsk ? LucideIcons.userPlus : LucideIcons.messageCircle,
@@ -167,7 +170,14 @@ class NearbyProfilePreviewScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           OutlinedButton(
-            onPressed: () => OklFeedback.snack(context, 'Profil masqué pour cette session (démo)'),
+            onPressed: () => OklFlows.pushResult(
+              context,
+              icon: LucideIcons.eyeOff,
+              title: 'Profil masqué',
+              subtitle:
+                  'Nous montrerons moins souvent ce profil dans tes suggestions pour cette session.',
+              primaryLabel: 'Compris',
+            ),
             child: const Text('Pas intéressé'),
           ),
         ],

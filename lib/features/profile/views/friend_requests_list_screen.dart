@@ -1,9 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/utils/okl_feedback.dart';
+import '../../../core/flows/okl_flows.dart';
 
 /// Liste complète des demandes d’amis (même données démo que le profil).
 class FriendRequestsListScreen extends StatefulWidget {
@@ -132,9 +133,12 @@ class _FriendRequestsListScreenState extends State<FriendRequestsListScreen> {
                                   child: FilledButton(
                                     onPressed: () {
                                       setState(() => _items.removeWhere((e) => e.name == nameKey));
-                                      OklFeedback.snack(
+                                      OklFlows.pushResult(
                                         context,
-                                        'Demande acceptée : ${user.name}',
+                                        icon: LucideIcons.userCheck,
+                                        title: 'Demande acceptée',
+                                        subtitle: '${user.name} fait partie de tes contacts.',
+                                        primaryLabel: 'Super',
                                       );
                                     },
                                     style: FilledButton.styleFrom(
@@ -150,9 +154,13 @@ class _FriendRequestsListScreenState extends State<FriendRequestsListScreen> {
                                   child: FilledButton(
                                     onPressed: () {
                                       setState(() => _items.removeWhere((e) => e.name == nameKey));
-                                      OklFeedback.snack(
+                                      OklFlows.pushResult(
                                         context,
-                                        'Demande ignorée : ${user.name}',
+                                        icon: LucideIcons.userX,
+                                        title: 'Demande ignorée',
+                                        subtitle:
+                                            'Tu peux toujours retrouver ${user.name} dans les suggestions.',
+                                        primaryLabel: 'OK',
                                       );
                                     },
                                     style: FilledButton.styleFrom(
