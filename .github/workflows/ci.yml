@@ -1,5 +1,5 @@
-# CI Flutter : analyse statique + tests à chaque push / PR sur les branches principales.
-# Prérequis : dépôt sur GitHub avec ce fichier commité ; les checks apparaissent dans l’onglet Actions.
+# CI monorepo : Flutter (analyze + test) et backend Spring Boot (Maven verify).
+# Prérequis : dépôt GitHub avec ce fichier ; les checks apparaissent dans Actions.
 
 name: CI
 
@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  analyze-and-test:
-    name: Analyze & test
+  flutter:
+    name: Flutter — analyze & test
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -46,3 +46,26 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+  backend:
+    name: Backend — Maven verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Maven verify
+        run: mvn -B -ntp verify
