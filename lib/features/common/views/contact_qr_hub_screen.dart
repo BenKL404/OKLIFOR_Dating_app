@@ -78,7 +78,7 @@ class _ContactQrHubScreenState extends State<ContactQrHubScreen>
         controller: _tabController,
         children: [
           _MyQrTab(
-            onShowDemoCodes: () => _showDemoQrSheet(context),
+            onShowSampleContacts: () => _showSampleQrSheet(context),
           ),
           _ScanQrTab(
             popWithScannedContact: widget.popWithScannedContact,
@@ -88,7 +88,7 @@ class _ContactQrHubScreenState extends State<ContactQrHubScreen>
     );
   }
 
-  void _showDemoQrSheet(BuildContext context) {
+  void _showSampleQrSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: context.oklSurface,
@@ -104,7 +104,7 @@ class _ContactQrHubScreenState extends State<ContactQrHubScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Codes de démo',
+                  'Exemples de contacts',
                   style: TextStyle(
                     color: ctx.oklOnSurface,
                     fontWeight: FontWeight.w800,
@@ -113,7 +113,7 @@ class _ContactQrHubScreenState extends State<ContactQrHubScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Scanne un contact de la liste pour tester (même appareil : capture d’écran ou 2e téléphone).',
+                  'Tu peux afficher l’un de ces codes sur un second écran (ou une capture) pour t’entraîner au scan.',
                   style: TextStyle(
                     color: ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 13,
@@ -151,16 +151,20 @@ class _ContactQrHubScreenState extends State<ContactQrHubScreen>
 }
 
 class _MyQrTab extends StatelessWidget {
-  final VoidCallback onShowDemoCodes;
+  final VoidCallback onShowSampleContacts;
 
-  const _MyQrTab({required this.onShowDemoCodes});
+  const _MyQrTab({required this.onShowSampleContacts});
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<UserProfile>(
       valueListenable: ProfileSession.profile,
       builder: (context, profile, _) {
-        final data = OklContactQrCodec.encodeMyCard(displayName: profile.displayName);
+        final data = OklContactQrCodec.encodeMyCard(
+          userId: profile.userId,
+          displayName: profile.displayName,
+        );
+        final hasUid = data.isNotEmpty;
         return ListView(
           padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.paddingOf(context).bottom + 24),
           children: [
@@ -174,7 +178,9 @@ class _MyQrTab extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Les autres peuvent t’ajouter en scannant ce code avec Oklifor (démo — aucune donnée serveur).',
+              hasUid
+                  ? 'Les autres peuvent t’ajouter en scannant ce code avec Oklifor. Il contient ton identifiant de compte.'
+                  : 'Connecte-toi pour générer un code lié à ton compte. Sans session, aucun identifiant serveur n’est disponible.',
               style: TextStyle(
                 color: context.oklOnSurfaceMuted(0.62),
                 fontSize: 14,
@@ -182,61 +188,71 @@ class _MyQrTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+            if (hasUid) ...[
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: QrImageView(
+                    data: data,
+                    version: QrVersions.auto,
+                    size: 220,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Color(0xFF1A1A1A),
                     ),
-                  ],
-                ),
-                child: QrImageView(
-                  data: data,
-                  version: QrVersions.auto,
-                  size: 220,
-                  backgroundColor: Colors.white,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: Color(0xFF1A1A1A),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: Color(0xFF1A1A1A),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Center(
-              child: Text(
-                profile.displayName,
+              const SizedBox(height: 20),
+              Center(
+                child: Text(
+                  profile.displayName,
+                  style: TextStyle(
+                    color: context.oklOnSurface,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SelectableText(
+                data,
                 style: TextStyle(
-                  color: context.oklOnSurface,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 17,
+                  color: context.oklOnSurfaceMuted(0.5),
+                  fontSize: 11,
+                  height: 1.3,
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            SelectableText(
-              data,
-              style: TextStyle(
-                color: context.oklOnSurfaceMuted(0.5),
-                fontSize: 11,
-                height: 1.3,
+            ] else ...[
+              Center(
+                child: Icon(
+                  LucideIcons.qrCode,
+                  size: 72,
+                  color: context.oklOnSurfaceMuted(0.22),
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: 24),
             OutlinedButton.icon(
-              onPressed: onShowDemoCodes,
+              onPressed: onShowSampleContacts,
               icon: const Icon(LucideIcons.users, size: 18),
-              label: const Text('Voir des QR de contacts démo'),
+              label: const Text('Voir des exemples de contacts'),
             ),
           ],
         );
@@ -358,7 +374,7 @@ class _ScanQrTabState extends State<_ScanQrTab> {
       await OklFlows.pushResult(
         context,
         icon: LucideIcons.userPlus,
-        title: 'Contact enregistré (démo)',
+        title: 'Contact enregistré',
         subtitle: '${contact.name} peut être ajouté à tes conversations.',
         primaryLabel: 'Super',
       );

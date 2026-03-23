@@ -22,7 +22,7 @@ class _PublicProfileUser {
   });
 }
 
-/// Liste démo : uniquement des profils publics (invitation autorisée).
+/// Liste d’invitation : profils publics (invitation autorisée).
 const _invitableUsers = <_PublicProfileUser>[
   _PublicProfileUser(
     name: 'Edem',

@@ -42,7 +42,7 @@ class ProfileStatDetailScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             hint ??
-                'Données agrégées sur les 7 derniers jours (démo). Bientôt : graphique et liste des visites.',
+                'Données agrégées sur les 7 derniers jours. Bientôt : graphique et liste des visites.',
             style: TextStyle(
               color: context.oklOnSurfaceMuted(0.62),
               height: 1.45,

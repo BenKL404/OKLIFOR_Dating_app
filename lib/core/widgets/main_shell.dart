@@ -1,22 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../features/auth/providers/auth_api_provider.dart';
 import '../constants/app_colors.dart';
 import '../constants/layout_constants.dart';
 import '../theme/theme_extensions.dart';
 import '../utils/okl_feedback.dart';
 
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerStatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   DateTime? _lastExitPrompt;
+  bool _sessionSynced = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncSessionFromApi());
+  }
+
+  Future<void> _syncSessionFromApi() async {
+    if (_sessionSynced || !mounted) return;
+    _sessionSynced = true;
+    try {
+      final me = await ref.read(okliforApiClientProvider).fetchMe();
+      if (!mounted) return;
+      me.applyToLocalSessions();
+    } catch (_) {
+      // Hors ligne ou token expiré : l’écran suivant gère (splash / 401).
+    }
+  }
 
   static int _tabIndexForPath(String path) {
     if (path.startsWith('/discovery')) return 0;

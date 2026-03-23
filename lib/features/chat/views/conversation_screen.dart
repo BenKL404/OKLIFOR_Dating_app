@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
+import '../../auth/providers/auth_api_provider.dart';
+import '../data/chat_api_mapping.dart';
 import '../models/chat_models.dart';
 import 'chat_image_viewer_screen.dart';
 import 'chat_thread_detail_screen.dart';
@@ -16,7 +19,7 @@ import 'conversation_mute_screen.dart';
 import 'share_contact_screen.dart';
 
 /// Conversation 1:1 ou groupe avec bulles riches (texte, image, vocal, lieu, système).
-class ConversationScreen extends StatefulWidget {
+class ConversationScreen extends ConsumerStatefulWidget {
   final ChatThread thread;
   final List<ChatMessage>? initialMessagesOverride;
   final void Function(String lastMessage, String time)? onThreadPreviewUpdated;
@@ -29,10 +32,10 @@ class ConversationScreen extends StatefulWidget {
   });
 
   @override
-  State<ConversationScreen> createState() => _ConversationScreenState();
+  ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
 }
 
-class _ConversationScreenState extends State<ConversationScreen> {
+class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   bool _canSend = false;
@@ -40,16 +43,55 @@ class _ConversationScreenState extends State<ConversationScreen> {
   int _recordingSeconds = 0;
   Timer? _recordTimer;
   late List<ChatMessage> _messages;
+  bool _loadingRemote = false;
 
   @override
   void initState() {
     super.initState();
-    _messages = List<ChatMessage>.from(
-      widget.initialMessagesOverride ??
-          seedMessagesForThread(widget.thread.id),
-    );
+    final useRemote = widget.initialMessagesOverride == null &&
+        isBackendThreadId(widget.thread.id);
+    if (useRemote) {
+      _loadingRemote = true;
+      _messages = [];
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadRemoteMessages();
+        _scrollToEnd();
+      });
+    } else {
+      _messages = List<ChatMessage>.from(
+        widget.initialMessagesOverride ??
+            seedMessagesForThread(widget.thread.id),
+      );
+    }
     _messageController.addListener(_syncSendState);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    if (!useRemote) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    }
+  }
+
+  Future<void> _loadRemoteMessages() async {
+    try {
+      final api = ref.read(okliforApiClientProvider);
+      final storage = ref.read(authTokenStorageProvider);
+      final myId = await storage.readUserId();
+      final list = await api.fetchChatMessages(widget.thread.id);
+      final mapped = chatMessagesFromPayloads(list, myUserId: myId);
+      if (!mounted) return;
+      setState(() {
+        _messages = mapped;
+        _loadingRemote = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _messages = List<ChatMessage>.from(
+          seedMessagesForThread(widget.thread.id),
+        );
+        _loadingRemote = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    }
   }
 
   @override
@@ -155,9 +197,35 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
-  void _sendText() {
+  Future<void> _sendText() async {
     final txt = _messageController.text.trim();
     if (txt.isEmpty) return;
+    if (isBackendThreadId(widget.thread.id)) {
+      _messageController.clear();
+      _syncSendState();
+      try {
+        final api = ref.read(okliforApiClientProvider);
+        final storage = ref.read(authTokenStorageProvider);
+        final myId = await storage.readUserId();
+        final sent = await api.sendChatMessage(
+          threadId: widget.thread.id,
+          kind: 'TEXT',
+          text: txt,
+        );
+        if (!mounted) return;
+        setState(() {
+          _messages.add(chatMessageFromPayload(sent, myUserId: myId));
+        });
+        _afterAppend();
+      } catch (e) {
+        if (mounted) {
+          _messageController.text = txt;
+          _syncSendState();
+          OklFeedback.snack(context, 'Envoi impossible : $e');
+        }
+      }
+      return;
+    }
     setState(() {
       _messages.add(
         ChatMessage(
@@ -566,8 +634,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -716,6 +786,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ),
             ),
           ),
+            ],
+          ),
+          if (_loadingRemote)
+            Positioned.fill(
+              child: Material(
+                color: context.oklScaffold.withValues(alpha: 0.72),
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
         ],
       ),
     ),

@@ -55,5 +55,12 @@
 	<string>L'application a besoin de votre position pour le mode Quartier et faciliter vos rencontres en temps réel.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>L'application accède à vos contacts uniquement pour bloquer la vue de votre profil à vos proches.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Oklifor utilise Face ID pour sécuriser l’accès à ton compte.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

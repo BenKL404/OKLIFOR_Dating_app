@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/api/oklifor_api_exception.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../models/otp_route_extra.dart';
+import '../providers/auth_api_provider.dart';
 
-class OtpScreen extends StatefulWidget {
-  final String phoneNumber;
-  const OtpScreen({super.key, required this.phoneNumber});
+class OtpScreen extends ConsumerStatefulWidget {
+  const OtpScreen({super.key, required this.extra});
+
+  final OtpRouteExtra extra;
 
   @override
-  State<OtpScreen> createState() => _OtpScreenState();
+  ConsumerState<OtpScreen> createState() => _OtpScreenState();
 }
 
-class _OtpScreenState extends State<OtpScreen> {
+class _OtpScreenState extends ConsumerState<OtpScreen> {
   final List<TextEditingController> _controllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
@@ -23,9 +29,19 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   void dispose() {
-    for (final c in _controllers) { c.dispose(); }
-    for (final f in _focusNodes) { f.dispose(); }
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     super.dispose();
+  }
+
+  void _clearBoxes() {
+    for (final c in _controllers) {
+      c.clear();
+    }
   }
 
   void _onDigitEntered(int index, String value) {
@@ -39,11 +55,61 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
+    final code = _controllers.map((c) => c.text).join();
+    if (code.length != 6) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (mounted) {
-      setState(() => _isLoading = false);
-      context.go('/discovery');
+    try {
+      final api = ref.read(okliforApiClientProvider);
+      final tokens = await api.verifyOtp(
+        phoneE164: widget.extra.phoneE164,
+        code: code,
+      );
+      await api.persistTokens(tokens);
+      final me = await api.fetchMe();
+      me.applyToLocalSessions();
+      if (mounted) context.go('/discovery');
+    } on OkliforApiException catch (e) {
+      if (mounted) {
+        OklFeedback.alert(
+          context,
+          title: 'Code incorrect',
+          message: e.message,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        OklFeedback.alert(
+          context,
+          title: 'Vérification',
+          message: '$e',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resendCode() async {
+    try {
+      await ref.read(okliforApiClientProvider).requestOtp(widget.extra.phoneE164);
+      if (!mounted) return;
+      _clearBoxes();
+      await OklFlows.pushResult(
+        context,
+        icon: LucideIcons.mail,
+        title: 'Code renvoyé',
+        subtitle:
+            'Un nouveau code a été demandé pour ${widget.extra.phoneE164}.',
+        primaryLabel: 'OK',
+      );
+    } on OkliforApiException catch (e) {
+      if (mounted) {
+        OklFeedback.alert(
+          context,
+          title: 'Renvoi',
+          message: e.message,
+        );
+      }
     }
   }
 
@@ -76,12 +142,11 @@ class _OtpScreenState extends State<OtpScreen> {
               ).animate().fadeIn().slideY(begin: 0.2, end: 0),
               const SizedBox(height: 10),
               Text(
-                'Code envoyé au ${widget.phoneNumber}',
+                'Code envoyé au ${widget.extra.phoneE164}',
                 style: TextStyle(
                     color: context.oklOnSurfaceMuted(0.62), fontSize: 14),
               ).animate().fadeIn(delay: 150.ms),
               const SizedBox(height: 44),
-              // Champs OTP
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(
@@ -123,14 +188,7 @@ class _OtpScreenState extends State<OtpScreen> {
               const SizedBox(height: 24),
               Center(
                 child: TextButton.icon(
-                  onPressed: () => OklFlows.pushResult(
-                    context,
-                    icon: LucideIcons.mail,
-                    title: 'Code renvoyé',
-                    subtitle:
-                        'Un nouveau SMS a été envoyé au ${widget.phoneNumber}. Vérifie ta messagerie.',
-                    primaryLabel: 'OK',
-                  ),
+                  onPressed: _isLoading ? null : _resendCode,
                   icon: const Icon(LucideIcons.refreshCcw,
                       size: 15, color: AppColors.primary),
                   label: const Text('Renvoyer le code',

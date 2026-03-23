@@ -1,11 +1,19 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_settings.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
+import '../../auth/providers/auth_api_provider.dart';
+import '../models/settings_session.dart';
+import '../services/settings_persist.dart';
+import '../../../core/api/models/settings_patch_body.dart';
+import '../../../core/security/okl_local_auth_service.dart';
+import '../../../core/security/okl_security_pin_storage.dart';
 import 'account_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import '../models/user_profile.dart';
@@ -13,18 +21,14 @@ import '../models/vip_subscription.dart';
 import 'vip_pass_screen.dart';
 import '../../common/views/rich_account_screens.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  bool _protectDirectory = true;
-  bool _neighborhoodMode = true;
-  bool _incognito = false;
-
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _openSubPage(Widget page) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => page),
@@ -33,7 +37,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AnimatedBuilder(
+      animation: SettingsSession.settings,
+      builder: (context, _) {
+        final s = SettingsSession.settings.value;
+        return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -67,22 +75,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _SwitchSettingRow(
                   icon: LucideIcons.bookLock,
                   title: 'Protection du repertoire',
-                  value: _protectDirectory,
-                  onChanged: (v) => setState(() => _protectDirectory = v),
+                  value: s.protectDirectory,
+                  onChanged: (v) => persistAppSettings(
+                    ref,
+                    context,
+                    applyOptimistic: (p) => p.copyWith(protectDirectory: v),
+                    patch: SettingsPatchBody(protectDirectory: v),
+                  ),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.mapPinOff,
                   title: 'Mode quartier (distance floue)',
-                  value: _neighborhoodMode,
-                  onChanged: (v) => setState(() => _neighborhoodMode = v),
+                  value: s.neighborhoodMode,
+                  onChanged: (v) => persistAppSettings(
+                    ref,
+                    context,
+                    applyOptimistic: (p) => p.copyWith(neighborhoodMode: v),
+                    patch: SettingsPatchBody(neighborhoodMode: v),
+                  ),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _SwitchSettingRow(
                   icon: LucideIcons.eyeOff,
                   title: 'Mode incognito',
-                  value: _incognito,
-                  onChanged: (v) => setState(() => _incognito = v),
+                  value: s.incognito,
+                  onChanged: (v) => persistAppSettings(
+                    ref,
+                    context,
+                    applyOptimistic: (p) => p.copyWith(incognito: v),
+                    patch: SettingsPatchBody(incognito: v),
+                  ),
                 ),
               ],
             ),
@@ -242,7 +265,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             child: Column(
               children: [
-                Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.logOut,
                   title: 'Deconnexion',
@@ -253,13 +275,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'Deconnexion',
                       body: 'Tu pourras te reconnecter avec ton numero.',
                       confirmLabel: 'Me deconnecter',
-                      onConfirm: () => OklFlows.pushResult(
-                        context,
-                        icon: LucideIcons.logOut,
-                        title: 'À bientôt sur Oklifor',
-                        subtitle: 'Tu es déconnecté·e. Reconnecte-toi avec ton numéro quand tu veux.',
-                        primaryLabel: 'OK',
-                      ),
+                      onConfirm: () async {
+                        await ref.read(okliforApiClientProvider).logout();
+                        SettingsSession.reset();
+                        ProfileSession.set(UserProfile.initialDemo());
+                        VipSession.deactivateDemo();
+                        if (!context.mounted) return;
+                        await OklFlows.pushResult(
+                          context,
+                          icon: LucideIcons.logOut,
+                          title: 'À bientôt sur Oklifor',
+                          subtitle:
+                              'Tu es déconnecté·e. Reconnecte-toi avec ton numéro quand tu veux.',
+                          primaryLabel: 'OK',
+                        );
+                        if (context.mounted) context.go('/login');
+                      },
                     );
                   },
                 ),
@@ -291,6 +322,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 }
@@ -407,223 +440,437 @@ class _ActionSettingRow extends StatelessWidget {
   }
 }
 
-class _NotificationsSettingsPage extends StatefulWidget {
+class _NotificationsSettingsPage extends ConsumerStatefulWidget {
   const _NotificationsSettingsPage();
 
   @override
-  State<_NotificationsSettingsPage> createState() => _NotificationsSettingsPageState();
+  ConsumerState<_NotificationsSettingsPage> createState() =>
+      _NotificationsSettingsPageState();
 }
 
-class _NotificationsSettingsPageState extends State<_NotificationsSettingsPage> {
-  bool _messages = true;
-  bool _likes = true;
-  bool _matchs = true;
-  bool _live = false;
-  bool _email = false;
-  bool _sound = true;
-
+class _NotificationsSettingsPageState
+    extends ConsumerState<_NotificationsSettingsPage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        leading: const OklAppBarBackButton(),
-        automaticallyImplyLeading: false,
-        title: const Text('Notifications'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              children: [
-                _SwitchSettingRow(
-                  icon: LucideIcons.messageCircle,
-                  title: 'Nouveaux messages',
-                  value: _messages,
-                  onChanged: (v) => setState(() => _messages = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.heart,
-                  title: 'Likes et super likes',
-                  value: _likes,
-                  onChanged: (v) => setState(() => _likes = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.sparkles,
-                  title: 'Nouveaux matchs',
-                  value: _matchs,
-                  onChanged: (v) => setState(() => _matchs = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.radio,
-                  title: 'Lives et activites',
-                  value: _live,
-                  onChanged: (v) => setState(() => _live = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.mail,
-                  title: 'Emails Oklifor',
-                  value: _email,
-                  onChanged: (v) => setState(() => _email = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.volume2,
-                  title: 'Sons de notification',
-                  value: _sound,
-                  onChanged: (v) => setState(() => _sound = v),
-                ),
-              ],
-            ),
+    return AnimatedBuilder(
+      animation: SettingsSession.settings,
+      builder: (context, _) {
+        final s = SettingsSession.settings.value;
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            leading: const OklAppBarBackButton(),
+            automaticallyImplyLeading: false,
+            title: const Text('Notifications'),
           ),
-        ],
-      ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: Column(
+                  children: [
+                    _SwitchSettingRow(
+                      icon: LucideIcons.messageCircle,
+                      title: 'Nouveaux messages',
+                      value: s.notifyMessages,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(notifyMessages: v),
+                        patch: SettingsPatchBody(notifyMessages: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.heart,
+                      title: 'Likes et super likes',
+                      value: s.notifyLikes,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(notifyLikes: v),
+                        patch: SettingsPatchBody(notifyLikes: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.sparkles,
+                      title: 'Nouveaux matchs',
+                      value: s.notifyMatches,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(notifyMatches: v),
+                        patch: SettingsPatchBody(notifyMatches: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.radio,
+                      title: 'Lives et activites',
+                      value: s.notifyLive,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(notifyLive: v),
+                        patch: SettingsPatchBody(notifyLive: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.mail,
+                      title: 'Emails Oklifor',
+                      value: s.notifyEmail,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(notifyEmail: v),
+                        patch: SettingsPatchBody(notifyEmail: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.volume2,
+                      title: 'Sons de notification',
+                      value: s.notifySound,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(notifySound: v),
+                        patch: SettingsPatchBody(notifySound: v),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _PrivacySettingsPage extends StatefulWidget {
+class _PrivacySettingsPage extends ConsumerStatefulWidget {
   const _PrivacySettingsPage();
 
   @override
-  State<_PrivacySettingsPage> createState() => _PrivacySettingsPageState();
+  ConsumerState<_PrivacySettingsPage> createState() => _PrivacySettingsPageState();
 }
 
-class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
-  bool _showOnline = true;
-  bool _showDistance = true;
-  bool _readReceipts = true;
-  bool _allowRequests = true;
-
+class _PrivacySettingsPageState extends ConsumerState<_PrivacySettingsPage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        leading: const OklAppBarBackButton(),
-        automaticallyImplyLeading: false,
-        title: const Text('Confidentialite'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              children: [
-                _SwitchSettingRow(
-                  icon: LucideIcons.wifi,
-                  title: 'Afficher mon statut en ligne',
-                  value: _showOnline,
-                  onChanged: (v) => setState(() => _showOnline = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.mapPin,
-                  title: 'Afficher ma distance',
-                  value: _showDistance,
-                  onChanged: (v) => setState(() => _showDistance = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.checkCheck,
-                  title: 'Accuses de lecture',
-                  value: _readReceipts,
-                  onChanged: (v) => setState(() => _readReceipts = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.userPlus,
-                  title: 'Autoriser demandes de tous',
-                  value: _allowRequests,
-                  onChanged: (v) => setState(() => _allowRequests = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _ActionSettingRow(
-                  icon: LucideIcons.userX,
-                  title: 'Utilisateurs bloques',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => const BlockedUsersScreen()),
-                  ),
-                ),
-              ],
-            ),
+    return AnimatedBuilder(
+      animation: SettingsSession.settings,
+      builder: (context, _) {
+        final s = SettingsSession.settings.value;
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            leading: const OklAppBarBackButton(),
+            automaticallyImplyLeading: false,
+            title: const Text('Confidentialite'),
           ),
-        ],
-      ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: Column(
+                  children: [
+                    _SwitchSettingRow(
+                      icon: LucideIcons.wifi,
+                      title: 'Afficher mon statut en ligne',
+                      value: s.privacyShowOnline,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) =>
+                            p.copyWith(privacyShowOnline: v),
+                        patch: SettingsPatchBody(privacyShowOnline: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.mapPin,
+                      title: 'Afficher ma distance',
+                      value: s.privacyShowDistance,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) =>
+                            p.copyWith(privacyShowDistance: v),
+                        patch: SettingsPatchBody(privacyShowDistance: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.checkCheck,
+                      title: 'Accuses de lecture',
+                      value: s.privacyReadReceipts,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) =>
+                            p.copyWith(privacyReadReceipts: v),
+                        patch: SettingsPatchBody(privacyReadReceipts: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.userPlus,
+                      title: 'Autoriser demandes de tous',
+                      value: s.privacyAllowRequests,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) =>
+                            p.copyWith(privacyAllowRequests: v),
+                        patch: SettingsPatchBody(privacyAllowRequests: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _ActionSettingRow(
+                      icon: LucideIcons.userX,
+                      title: 'Utilisateurs bloques',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                            builder: (_) => const BlockedUsersScreen()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _SecuritySettingsPage extends StatefulWidget {
+class _SecuritySettingsPage extends ConsumerStatefulWidget {
   const _SecuritySettingsPage();
 
   @override
-  State<_SecuritySettingsPage> createState() => _SecuritySettingsPageState();
+  ConsumerState<_SecuritySettingsPage> createState() =>
+      _SecuritySettingsPageState();
 }
 
-class _SecuritySettingsPageState extends State<_SecuritySettingsPage> {
-  bool _twoFactor = false;
-  bool _biometric = false;
-  bool _screenLock = true;
+class _SecuritySettingsPageState extends ConsumerState<_SecuritySettingsPage> {
+  Future<void> _onTwoFactorChanged(bool v) async {
+    if (!mounted) return;
+    if (v) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final t = Theme.of(ctx);
+          return AlertDialog(
+            backgroundColor: t.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              'Double authentification',
+              style: TextStyle(color: t.colorScheme.onSurface, fontWeight: FontWeight.w700),
+            ),
+            content: Text(
+              'Tu pourras recevoir un code par SMS lors des connexions depuis un nouvel appareil ou pour des actions sensibles.',
+              style: TextStyle(
+                color: t.textTheme.bodyMedium?.color ?? t.colorScheme.onSurface,
+                fontSize: 14,
+                height: 1.35,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                child: const Text('Activer'),
+              ),
+            ],
+          );
+        },
+      );
+      if (go != true) return;
+    } else {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final t = Theme.of(ctx);
+          return AlertDialog(
+            backgroundColor: t.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              'Désactiver la 2FA ?',
+              style: TextStyle(color: t.colorScheme.onSurface, fontWeight: FontWeight.w700),
+            ),
+            content: Text(
+              'Sans la double authentification, ton compte est plus vulnérable si quelqu’un accède à ton téléphone.',
+              style: TextStyle(
+                color: t.textTheme.bodyMedium?.color ?? t.colorScheme.onSurface,
+                fontSize: 14,
+                height: 1.35,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                child: const Text('Désactiver'),
+              ),
+            ],
+          );
+        },
+      );
+      if (go != true) return;
+    }
+    if (!mounted) return;
+    await persistAppSettings(
+      ref,
+      context,
+      applyOptimistic: (p) => p.copyWith(securityTwoFactor: v),
+      patch: SettingsPatchBody(securityTwoFactor: v),
+    );
+  }
+
+  Future<void> _onBiometricChanged(bool v) async {
+    if (!mounted) return;
+    if (kIsWeb) {
+      OklFeedback.alert(
+        context,
+        title: 'Indisponible',
+        message: 'La biométrie n’est pas disponible sur le web.',
+      );
+      return;
+    }
+    if (!v) {
+      await persistAppSettings(
+        ref,
+        context,
+        applyOptimistic: (p) => p.copyWith(securityBiometric: false),
+        patch: SettingsPatchBody(securityBiometric: false),
+      );
+      return;
+    }
+    final svc = OklLocalAuthService();
+    if (!await svc.deviceSupportsBiometrics()) {
+      if (!mounted) return;
+      OklFeedback.alert(
+        context,
+        title: 'Biométrie indisponible',
+        message:
+            'Aucune empreinte ou reconnaissance faciale n’est configurée sur cet appareil.',
+      );
+      return;
+    }
+    final ok = await svc.authenticateEnrollment(
+      localizedReason: 'Confirme ton identité pour activer le déverrouillage biométrique.',
+    );
+    if (!ok || !mounted) return;
+    await persistAppSettings(
+      ref,
+      context,
+      applyOptimistic: (p) => p.copyWith(securityBiometric: true),
+      patch: SettingsPatchBody(securityBiometric: true),
+    );
+  }
+
+  Future<void> _onScreenLockChanged(bool v) async {
+    if (!mounted) return;
+    if (!v) {
+      await persistAppSettings(
+        ref,
+        context,
+        applyOptimistic: (p) => p.copyWith(securityScreenLock: false),
+        patch: SettingsPatchBody(securityScreenLock: false),
+      );
+      return;
+    }
+    final hasPin = await OklSecurityPinStorage.hasPin();
+    final bio = SettingsSession.settings.value.securityBiometric;
+    if (!hasPin && !bio) {
+      if (!mounted) return;
+      OklFeedback.alert(
+        context,
+        title: 'Code ou biométrie requis',
+        message:
+            'Définis un code PIN ci-dessous (« Changer PIN ») ou active la biométrie avant de verrouiller l’app.',
+      );
+      return;
+    }
+    if (!mounted) return;
+    await persistAppSettings(
+      ref,
+      context,
+      applyOptimistic: (p) => p.copyWith(securityScreenLock: true),
+      patch: SettingsPatchBody(securityScreenLock: true),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        leading: const OklAppBarBackButton(),
-        automaticallyImplyLeading: false,
-        title: const Text('Securite du compte'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              children: [
-                _SwitchSettingRow(
-                  icon: LucideIcons.shieldCheck,
-                  title: 'Authentification a 2 facteurs',
-                  value: _twoFactor,
-                  onChanged: (v) => setState(() => _twoFactor = v),
+    return AnimatedBuilder(
+      animation: SettingsSession.settings,
+      builder: (context, _) {
+        final s = SettingsSession.settings.value;
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            leading: const OklAppBarBackButton(),
+            automaticallyImplyLeading: false,
+            title: const Text('Securite du compte'),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                 ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.fingerprint,
-                  title: 'Deblocage biometrie',
-                  value: _biometric,
-                  onChanged: (v) => setState(() => _biometric = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.lock,
-                  title: 'Verrouiller a l ouverture',
-                  value: _screenLock,
-                  onChanged: (v) => setState(() => _screenLock = v),
-                ),
+                child: Column(
+                  children: [
+                    _SwitchSettingRow(
+                      icon: LucideIcons.shieldCheck,
+                      title: 'Authentification a 2 facteurs',
+                      value: s.securityTwoFactor,
+                      onChanged: (v) => _onTwoFactorChanged(v),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.fingerprint,
+                      title: 'Deblocage biometrie',
+                      value: s.securityBiometric,
+                      onChanged: (v) => _onBiometricChanged(v),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.lock,
+                      title: 'Verrouiller a l ouverture',
+                      value: s.securityScreenLock,
+                      onChanged: (v) => _onScreenLockChanged(v),
+                    ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.shieldCheck,
@@ -650,11 +897,13 @@ class _SecuritySettingsPageState extends State<_SecuritySettingsPage> {
                     MaterialPageRoute<void>(builder: (_) => const ActiveSessionsScreen()),
                   ),
                 ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -668,10 +917,6 @@ class _AppPreferencesPage extends ConsumerStatefulWidget {
 }
 
 class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
-  bool _autoPlay = true;
-  bool _dataSaver = false;
-  bool _vibrate = true;
-
   static String _themeLabel(ThemeMode mode) {
     return switch (mode) {
       ThemeMode.light => 'Clair',
@@ -756,70 +1001,101 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
     );
   }
 
+  static String _languageLabel(String code) {
+    return switch (code) {
+      'en' => 'English',
+      _ => 'Français',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        leading: const OklAppBarBackButton(),
-        automaticallyImplyLeading: false,
-        title: const Text('Preferences'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              children: [
-                _ActionSettingRow(
-                  icon: LucideIcons.languages,
-                  title: 'Langue de l application',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => const LanguageSettingsScreen()),
-                  ),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _ActionSettingRow(
-                  icon: LucideIcons.palette,
-                  title: 'Theme',
-                  valueSubtitle: kOklLightThemeBlocked
-                      ? 'Sombre (fixe)'
-                      : _themeLabel(themeMode),
-                  onTap: _openThemeSheet,
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.playCircle,
-                  title: 'Lecture auto des medias',
-                  value: _autoPlay,
-                  onChanged: (v) => setState(() => _autoPlay = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.signal,
-                  title: 'Economiseur de donnees',
-                  value: _dataSaver,
-                  onChanged: (v) => setState(() => _dataSaver = v),
-                ),
-                Divider(height: 1, color: Theme.of(context).dividerColor),
-                _SwitchSettingRow(
-                  icon: LucideIcons.vibrate,
-                  title: 'Vibrations',
-                  value: _vibrate,
-                  onChanged: (v) => setState(() => _vibrate = v),
-                ),
-              ],
-            ),
+    return AnimatedBuilder(
+      animation: SettingsSession.settings,
+      builder: (context, _) {
+        final s = SettingsSession.settings.value;
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            leading: const OklAppBarBackButton(),
+            automaticallyImplyLeading: false,
+            title: const Text('Preferences'),
           ),
-        ],
-      ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: Column(
+                  children: [
+                    _ActionSettingRow(
+                      icon: LucideIcons.languages,
+                      title: 'Langue de l application',
+                      valueSubtitle: _languageLabel(s.appLanguage),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                            builder: (_) => const LanguageSettingsScreen()),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _ActionSettingRow(
+                      icon: LucideIcons.palette,
+                      title: 'Theme',
+                      valueSubtitle: kOklLightThemeBlocked
+                          ? 'Sombre (fixe)'
+                          : _themeLabel(themeMode),
+                      onTap: _openThemeSheet,
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.playCircle,
+                      title: 'Lecture auto des medias',
+                      value: s.appAutoPlayMedia,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) =>
+                            p.copyWith(appAutoPlayMedia: v),
+                        patch: SettingsPatchBody(appAutoPlayMedia: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.signal,
+                      title: 'Economiseur de donnees',
+                      value: s.appDataSaver,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(appDataSaver: v),
+                        patch: SettingsPatchBody(appDataSaver: v),
+                      ),
+                    ),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
+                    _SwitchSettingRow(
+                      icon: LucideIcons.vibrate,
+                      title: 'Vibrations',
+                      value: s.appVibrate,
+                      onChanged: (v) => persistAppSettings(
+                        ref,
+                        context,
+                        applyOptimistic: (p) => p.copyWith(appVibrate: v),
+                        patch: SettingsPatchBody(appVibrate: v),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

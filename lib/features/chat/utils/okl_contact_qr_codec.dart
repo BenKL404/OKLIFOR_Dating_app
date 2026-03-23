@@ -6,26 +6,27 @@ class OklContactQrCodec {
 
   static const String host = 'profile';
 
-  /// Identifiant démo du compte « moi » (carte à partager).
-  static const String demoSelfUid = 'amina_self';
-
   static const String _fallbackAvatar =
       'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80&auto=format&fit=crop';
 
-  /// Encode la carte du profil courant (démo).
-  static String encodeMyCard({required String displayName}) {
+  /// Encode la carte du profil courant avec l’identifiant compte réel.
+  static String encodeMyCard({required String userId, required String displayName}) {
+    final uid = userId.trim();
+    if (uid.isEmpty) {
+      return '';
+    }
     final uri = Uri(
       scheme: 'oklifor',
       host: host,
       queryParameters: {
-        'uid': demoSelfUid,
+        'uid': uid,
         'n': displayName.trim().isEmpty ? 'Moi' : displayName.trim(),
       },
     );
     return uri.toString();
   }
 
-  /// Encode une fiche contact démo (ex. pour tester avec un ID de [kDemoContacts]).
+  /// Encode une fiche contact (ex. entrées de [kDemoContacts] pour essais locaux).
   static String encodeContact(ChatContact c) {
     final uri = Uri(
       scheme: 'oklifor',

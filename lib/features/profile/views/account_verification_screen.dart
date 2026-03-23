@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/api/oklifor_api_exception.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
+import '../../../core/utils/okl_image_crop.dart';
+import '../../../core/utils/okl_pick_media_permissions.dart';
+import '../../auth/providers/auth_api_provider.dart';
 import '../models/user_profile.dart';
 
 /// Parcours de vérification (téléphone, email, identité) + certificat Oklifor (démo).
@@ -487,18 +494,231 @@ class _StepEmailCard extends StatelessWidget {
   }
 }
 
-class _StepIdentityCard extends StatefulWidget {
+enum _PieceMode { twoSides, pdf }
+
+enum _CardFace { recto, verso }
+
+class _StepIdentityCard extends ConsumerStatefulWidget {
   final UserProfile profile;
 
   const _StepIdentityCard({required this.profile});
 
   @override
-  State<_StepIdentityCard> createState() => _StepIdentityCardState();
+  ConsumerState<_StepIdentityCard> createState() => _StepIdentityCardState();
 }
 
-class _StepIdentityCardState extends State<_StepIdentityCard> {
-  bool _selfieOk = false;
-  bool _docOk = false;
+class _StepIdentityCardState extends ConsumerState<_StepIdentityCard> {
+  Uint8List? _selfieBytes;
+  String _selfieFilename = 'selfie.jpg';
+  _PieceMode _pieceMode = _PieceMode.twoSides;
+  Uint8List? _pdfBytes;
+  String _pdfFilename = 'piece.pdf';
+  Uint8List? _rectoBytes;
+  String _rectoFilename = 'recto.jpg';
+  Uint8List? _versoBytes;
+  String _versoFilename = 'verso.jpg';
+  bool _submitting = false;
+  bool _approving = false;
+
+  bool get _pieceReady =>
+      _pieceMode == _PieceMode.pdf
+          ? (_pdfBytes != null && _pdfBytes!.isNotEmpty)
+          : (_rectoBytes != null && _versoBytes != null);
+
+  void _setPieceMode(_PieceMode m) {
+    setState(() {
+      _pieceMode = m;
+      if (m == _PieceMode.pdf) {
+        _rectoBytes = null;
+        _versoBytes = null;
+      } else {
+        _pdfBytes = null;
+      }
+    });
+  }
+
+  Future<ImageSource?> _pickImageSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: context.oklSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(LucideIcons.camera, color: ctx.oklOnSurface),
+              title: Text('Prendre une photo', style: TextStyle(color: ctx.oklOnSurface)),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: Icon(LucideIcons.image, color: ctx.oklOnSurface),
+              title: Text('Galerie', style: TextStyle(color: ctx.oklOnSurface)),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickSelfie() async {
+    final source = await _pickImageSource();
+    if (source == null || !mounted) return;
+    if (!await OklPickMediaPermissions.ensureImageSource(context, source)) return;
+
+    final x = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 2048,
+      imageQuality: 88,
+    );
+    if (x == null || !mounted) return;
+    final bytes = await cropPickedImageIfPossible(
+      context: context,
+      xFile: x,
+      kind: OklImageCropKind.verificationSelfie,
+    );
+    if (bytes == null || !mounted) return;
+    setState(() {
+      _selfieBytes = bytes;
+      _selfieFilename = 'selfie.jpg';
+    });
+  }
+
+  Future<void> _pickCardFace(_CardFace face) async {
+    final source = await _pickImageSource();
+    if (source == null || !mounted) return;
+    if (!await OklPickMediaPermissions.ensureImageSource(context, source)) return;
+
+    final x = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 2048,
+      imageQuality: 88,
+    );
+    if (x == null || !mounted) return;
+    final bytes = await cropPickedImageIfPossible(
+      context: context,
+      xFile: x,
+      kind: OklImageCropKind.verificationId,
+    );
+    if (bytes == null || !mounted) return;
+    final baseName = face == _CardFace.recto ? 'recto.jpg' : 'verso.jpg';
+    setState(() {
+      _pieceMode = _PieceMode.twoSides;
+      _pdfBytes = null;
+      if (face == _CardFace.recto) {
+        _rectoBytes = bytes;
+        _rectoFilename = baseName;
+      } else {
+        _versoBytes = bytes;
+        _versoFilename = baseName;
+      }
+    });
+  }
+
+  Future<void> _pickPdf() async {
+    final r = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: true,
+    );
+    if (r == null || r.files.isEmpty || !mounted) return;
+    final f = r.files.single;
+    final bytes = f.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+    setState(() {
+      _pieceMode = _PieceMode.pdf;
+      _pdfBytes = bytes;
+      _pdfFilename = f.name.isNotEmpty ? f.name : 'piece.pdf';
+      _rectoBytes = null;
+      _versoBytes = null;
+    });
+  }
+
+  Future<void> _refreshProfileFromServer() async {
+    final me = await ref.read(okliforApiClientProvider).fetchMe();
+    if (!mounted) return;
+    me.applyToLocalSessions();
+  }
+
+  Future<void> _submit() async {
+    final selfie = _selfieBytes;
+    if (selfie == null || !_pieceReady) return;
+    setState(() => _submitting = true);
+    try {
+      if (_pieceMode == _PieceMode.pdf) {
+        await ref.read(okliforApiClientProvider).submitVerificationUpload(
+              selfieBytes: selfie,
+              selfieFilename: _selfieFilename,
+              idPdfBytes: _pdfBytes,
+              idPdfFilename: _pdfFilename,
+            );
+      } else {
+        await ref.read(okliforApiClientProvider).submitVerificationUpload(
+              selfieBytes: selfie,
+              selfieFilename: _selfieFilename,
+              idRectoBytes: _rectoBytes,
+              idRectoFilename: _rectoFilename,
+              idVersoBytes: _versoBytes,
+              idVersoFilename: _versoFilename,
+            );
+      }
+      await _refreshProfileFromServer();
+      if (!mounted) return;
+      await OklFlows.pushResult(
+        context,
+        icon: LucideIcons.send,
+        title: 'Dossier envoyé',
+        subtitle:
+            'Tes fichiers sont enregistrés sur le serveur. Examen sous 24–48 h ou validation démo.',
+        primaryLabel: 'Compris',
+      );
+    } on OkliforApiException catch (e) {
+      if (mounted) {
+        OklFeedback.alert(context, title: 'Envoi impossible', message: e.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        OklFeedback.alert(context, title: 'Envoi impossible', message: '$e');
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _simulateApprove() async {
+    setState(() => _approving = true);
+    try {
+      await ref.read(okliforApiClientProvider).simulateVerificationApprove();
+      await _refreshProfileFromServer();
+      if (!mounted) return;
+      await OklFlows.pushResult(
+        context,
+        icon: LucideIcons.badgeCheck,
+        title: 'Identité validée',
+        subtitle: 'Ton compte affiche le badge vérifié Oklifor (réponse serveur).',
+        primaryLabel: 'Super',
+      );
+    } on OkliforApiException catch (e) {
+      if (mounted) {
+        OklFeedback.alert(
+          context,
+          title: 'Action impossible',
+          message: e.statusCode == 403
+              ? 'La validation démo est désactivée sur ce serveur (OKLIFOR_VERIFICATION_DEMO_APPROVE).'
+              : e.message,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        OklFeedback.alert(context, title: 'Erreur', message: '$e');
+      }
+    } finally {
+      if (mounted) setState(() => _approving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -542,7 +762,7 @@ class _StepIdentityCardState extends State<_StepIdentityCard> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Notre équipe vérifie tes documents sous 24–48 h (simulation).',
+              'Les fichiers ont été transmis au serveur. En production, une équipe vérifie sous 24–48 h.',
               style: TextStyle(
                 color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
                 fontSize: 13,
@@ -551,29 +771,33 @@ class _StepIdentityCardState extends State<_StepIdentityCard> {
             ),
             const SizedBox(height: 14),
             FilledButton(
-              onPressed: () {
-                ProfileSession.update(
-                  (x) => x.copyWith(idVerified: true, idPendingReview: false),
-                );
-                OklFlows.pushResult(
-                  context,
-                  icon: LucideIcons.badgeCheck,
-                  title: 'Identité validée',
-                  subtitle: 'Ton compte affiche désormais le badge vérifié Oklifor.',
-                  primaryLabel: 'Super',
-                );
-              },
+              onPressed: _approving ? null : _simulateApprove,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.togoGreen,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 44),
               ),
-              child: const Text('Simuler validation Oklifor'),
+              child: _approving
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Simuler validation Oklifor (démo)'),
             ),
           ],
         ),
       );
     }
+
+    final selfieOk = _selfieBytes != null;
+    final rectoOk = _rectoBytes != null;
+    final versoOk = _versoBytes != null;
+    final pdfOk = _pdfBytes != null;
+    final hasPiecePreview = selfieOk || (_pieceMode == _PieceMode.pdf ? pdfOk : (rectoOk || versoOk));
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -603,90 +827,215 @@ class _StepIdentityCardState extends State<_StepIdentityCard> {
           ),
           const SizedBox(height: 10),
           Text(
-            '1. Selfie net · 2. Photo lisible de ta CNI ou passeport · 3. Les données sont chiffrées (démo).',
+            'Étape 1 — Selfie net (visage visible).\n'
+            'Étape 2 — Soit un fichier PDF de la pièce, soit une photo recto puis verso (lisibles).\n'
+            'Étape 3 — Envoi sécurisé (multipart).',
             style: TextStyle(
               color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
               fontSize: 12,
-              height: 1.4,
+              height: 1.45,
             ),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    setState(() => _selfieOk = true);
-                    OklFlows.pushResult(
-                      context,
-                      icon: LucideIcons.camera,
-                      title: 'Selfie enregistré',
-                      subtitle: 'Étape 1 sur 2 — ajoute maintenant ta pièce d’identité.',
-                      primaryLabel: 'Continuer',
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.oklOnSurface,
-                    side: BorderSide(color: context.oklDivider),
-                  ),
-                  icon: Icon(
-                    _selfieOk ? LucideIcons.checkCircle : LucideIcons.camera,
-                    size: 18,
-                    color: _selfieOk ? AppColors.green : context.oklOnSurfaceMuted(0.62),
-                  ),
-                  label: const Text('Selfie'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    setState(() => _docOk = true);
-                    OklFlows.pushResult(
-                      context,
-                      icon: LucideIcons.fileImage,
-                      title: 'Pièce importée',
-                      subtitle: 'Vérifie que les informations sont lisibles avant envoi.',
-                      primaryLabel: 'OK',
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.oklOnSurface,
-                    side: BorderSide(color: context.oklDivider),
-                  ),
-                  icon: Icon(
-                    _docOk ? LucideIcons.checkCircle : LucideIcons.fileImage,
-                    size: 18,
-                    color: _docOk ? AppColors.green : context.oklOnSurfaceMuted(0.62),
-                  ),
-                  label: const Text('Pièce'),
-                ),
-              ),
-            ],
+          OutlinedButton.icon(
+            onPressed: _submitting ? null : _pickSelfie,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.oklOnSurface,
+              side: BorderSide(color: context.oklDivider),
+              minimumSize: const Size(double.infinity, 44),
+            ),
+            icon: Icon(
+              selfieOk ? LucideIcons.checkCircle : LucideIcons.camera,
+              size: 18,
+              color: selfieOk ? AppColors.green : context.oklOnSurfaceMuted(0.62),
+            ),
+            label: const Text('1. Selfie'),
           ),
           const SizedBox(height: 12),
+          Text(
+            'Format de la pièce',
+            style: TextStyle(
+              color: context.oklOnSurfaceMuted(0.55),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<_PieceMode>(
+            segments: [
+              ButtonSegment<_PieceMode>(
+                value: _PieceMode.twoSides,
+                label: const Text('Recto / verso'),
+                icon: const Icon(LucideIcons.image, size: 16),
+              ),
+              ButtonSegment<_PieceMode>(
+                value: _PieceMode.pdf,
+                label: const Text('PDF'),
+                icon: const Icon(LucideIcons.fileText, size: 16),
+              ),
+            ],
+            selected: {_pieceMode},
+            onSelectionChanged: _submitting
+                ? null
+                : (s) {
+                    if (s.isEmpty) return;
+                    _setPieceMode(s.first);
+                  },
+            style: ButtonStyle(
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return Colors.white;
+                }
+                return context.oklOnSurface;
+              }),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_pieceMode == _PieceMode.pdf)
+            OutlinedButton.icon(
+              onPressed: _submitting ? null : _pickPdf,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: context.oklOnSurface,
+                side: BorderSide(color: context.oklDivider),
+                minimumSize: const Size(double.infinity, 44),
+              ),
+              icon: Icon(
+                pdfOk ? LucideIcons.checkCircle : LucideIcons.fileText,
+                size: 18,
+                color: pdfOk ? AppColors.green : context.oklOnSurfaceMuted(0.62),
+              ),
+              label: const Text('2. Choisir un PDF'),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _submitting ? null : () => _pickCardFace(_CardFace.recto),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.oklOnSurface,
+                      side: BorderSide(color: context.oklDivider),
+                    ),
+                    icon: Icon(
+                      rectoOk ? LucideIcons.checkCircle : LucideIcons.fileImage,
+                      size: 18,
+                      color: rectoOk ? AppColors.green : context.oklOnSurfaceMuted(0.62),
+                    ),
+                    label: const Text('2a. Recto'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _submitting ? null : () => _pickCardFace(_CardFace.verso),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.oklOnSurface,
+                      side: BorderSide(color: context.oklDivider),
+                    ),
+                    icon: Icon(
+                      versoOk ? LucideIcons.checkCircle : LucideIcons.fileImage,
+                      size: 18,
+                      color: versoOk ? AppColors.green : context.oklOnSurfaceMuted(0.62),
+                    ),
+                    label: const Text('2b. Verso'),
+                  ),
+                ),
+              ],
+            ),
+          if (hasPiecePreview) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Aperçu (local)',
+              style: TextStyle(
+                color: context.oklOnSurfaceMuted(0.5),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (selfieOk)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.memory(
+                  _selfieBytes!,
+                  height: 96,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            if (selfieOk && (_pieceMode == _PieceMode.pdf ? pdfOk : (rectoOk || versoOk)))
+              const SizedBox(height: 8),
+            if (_pieceMode == _PieceMode.pdf && pdfOk)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: context.oklOnSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: context.oklDivider),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.fileText, color: context.oklOnSurfaceMuted(0.62)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _pdfFilename,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: context.oklOnSurface, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_pieceMode == _PieceMode.twoSides && (rectoOk || versoOk))
+              Row(
+                children: [
+                  if (rectoOk)
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.memory(
+                          _rectoBytes!,
+                          height: 100,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  if (rectoOk && versoOk) const SizedBox(width: 8),
+                  if (versoOk)
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.memory(
+                          _versoBytes!,
+                          height: 100,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+          const SizedBox(height: 12),
           FilledButton(
-            onPressed: (_selfieOk && _docOk)
-                ? () {
-                    ProfileSession.update(
-                      (x) => x.copyWith(idPendingReview: true),
-                    );
-                    OklFlows.pushResult(
-                      context,
-                      icon: LucideIcons.send,
-                      title: 'Dossier envoyé',
-                      subtitle:
-                          'Notre équipe examine les documents sous 24 à 48 h. Tu seras notifié·e.',
-                      primaryLabel: 'Compris',
-                    );
-                  }
-                : null,
+            onPressed: (selfieOk && _pieceReady && !_submitting) ? _submit : null,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
               disabledBackgroundColor: context.oklOnSurface.withValues(alpha: 0.12),
               minimumSize: const Size(double.infinity, 44),
             ),
-            child: const Text('Soumettre pour vérification'),
+            child: _submitting
+                ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('3. Soumettre pour vérification'),
           ),
         ],
       ),

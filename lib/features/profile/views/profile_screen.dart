@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/widgets/okl_profile_photo_viewer.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../models/user_profile.dart';
@@ -91,13 +92,15 @@ class ProfileScreen extends StatelessWidget {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  CachedNetworkImage(
-                    imageUrl: profile.coverUrl,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 900,
-                    placeholder: (c, u) => Container(color: c.oklSurface),
-                    errorWidget: (c, u, e) => Container(color: c.oklSurface),
-                  ),
+                  profile.coverUrlForDisplay.isEmpty
+                      ? Container(color: context.oklSurface)
+                      : CachedNetworkImage(
+                          imageUrl: profile.coverUrlForDisplay,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 900,
+                          placeholder: (c, u) => Container(color: c.oklSurface),
+                          errorWidget: (c, u, e) => Container(color: c.oklSurface),
+                        ),
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -115,25 +118,48 @@ class ProfileScreen extends StatelessWidget {
                   Positioned(
                     left: 20,
                     bottom: 20,
-                    child: OklStoryGaugeRing(
-                      outerSize: 94,
-                      strokeWidth: 3,
-                      child: SizedBox(
-                        width: 88,
-                        height: 88,
-                        child: CircleAvatar(
-                          radius: 44,
-                          backgroundColor: context.oklScaffold,
+                    child: GestureDetector(
+                      onTap: profile.avatarUrlForDisplay.isEmpty
+                          ? null
+                          : () => OklProfilePhotoViewer.open(
+                                context,
+                                imageUrl: profile.avatarUrlForDisplay,
+                              ),
+                      child: OklStoryGaugeRing(
+                        outerSize: 94,
+                        strokeWidth: 3,
+                        child: SizedBox(
+                          width: 88,
+                          height: 88,
                           child: CircleAvatar(
-                            radius: 41,
-                            backgroundColor: context.oklSurface,
-                            child: ClipOval(
-                              child: CachedNetworkImage(
-                                imageUrl: profile.avatarUrl,
-                                width: 82,
-                                height: 82,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 164,
+                            radius: 44,
+                            backgroundColor: context.oklScaffold,
+                            child: CircleAvatar(
+                              radius: 41,
+                              backgroundColor: context.oklSurface,
+                              child: ClipOval(
+                                child: profile.avatarUrlForDisplay.isEmpty
+                                    ? ColoredBox(
+                                        color: context.oklSurface,
+                                        child: Icon(
+                                          LucideIcons.user,
+                                          size: 36,
+                                          color: context.oklOnSurfaceMuted(0.35),
+                                        ),
+                                      )
+                                    : Hero(
+                                        tag: OklProfilePhotoViewer.heroTag,
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: CachedNetworkImage(
+                                            imageUrl: profile.avatarUrlForDisplay,
+                                            width: 82,
+                                            height: 82,
+                                            fit: BoxFit.cover,
+                                            memCacheWidth: 164,
+                                          ),
+                                        ),
+                                      ),
                               ),
                             ),
                           ),
@@ -321,8 +347,18 @@ class ProfileScreen extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _ProfileChip(icon: LucideIcons.heart, label: profile.relationGoal),
-                      _ProfileChip(icon: LucideIcons.languages, label: profile.languages),
+                      if (profile.relationGoal.isNotEmpty)
+                        _ProfileChip(icon: LucideIcons.heart, label: profile.relationGoal),
+                      if (profile.languages.isNotEmpty)
+                        _ProfileChip(icon: LucideIcons.languages, label: profile.languages),
+                      if (profile.ethnicity.isNotEmpty)
+                        _ProfileChip(icon: LucideIcons.globe, label: profile.ethnicity),
+                      if (profile.lifestyle.isNotEmpty)
+                        _ProfileChip(icon: LucideIcons.sun, label: profile.lifestyle),
+                      if (profile.profession.isNotEmpty)
+                        _ProfileChip(icon: LucideIcons.briefcase, label: profile.profession),
+                      if (profile.education.isNotEmpty)
+                        _ProfileChip(icon: LucideIcons.graduationCap, label: profile.education),
                     ],
                   ),
                   const SizedBox(height: 18),
@@ -345,7 +381,7 @@ class ProfileScreen extends StatelessWidget {
                               title: 'Likes reçus',
                               value: '128',
                               hint:
-                                  'Personnes qui ont aimé ton profil ou répondu à tes statuts cette semaine (démo).',
+                                  'Personnes qui ont aimé ton profil ou répondu à tes statuts récemment.',
                             ),
                           ),
                         ),
@@ -359,7 +395,7 @@ class ProfileScreen extends StatelessWidget {
                               title: 'Matchs',
                               value: '24',
                               hint:
-                                  'Conversations ouvertes après un double intérêt. Continue à compléter ton profil pour en obtenir plus (démo).',
+                                  'Conversations ouvertes après un double intérêt. Un profil complet attire davantage de matchs.',
                             ),
                           ),
                         ),
@@ -588,21 +624,30 @@ class _ProfileVipBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  AppColors.togoGold.withValues(alpha: 0.2),
-                  AppColors.primary.withValues(alpha: 0.08),
+                  AppColors.togoGold.withValues(alpha: 0.26),
+                  AppColors.togoGold.withValues(alpha: 0.11),
                 ],
               ),
-              border: Border.all(color: AppColors.togoGold.withValues(alpha: 0.45)),
+              border: Border.all(color: AppColors.togoGold.withValues(alpha: 0.52)),
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.crown, color: AppColors.togoGold, size: 28),
-                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(LucideIcons.crown, color: AppColors.togoGold, size: 26),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -612,16 +657,17 @@ class _ProfileVipBanner extends StatelessWidget {
                         style: TextStyle(
                           color: context.oklOnSurface,
                           fontWeight: FontWeight.w800,
-                          fontSize: 15,
+                          fontSize: 16,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         'Valable jusqu’au ${vip.expiresLabelFr} · ${vip.planLabelFr}',
                         style: TextStyle(
-                          color: context.oklOnSurfaceMuted(0.65),
-                          fontSize: 12,
-                          height: 1.25,
+                          color: context.oklOnSurfaceMuted(0.68),
+                          fontSize: 12.5,
+                          height: 1.3,
                         ),
                       ),
                     ],
@@ -678,7 +724,7 @@ class _ProfileVipBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Mobile Money (démo) · voir qui t’a liké, badge VIP, boost Sorties',
+                      'Mobile Money · voir qui t’a liké, badge VIP, boost Sorties',
                       style: TextStyle(
                         color: context.oklOnSurfaceMuted(0.68),
                         fontSize: 12.5,
@@ -940,8 +986,8 @@ class _CommunitySection extends StatelessWidget {
                         title: items[i].title,
                         paragraphs: [
                           items[i].subtitle,
-                          'Fiche d’activité Oklifor (démo) : bientôt actions rapides (message, rappel, partage) depuis cet écran.',
-                          'En attendant le backend, utilise Messages et Rencontres pour poursuivre la conversation.',
+                          'Bientôt : actions rapides (message, rappel, partage) depuis cet écran.',
+                          'En attendant, utilise Messages et Rencontres pour poursuivre la conversation.',
                         ],
                       ),
                     ),

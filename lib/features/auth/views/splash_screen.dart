@@ -1,23 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../providers/auth_api_provider.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) context.go('/login');
-    });
+    Future<void>.delayed(const Duration(milliseconds: 900), _bootstrap);
+  }
+
+  Future<void> _bootstrap() async {
+    if (!mounted) return;
+    final storage = ref.read(authTokenStorageProvider);
+    final client = ref.read(okliforApiClientProvider);
+    final token = await storage.readAccessToken();
+    if (token != null && token.isNotEmpty) {
+      try {
+        final me = await client.fetchMe();
+        me.applyToLocalSessions();
+        if (mounted) context.go('/discovery');
+        return;
+      } catch (_) {
+        await client.logout();
+      }
+    }
+    if (mounted) context.go('/login');
   }
 
   @override

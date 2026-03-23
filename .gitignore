@@ -57,10 +57,16 @@ app.*.map.json
 **/linux/flutter/ephemeral/
 **/windows/flutter/ephemeral/
 
+# Uploads backend (photos profil, vérif)
+backend/data/profile-media/
+backend/data/verification-uploads/
+
 # Secrets locaux
 .env
 .env.*
 !.env.example
+# Fichier d’app Flutter versionné (valeurs non secrètes par défaut)
+!assets/.env
 
 # Rapports d’analyse locaux
 analyze_output.txt

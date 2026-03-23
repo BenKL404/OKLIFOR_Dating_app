@@ -1,0 +1,31 @@
+package com.oklifor.api.web.dto;
+
+import com.oklifor.api.domain.ChatMessage;
+import com.oklifor.api.domain.ChatMessageKind;
+
+import java.time.Instant;
+
+public record ChatMessageResponse(
+        String id,
+        String threadId,
+        String senderUserId,
+        ChatMessageKind kind,
+        String text,
+        String imageUrl,
+        Integer voiceSeconds,
+        String locationLabel,
+        Instant createdAt) {
+
+    public static ChatMessageResponse from(ChatMessage m) {
+        return new ChatMessageResponse(
+                m.getId(),
+                m.getThreadId(),
+                m.getSenderUserId(),
+                m.getKind(),
+                m.getText(),
+                m.getImageUrl(),
+                m.getVoiceSeconds(),
+                m.getLocationLabel(),
+                m.getCreatedAt());
+    }
+}

@@ -1,9 +1,16 @@
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/api/models/settings_patch_body.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/security/okl_security_pin_storage.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
+import '../../profile/models/settings_session.dart';
+import '../../profile/services/settings_persist.dart';
 
 /// Texte long (conditions, politique, articles).
 class OklLegalDocumentScreen extends StatelessWidget {
@@ -122,6 +129,23 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
   final _old = TextEditingController();
   final _n1 = TextEditingController();
   final _n2 = TextEditingController();
+  bool _loading = true;
+  bool _hasPin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final h = await OklSecurityPinStorage.hasPin();
+    if (!mounted) return;
+    setState(() {
+      _hasPin = h;
+      _loading = false;
+    });
+  }
 
   @override
   void dispose() {
@@ -129,6 +153,43 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
     _n1.dispose();
     _n2.dispose();
     super.dispose();
+  }
+
+  Future<void> _save() async {
+    final n1 = _n1.text.trim();
+    final n2 = _n2.text.trim();
+    if (n1.length < 4 || n1 != n2) {
+      OklFeedback.alert(
+        context,
+        title: 'PIN invalide',
+        message: 'Les deux nouveaux codes doivent être identiques (4 chiffres minimum).',
+      );
+      return;
+    }
+    if (_hasPin) {
+      final ok = await OklSecurityPinStorage.verify(_old.text.trim());
+      if (!ok) {
+        if (mounted) {
+          OklFeedback.alert(
+            context,
+            title: 'Code incorrect',
+            message: 'Le PIN actuel ne correspond pas.',
+          );
+        }
+        return;
+      }
+    }
+    await OklSecurityPinStorage.setPin(n1);
+    if (!mounted) return;
+    await OklFlows.pushResult(
+      context,
+      icon: LucideIcons.lock,
+      title: 'PIN enregistré',
+      subtitle: 'Il est stocké sur cet appareil et sert au verrouillage de l’app.',
+      primaryLabel: 'OK',
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 
   @override
@@ -139,77 +200,188 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: const OklAppBarBackButton(),
         automaticallyImplyLeading: false,
-        title: const Text('PIN de sécurité'),
+        title: Text(_hasPin ? 'PIN de sécurité' : 'Définir un code PIN'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        children: [
-          Text(
-            'Le PIN protège l’accès à l’app et aux réglages sensibles (démo).',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
-              height: 1.4,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
+                Text(
+                  _hasPin
+                      ? 'Le code PIN sur cet appareil protège l’accès à l’app lorsque le verrouillage est activé.'
+                      : 'Choisis un code d’au moins 4 chiffres. Tu pourras ensuite activer « Verrouiller à l’ouverture ».',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (_hasPin) ...[
+                  TextField(
+                    controller: _old,
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'PIN actuel'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  controller: _n1,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Nouveau PIN'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _n2,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Confirmer le PIN'),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _save,
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                  child: const Text('Enregistrer'),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _old,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'PIN actuel'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _n1,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Nouveau PIN'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _n2,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Confirmer le PIN'),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () {
-              if (_n1.text != _n2.text || _n1.text.length < 4) {
-                OklFeedback.alert(
-                  context,
-                  title: 'PIN invalide',
-                  message: 'Les deux nouveaux PIN doivent être identiques (4 chiffres minimum).',
-                );
-                return;
-              }
-              OklFlows.pushResult(
-                context,
-                icon: LucideIcons.lock,
-                title: 'PIN mis à jour',
-                subtitle: 'Utilise-le pour les prochains accès sensibles.',
-                primaryLabel: 'OK',
-              ).then((_) {
-                if (context.mounted) Navigator.of(context).pop();
-              });
-            },
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Enregistrer'),
-          ),
-        ],
-      ),
     );
   }
 }
 
-class ActiveSessionsScreen extends StatelessWidget {
+class _SessionEntry {
+  const _SessionEntry({
+    required this.id,
+    required this.device,
+    required this.where,
+    required this.current,
+  });
+
+  final String id;
+  final String device;
+  final String where;
+  final bool current;
+}
+
+class ActiveSessionsScreen extends StatefulWidget {
   const ActiveSessionsScreen({super.key});
 
-  static const _sessions = <({String device, String where, bool current})>[
-    (device: 'Ce téléphone', where: 'Lomé · Android', current: true),
-    (device: 'Chrome sur Windows', where: 'Dernière activité : il y a 2 h', current: false),
-    (device: 'iPhone 14', where: 'Dernière activité : hier', current: false),
+  @override
+  State<ActiveSessionsScreen> createState() => _ActiveSessionsScreenState();
+}
+
+class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
+  static const _others = <_SessionEntry>[
+    _SessionEntry(
+      id: 'web_chrome',
+      device: 'Chrome sur Windows',
+      where: 'Dernière activité : il y a 2 h',
+      current: false,
+    ),
+    _SessionEntry(
+      id: 'iphone14',
+      device: 'iPhone 14',
+      where: 'Dernière activité : hier',
+      current: false,
+    ),
   ];
+
+  final Set<String> _revoked = {};
+  bool _loading = true;
+  String _thisDeviceLabel = 'Cet appareil';
+  String _thisDeviceWhere = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDevice();
+  }
+
+  Future<void> _loadDevice() async {
+    if (kIsWeb) {
+      if (mounted) {
+        setState(() {
+          _thisDeviceLabel = 'Navigateur web';
+          _thisDeviceWhere = 'Session actuelle';
+          _loading = false;
+        });
+      }
+      return;
+    }
+    try {
+      final di = DeviceInfoPlugin();
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final a = await di.androidInfo;
+        _thisDeviceLabel = '${a.manufacturer} ${a.model}'.trim();
+        _thisDeviceWhere = 'Android ${a.version.release} · Lomé';
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final i = await di.iosInfo;
+        _thisDeviceLabel = i.name;
+        _thisDeviceWhere = '${i.systemName} ${i.systemVersion}';
+      }
+    } catch (_) {
+      _thisDeviceWhere = 'Session actuelle';
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  List<_SessionEntry> get _visible {
+    final current = _SessionEntry(
+      id: 'local',
+      device: _thisDeviceLabel,
+      where: _thisDeviceWhere.isEmpty ? 'Session actuelle' : _thisDeviceWhere,
+      current: true,
+    );
+    final rest = _others.where((e) => !_revoked.contains(e.id));
+    return [current, ...rest];
+  }
+
+  Future<void> _disconnect(_SessionEntry s) async {
+    if (s.current) return;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final t = Theme.of(ctx);
+        return AlertDialog(
+          backgroundColor: t.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Déconnecter cette session ?',
+            style: TextStyle(color: t.colorScheme.onSurface, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            '${s.device} ne pourra plus utiliser ton compte sans se reconnecter.',
+            style: TextStyle(
+              color: t.textTheme.bodyMedium?.color ?? t.colorScheme.onSurface,
+              fontSize: 14,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Déconnecter'),
+            ),
+          ],
+        );
+      },
+    );
+    if (go != true || !mounted) return;
+    setState(() => _revoked.add(s.id));
+    await OklFlows.pushResult(
+      context,
+      icon: LucideIcons.logOut,
+      title: 'Session fermée',
+      subtitle: '« ${s.device} » a été déconnecté. Reconnexion possible avec ton numéro.',
+      primaryLabel: 'OK',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -221,54 +393,62 @@ class ActiveSessionsScreen extends StatelessWidget {
         automaticallyImplyLeading: false,
         title: const Text('Sessions actives'),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: _sessions.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 8),
-        itemBuilder: (context, i) {
-          final s = _sessions[i];
-          return Material(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(14),
-            child: ListTile(
-              title: Row(
-                children: [
-                  Expanded(child: Text(s.device)),
-                  if (s.current)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Ici',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                Text(
+                  'Les sessions listées ici reflètent les appareils où tu t’es connecté·e. '
+                  'La déconnexion distante sera reliée au serveur lorsque l’API sessions sera disponible.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.62),
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ..._visible.map(
+                  (s) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      child: ListTile(
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(s.device)),
+                            if (s.current)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'Ici',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
+                        subtitle: Text(s.where),
+                        trailing: s.current
+                            ? null
+                            : TextButton(
+                                onPressed: () => _disconnect(s),
+                                child: const Text('Déconnecter'),
+                              ),
                       ),
                     ),
-                ],
-              ),
-              subtitle: Text(s.where),
-              trailing: s.current
-                  ? null
-                  : TextButton(
-                      onPressed: () => OklFlows.pushResult(
-                        context,
-                        icon: LucideIcons.logOut,
-                        title: 'Session fermée',
-                        subtitle: '« ${s.device} » a été déconnecté·e. Reconnexion possible avec ton numéro.',
-                        primaryLabel: 'OK',
-                      ),
-                      child: const Text('Déco.'),
-                    ),
+                  ),
+                ),
+              ],
             ),
-          );
-        },
-      ),
     );
   }
 }
@@ -510,15 +690,22 @@ class _BugReportScreenState extends State<BugReportScreen> {
   }
 }
 
-class LanguageSettingsScreen extends StatefulWidget {
+class LanguageSettingsScreen extends ConsumerStatefulWidget {
   const LanguageSettingsScreen({super.key});
 
   @override
-  State<LanguageSettingsScreen> createState() => _LanguageSettingsScreenState();
+  ConsumerState<LanguageSettingsScreen> createState() =>
+      _LanguageSettingsScreenState();
 }
 
-class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
-  String _code = 'fr';
+class _LanguageSettingsScreenState extends ConsumerState<LanguageSettingsScreen> {
+  late String _code;
+
+  @override
+  void initState() {
+    super.initState();
+    _code = SettingsSession.settings.value.appLanguage;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -549,24 +736,31 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
           Padding(
             padding: const EdgeInsets.all(20),
             child: FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (_code == 'en') {
                   OklFeedback.alert(
                     context,
                     title: 'English',
-                    message: 'L’interface anglaise arrive bientôt. Le français reste actif pour l’instant.',
+                    message:
+                        'L’interface anglaise arrive bientôt. Le français reste actif pour l’instant.',
                   );
                   return;
                 }
-                OklFlows.pushResult(
+                await persistAppSettings(
+                  ref,
+                  context,
+                  applyOptimistic: (p) => p.copyWith(appLanguage: 'fr'),
+                  patch: const SettingsPatchBody(appLanguage: 'fr'),
+                );
+                if (!context.mounted) return;
+                await OklFlows.pushResult(
                   context,
                   icon: LucideIcons.languages,
                   title: 'Langue',
-                  subtitle: 'Français conservé pour toute l’application.',
+                  subtitle: 'Préférence enregistrée sur ton compte (français).',
                   primaryLabel: 'OK',
-                ).then((_) {
-                  if (context.mounted) Navigator.of(context).pop();
-                });
+                );
+                if (context.mounted) Navigator.of(context).pop();
               },
               style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
               child: const Text('Appliquer'),

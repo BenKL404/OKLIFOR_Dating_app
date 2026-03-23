@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: oklifor-api
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 24MB
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/oklifor}
+      auto-index-creation: true
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 3s
+
+server:
+  port: ${SERVER_PORT:8100}
+
+oklifor:
+  jwt:
+    # Min. 32 caractères (256 bits) pour HS256 — remplacer en prod (ex. openssl rand -base64 48)
+    secret: ${JWT_SECRET:oklifor-dev-secret-please-change-32chars!!}
+    access-token-minutes: 60
+    refresh-token-days: 30
+  auth:
+    # Démo : tout code OTP à 6 chiffres est accepté si le numéro est valide
+    otp-dev-mode: ${OTP_DEV_MODE:true}
+  firebase:
+    # true + compte de service → POST /api/v1/auth/firebase (jeton Phone Auth)
+    enabled: ${FIREBASE_ENABLED:false}
+    credentials-json-path: ${FIREBASE_CREDENTIALS_JSON_PATH:}
+  verification:
+    upload-dir: ${OKLIFOR_VERIFICATION_UPLOAD_DIR:data/verification-uploads}
+    demo-approve-enabled: ${OKLIFOR_VERIFICATION_DEMO_APPROVE:true}
+  profile-media:
+    upload-dir: ${OKLIFOR_PROFILE_MEDIA_UPLOAD_DIR:data/profile-media}
+
+logging:
+  level:
+    com.oklifor: INFO

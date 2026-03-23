@@ -36,6 +36,25 @@ class VipSession {
   static final ValueNotifier<VipSubscriptionState> subscription =
       ValueNotifier<VipSubscriptionState>(VipSubscriptionState.inactive);
 
+  /// Synchronise avec `GET /api/v1/me` (Spring).
+  static void setRemoteState({
+    required bool isActive,
+    DateTime? expiresAt,
+    required String planId,
+  }) {
+    if (!isActive ||
+        expiresAt == null ||
+        !expiresAt.isAfter(DateTime.now())) {
+      subscription.value = VipSubscriptionState.inactive;
+      return;
+    }
+    subscription.value = VipSubscriptionState(
+      isActive: true,
+      expiresAt: expiresAt,
+      planId: planId,
+    );
+  }
+
   static void activate({required String planId, required Duration validity}) {
     subscription.value = VipSubscriptionState(
       isActive: true,

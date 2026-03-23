@@ -3,9 +3,12 @@ import 'dart:ui' show ImageFilter;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../../../core/utils/okl_pick_media_permissions.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
@@ -14,6 +17,8 @@ import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
+import '../../auth/providers/auth_api_provider.dart';
+import '../data/chat_api_mapping.dart';
 import '../models/chat_models.dart';
 import 'conversation_screen.dart';
 import 'create_group_screen.dart';
@@ -23,14 +28,14 @@ import 'chat_search_results_screen.dart';
 import 'chat_thread_detail_screen.dart';
 import 'status_viewer_screen.dart';
 
-class ChatListScreen extends StatefulWidget {
+class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
 
   @override
-  State<ChatListScreen> createState() => _ChatListScreenState();
+  ConsumerState<ChatListScreen> createState() => _ChatListScreenState();
 }
 
-class _ChatListScreenState extends State<ChatListScreen> {
+class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   static const _mineStoryUrl =
       'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&q=80&auto=format&fit=crop';
   static const _mineStatusImageUrl =
@@ -51,6 +56,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.initState();
     _threads = List<ChatThread>.from(kSeedThreads);
     _searchController.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryLoadRemoteThreads());
+  }
+
+  Future<void> _tryLoadRemoteThreads() async {
+    try {
+      final api = ref.read(okliforApiClientProvider);
+      final storage = ref.read(authTokenStorageProvider);
+      final myId = await storage.readUserId();
+      final raw = await api.fetchChatThreads();
+      final mapped =
+          raw.map((p) => chatThreadFromPayload(p, myUserId: myId)).toList();
+      if (!mounted) return;
+      setState(() => _threads = mapped);
+    } catch (_) {
+      // Pas de token / API : on garde les conversations démo.
+    }
   }
 
   @override
@@ -334,25 +355,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }) async {
     // Demander les permissions uniquement quand l'utilisateur veut publier
     // un statut média.
-    final toRequest = <Permission>[];
-
     if (source == ImageSource.camera) {
-      toRequest.add(Permission.camera);
-      if (isVideo) toRequest.add(Permission.microphone);
-    } else {
-      toRequest.add(Permission.photos);
-      if (isVideo) toRequest.add(Permission.videos);
-      if (Theme.of(context).platform == TargetPlatform.android) {
-        // Sur Android plus anciens, l'accès galerie passe par storage.
-        toRequest.add(Permission.storage);
-      }
-    }
-
-    for (final p in toRequest) {
-      final status = await p.request();
-      if (!status.isGranted) {
+      final cam = await Permission.camera.request();
+      if (!cam.isGranted) {
         if (!mounted || !context.mounted) return;
-        if (status.isPermanentlyDenied) {
+        if (cam.isPermanentlyDenied) {
           OklFeedback.alert(
             context,
             title: 'Permission requise',
@@ -363,9 +370,34 @@ class _ChatListScreenState extends State<ChatListScreen> {
           OklFeedback.alert(
             context,
             title: 'Permission refusée',
-            message: 'Impossible de publier ce média sans accès à la galerie ou à la caméra.',
+            message: 'Impossible d’utiliser la caméra sans autorisation.',
           );
         }
+        return;
+      }
+      if (isVideo) {
+        final mic = await Permission.microphone.request();
+        if (!mic.isGranted) {
+          if (!mounted || !context.mounted) return;
+          if (mic.isPermanentlyDenied) {
+            OklFeedback.alert(
+              context,
+              title: 'Permission requise',
+              message:
+                  'Le micro a été refusé. Active la permission dans les réglages pour filmer avec le son.',
+            );
+          } else {
+            OklFeedback.alert(
+              context,
+              title: 'Permission refusée',
+              message: 'Sans micro, la vidéo peut être refusée par l’appareil.',
+            );
+          }
+          return;
+        }
+      }
+    } else {
+      if (!await OklPickMediaPermissions.ensureGalleryForPick(context, isVideo: isVideo)) {
         return;
       }
     }

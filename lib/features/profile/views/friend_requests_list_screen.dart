@@ -6,7 +6,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/flows/okl_flows.dart';
 
-/// Liste complète des demandes d’amis (même données démo que le profil).
+/// Liste complète des demandes d’amis (aperçu — alignée sur le profil).
 class FriendRequestsListScreen extends StatefulWidget {
   const FriendRequestsListScreen({super.key});
 

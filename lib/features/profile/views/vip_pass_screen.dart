@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -8,6 +9,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../models/vip_subscription.dart';
+import '../../auth/providers/auth_api_provider.dart';
 
 /// Opérateur mobile money (noms génériques — intégration réelle plus tard).
 class _MomoOperator {
@@ -87,14 +89,14 @@ const _plans = <_PlanOption>[
 ];
 
 /// Parcours complet : choix du plan → mobile money → numéro → simulation USSD → succès.
-class VipPassScreen extends StatefulWidget {
+class VipPassScreen extends ConsumerStatefulWidget {
   const VipPassScreen({super.key});
 
   @override
-  State<VipPassScreen> createState() => _VipPassScreenState();
+  ConsumerState<VipPassScreen> createState() => _VipPassScreenState();
 }
 
-class _VipPassScreenState extends State<VipPassScreen> {
+class _VipPassScreenState extends ConsumerState<VipPassScreen> {
   int _step = 0;
   String _planId = 'monthly';
   String _operatorId = _operators.first.id;
@@ -119,13 +121,22 @@ class _VipPassScreenState extends State<VipPassScreen> {
   void _startMockPayment() {
     _goStep(3);
     _mockTimer?.cancel();
-    _mockTimer = Timer(const Duration(seconds: 2), () {
+    _mockTimer = Timer(const Duration(seconds: 2), () async {
       if (!mounted) return;
       VipSession.activate(
         planId: _planId,
         validity: _selectedPlan.validity,
       );
-      _goStep(4);
+      try {
+        final me = await ref.read(okliforApiClientProvider).activateSubscription(
+              planCode: _planId,
+              paymentProvider: _operatorId,
+            );
+        if (mounted) me.applyToLocalSessions();
+      } catch (_) {
+        /* API indisponible ou session expirée : l’UI locale reste sur le mock */
+      }
+      if (mounted) _goStep(4);
     });
   }
 

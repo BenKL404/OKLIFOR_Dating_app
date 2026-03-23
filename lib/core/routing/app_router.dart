@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import '../../features/auth/models/otp_route_extra.dart';
 import '../../features/auth/views/splash_screen.dart';
 import '../../features/auth/views/login_screen.dart';
 import '../../features/auth/views/otp_screen.dart';
@@ -27,8 +28,16 @@ class AppRouter {
       GoRoute(
         path: '/otp',
         builder: (context, state) {
-          final phone = state.extra as String? ?? '';
-          return OtpScreen(phoneNumber: phone);
+          final extra = state.extra;
+          final OtpRouteExtra args;
+          if (extra is OtpRouteExtra) {
+            args = extra;
+          } else if (extra is String) {
+            args = OtpRouteExtra(phoneE164: extra);
+          } else {
+            args = const OtpRouteExtra(phoneE164: '');
+          }
+          return OtpScreen(extra: args);
         },
       ),
       GoRoute(

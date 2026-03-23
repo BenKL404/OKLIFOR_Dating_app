@@ -1,29 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/api/oklifor_api_exception.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/utils/okl_feedback.dart';
+import '../models/otp_route_extra.dart';
+import '../providers/auth_api_provider.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phoneController = TextEditingController();
   bool _isLoading = false;
 
   Future<void> _onContinue() async {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty || phone.length < 8) return;
+    final e164 = '+228$phone';
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (mounted) {
-      setState(() => _isLoading = false);
-      context.go('/otp', extra: '+228$phone');
+    try {
+      final api = ref.read(okliforApiClientProvider);
+      await api.requestOtp(phone);
+      if (mounted) context.go('/otp', extra: OtpRouteExtra(phoneE164: e164));
+    } on OkliforApiException catch (e) {
+      if (mounted) {
+        OklFeedback.alert(context, title: 'Connexion', message: e.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        OklFeedback.alert(context, title: 'Connexion', message: '$e');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -176,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: const [
                                 Text(
-                                  'Recevoir le code SMS',
+                                  'Recevoir le code',
                                   style: TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w600),
                                 ),
