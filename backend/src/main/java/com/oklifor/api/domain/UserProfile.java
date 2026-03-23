@@ -32,6 +32,12 @@ public class UserProfile extends UuidMongoDocument {
     private boolean idVerified;
     private boolean idPendingReview;
 
+    /**
+     * {@code null} = profil créé avant ce champ (considéré comme terminé). {@code false} = assistant
+     * profil requis dans l’app. {@code true} = terminé.
+     */
+    private Boolean profileOnboardingCompleted;
+
     /** Chemin relatif au répertoire d’upload (admin / audit), non exposé au client. */
     private String verificationSelfieRelativePath;
 

@@ -1,4 +1,4 @@
-# CI monorepo : Flutter (analyze + test) et backend Spring Boot (Maven verify).
+# CI monorepo : Flutter (analyze, test, build web) et backend Spring Boot (test, package JAR).
 # Prérequis : dépôt GitHub avec ce fichier ; les checks apparaissent dans Actions.
 
 name: CI
@@ -21,9 +21,9 @@ concurrency:
 
 jobs:
   flutter:
-    name: Flutter — analyze & test
+    name: Flutter — analyze, test & build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -47,10 +47,26 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      - name: Ensure assets/.env for build
+        run: |
+          if [ ! -f assets/.env ]; then
+            printf '%s\n' 'OKLIFOR_API_BASE=http://127.0.0.1:8080' > assets/.env
+          fi
+
+      - name: Build web (release)
+        run: flutter build web --release
+
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oklifor-web-build
+          path: build/web/
+          if-no-files-found: error
+
   backend:
-    name: Backend — Maven verify
+    name: Backend — test & package
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
@@ -67,5 +83,15 @@ jobs:
           cache: maven
           cache-dependency-path: backend/pom.xml
 
-      - name: Maven verify
-        run: mvn -B -ntp verify
+      - name: Maven test
+        run: mvn -B -ntp test
+
+      - name: Package Spring Boot JAR
+        run: mvn -B -ntp package -DskipTests
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oklifor-api-jar
+          path: backend/target/*.jar
+          if-no-files-found: error

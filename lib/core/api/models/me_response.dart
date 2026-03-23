@@ -47,6 +47,7 @@ class MeResponse {
       emailVerified: profile.emailVerified,
       idVerified: profile.idVerified,
       idPendingReview: profile.idPendingReview,
+      profileOnboardingCompleted: profile.profileOnboardingCompleted,
     );
   }
 
@@ -78,6 +79,7 @@ class MeProfileJson {
     required this.emailVerified,
     required this.idVerified,
     required this.idPendingReview,
+    this.profileOnboardingCompleted = true,
   });
 
   final String displayName;
@@ -95,6 +97,8 @@ class MeProfileJson {
   final bool emailVerified;
   final bool idVerified;
   final bool idPendingReview;
+  /// Si `false`, afficher l’assistant profil après connexion.
+  final bool profileOnboardingCompleted;
 
   factory MeProfileJson.fromJson(Map<String, dynamic> j) {
     return MeProfileJson(
@@ -113,6 +117,7 @@ class MeProfileJson {
       emailVerified: j['emailVerified'] as bool? ?? false,
       idVerified: j['idVerified'] as bool? ?? false,
       idPendingReview: j['idPendingReview'] as bool? ?? false,
+      profileOnboardingCompleted: j['profileOnboardingCompleted'] as bool? ?? true,
     );
   }
 }

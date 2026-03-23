@@ -24,6 +24,8 @@ class UserProfile {
   final bool emailVerified;
   final bool idVerified;
   final bool idPendingReview;
+  /// Synchronisé avec le serveur ; hors API (démo locale) on met `true`.
+  final bool profileOnboardingCompleted;
 
   const UserProfile({
     this.userId = '',
@@ -42,6 +44,7 @@ class UserProfile {
     this.emailVerified = false,
     this.idVerified = false,
     this.idPendingReview = false,
+    this.profileOnboardingCompleted = true,
   });
 
   /// URL exploitable par [CachedNetworkImage] (préfixe [OkliforApiConfig.baseUrl] si besoin).
@@ -87,6 +90,7 @@ class UserProfile {
     bool? emailVerified,
     bool? idVerified,
     bool? idPendingReview,
+    bool? profileOnboardingCompleted,
   }) {
     return UserProfile(
       userId: userId ?? this.userId,
@@ -105,6 +109,8 @@ class UserProfile {
       emailVerified: emailVerified ?? this.emailVerified,
       idVerified: idVerified ?? this.idVerified,
       idPendingReview: idPendingReview ?? this.idPendingReview,
+      profileOnboardingCompleted:
+          profileOnboardingCompleted ?? this.profileOnboardingCompleted,
     );
   }
 
@@ -131,6 +137,7 @@ class UserProfile {
       emailVerified: false,
       idVerified: false,
       idPendingReview: false,
+      profileOnboardingCompleted: true,
     );
   }
 }

@@ -13,4 +13,5 @@ public record ProfileUpdateRequest(
         @Size(max = 120) String profession,
         @Size(max = 120) String education,
         @Size(max = 2000) String coverUrl,
-        @Size(max = 2000) String avatarUrl) {}
+        @Size(max = 2000) String avatarUrl,
+        Boolean profileOnboardingCompleted) {}

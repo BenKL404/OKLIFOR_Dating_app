@@ -20,6 +20,7 @@ public record ProfileResponse(
         boolean emailVerified,
         boolean idVerified,
         boolean idPendingReview,
+        boolean profileOnboardingCompleted,
         boolean hasOkliforCertificate) {
 
     public static ProfileResponse from(UserProfile p) {
@@ -42,6 +43,15 @@ public record ProfileResponse(
                 p.isEmailVerified(),
                 p.isIdVerified(),
                 p.isIdPendingReview(),
+                profileOnboardingDone(p),
                 cert);
+    }
+
+    private static boolean profileOnboardingDone(UserProfile p) {
+        Boolean v = p.getProfileOnboardingCompleted();
+        if (v == null) {
+            return true;
+        }
+        return v;
     }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../features/auth/providers/auth_api_provider.dart';
+import '../../features/auth/utils/apply_post_login.dart';
 import '../constants/app_colors.dart';
 import '../constants/layout_constants.dart';
 import '../theme/theme_extensions.dart';
@@ -33,6 +34,10 @@ class _MainShellState extends ConsumerState<MainShell> {
     try {
       final me = await ref.read(okliforApiClientProvider).fetchMe();
       if (!mounted) return;
+      if (!me.profile.profileOnboardingCompleted) {
+        applyMeAndGoHome(context, me);
+        return;
+      }
       me.applyToLocalSessions();
     } catch (_) {
       // Hors ligne ou token expiré : l’écran suivant gère (splash / 401).

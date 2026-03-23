@@ -6,6 +6,7 @@ import '../../features/auth/views/otp_screen.dart';
 import '../../features/discovery/views/discovery_screen.dart';
 import '../../features/chat/views/chat_list_screen.dart';
 import '../../features/profile/views/profile_screen.dart';
+import '../../features/profile/views/profile_onboarding_screen.dart';
 import '../../features/profile/views/settings_screen.dart';
 import '../../features/profile/views/invite_friends_screen.dart';
 import '../../features/explore/views/explore_screen.dart';
@@ -24,6 +25,10 @@ class AppRouter {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/profile-setup',
+        builder: (context, state) => const ProfileOnboardingScreen(),
       ),
       GoRoute(
         path: '/otp',

@@ -7,6 +7,7 @@ import '../security/okl_local_auth_service.dart';
 import '../security/okl_security_pin_storage.dart';
 import '../theme/theme_extensions.dart';
 import '../utils/okl_feedback.dart';
+import 'okl_pin_code_field.dart';
 import '../../features/profile/models/settings_session.dart';
 
 /// Affiche un écran de déverrouillage au retour de l’app si le verrouillage est activé
@@ -24,7 +25,7 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
   bool _locked = false;
   bool _shouldLockOnNextResume = false;
   bool _hasPinStored = false;
-  final _pinCtrl = TextEditingController();
+  int _pinFieldSalt = 0;
   final _auth = OklLocalAuthService();
 
   @override
@@ -36,7 +37,6 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _pinCtrl.dispose();
     super.dispose();
   }
 
@@ -63,7 +63,7 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
     setState(() {
       _locked = true;
       _hasPinStored = hasPin;
-      _pinCtrl.clear();
+      _pinFieldSalt++;
     });
   }
 
@@ -75,24 +75,25 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
     if (ok && mounted) {
       setState(() {
         _locked = false;
-        _pinCtrl.clear();
+        _pinFieldSalt++;
       });
     }
   }
 
-  Future<void> _submitPin() async {
-    final pin = _pinCtrl.text.trim();
-    if (pin.length < 4) return;
-    final ok = await OklSecurityPinStorage.verify(pin);
+  Future<void> _onUnlockDigits(String s) async {
+    if (!_hasPinStored || s.length < 4) return;
+    final ok = await OklSecurityPinStorage.verify(s);
     if (!mounted) return;
     if (ok) {
       setState(() {
         _locked = false;
-        _pinCtrl.clear();
+        _pinFieldSalt++;
       });
-    } else {
+      return;
+    }
+    if (s.length == 6) {
       OklFeedback.snack(context, 'Code incorrect');
-      _pinCtrl.clear();
+      setState(() => _pinFieldSalt++);
     }
   }
 
@@ -151,34 +152,20 @@ class _AppLockOverlayState extends State<AppLockOverlay> with WidgetsBindingObse
                             ),
                           ),
                         if (_hasPinStored) ...[
-                          TextField(
-                            controller: _pinCtrl,
-                            obscureText: true,
-                            keyboardType: TextInputType.number,
-                            maxLength: 12,
-                            onSubmitted: (_) => _submitPin(),
-                            decoration: InputDecoration(
-                              counterText: '',
-                              labelText: 'Code PIN',
-                              filled: true,
-                              fillColor: context.oklSurface,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide.none,
-                              ),
+                          Text(
+                            'Code (4 à 6 chiffres)',
+                            style: TextStyle(
+                              color: context.oklOnSurfaceMuted(0.55),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: _submitPin,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              child: const Text('Déverrouiller', style: TextStyle(fontWeight: FontWeight.w700)),
-                            ),
+                          const SizedBox(height: 12),
+                          OklPinCodeField(
+                            key: ValueKey(_pinFieldSalt),
+                            maxDigits: 6,
+                            autofocus: true,
+                            onChanged: _onUnlockDigits,
                           ),
                         ],
                       ],

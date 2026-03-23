@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../providers/auth_api_provider.dart';
+import '../utils/apply_post_login.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -28,8 +29,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (token != null && token.isNotEmpty) {
       try {
         final me = await client.fetchMe();
-        me.applyToLocalSessions();
-        if (mounted) context.go('/discovery');
+        if (mounted) applyMeAndGoHome(context, me);
         return;
       } catch (_) {
         await client.logout();

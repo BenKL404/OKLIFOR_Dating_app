@@ -7,6 +7,7 @@ import '../../../core/api/models/settings_patch_body.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/security/okl_security_pin_storage.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/widgets/okl_pin_code_field.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../profile/models/settings_session.dart';
@@ -118,6 +119,13 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   }
 }
 
+enum _PinSetupPhase {
+  verifyOld,
+  setNew,
+  confirmNew,
+  removeVerify,
+}
+
 class ChangePinScreen extends StatefulWidget {
   const ChangePinScreen({super.key});
 
@@ -126,11 +134,11 @@ class ChangePinScreen extends StatefulWidget {
 }
 
 class _ChangePinScreenState extends State<ChangePinScreen> {
-  final _old = TextEditingController();
-  final _n1 = TextEditingController();
-  final _n2 = TextEditingController();
   bool _loading = true;
   bool _hasPin = false;
+  _PinSetupPhase _phase = _PinSetupPhase.setNew;
+  String? _candidateNew;
+  int _fieldSalt = 0;
 
   @override
   void initState() {
@@ -143,108 +151,212 @@ class _ChangePinScreenState extends State<ChangePinScreen> {
     if (!mounted) return;
     setState(() {
       _hasPin = h;
+      _phase = h ? _PinSetupPhase.verifyOld : _PinSetupPhase.setNew;
       _loading = false;
     });
   }
 
-  @override
-  void dispose() {
-    _old.dispose();
-    _n1.dispose();
-    _n2.dispose();
-    super.dispose();
-  }
+  void _bumpField() => setState(() => _fieldSalt++);
 
-  Future<void> _save() async {
-    final n1 = _n1.text.trim();
-    final n2 = _n2.text.trim();
-    if (n1.length < 4 || n1 != n2) {
-      OklFeedback.alert(
-        context,
-        title: 'PIN invalide',
-        message: 'Les deux nouveaux codes doivent être identiques (4 chiffres minimum).',
-      );
-      return;
-    }
-    if (_hasPin) {
-      final ok = await OklSecurityPinStorage.verify(_old.text.trim());
-      if (!ok) {
-        if (mounted) {
-          OklFeedback.alert(
-            context,
-            title: 'Code incorrect',
-            message: 'Le PIN actuel ne correspond pas.',
-          );
-        }
+  Future<void> _onVerifyOrRemoveDigits(String s) async {
+    if (s.length < 4) return;
+    final ok = await OklSecurityPinStorage.verify(s);
+    if (!mounted) return;
+    if (ok) {
+      if (_phase == _PinSetupPhase.removeVerify) {
+        await OklSecurityPinStorage.clearPin();
+        if (!mounted) return;
+        await OklFlows.pushResult(
+          context,
+          icon: LucideIcons.unlock,
+          title: 'Code supprimé',
+          subtitle:
+              'Sans code ni biométrie, désactive « Verrouiller à l’ouverture » dans Sécurité si besoin.',
+          primaryLabel: 'OK',
+        );
+        if (mounted) Navigator.of(context).pop();
         return;
       }
+      setState(() {
+        _phase = _PinSetupPhase.setNew;
+        _candidateNew = null;
+      });
+      return;
     }
-    await OklSecurityPinStorage.setPin(n1);
-    if (!mounted) return;
-    await OklFlows.pushResult(
-      context,
-      icon: LucideIcons.lock,
-      title: 'PIN enregistré',
-      subtitle: 'Il est stocké sur cet appareil et sert au verrouillage de l’app.',
-      primaryLabel: 'OK',
+    if (s.length == 6) {
+      OklFeedback.snack(context, 'Code incorrect');
+      _bumpField();
+    }
+  }
+
+  Future<void> _onSixDigitsEntered(String six) async {
+    if (_phase == _PinSetupPhase.setNew) {
+      setState(() {
+        _candidateNew = six;
+        _phase = _PinSetupPhase.confirmNew;
+      });
+      return;
+    }
+    if (_phase == _PinSetupPhase.confirmNew) {
+      if (six == _candidateNew) {
+        try {
+          await OklSecurityPinStorage.setPin(six);
+        } catch (e) {
+          if (mounted) {
+            OklFeedback.alert(context, title: 'Erreur', message: '$e');
+          }
+          return;
+        }
+        if (!mounted) return;
+        await OklFlows.pushResult(
+          context,
+          icon: LucideIcons.lock,
+          title: 'PIN enregistré',
+          subtitle: 'Code à 6 chiffres, stocké sur cet appareil.',
+          primaryLabel: 'OK',
+        );
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+      OklFeedback.alert(
+        context,
+        title: 'Les codes diffèrent',
+        message: 'Saisis à nouveau un code à 6 chiffres, deux fois de suite.',
+      );
+      setState(() {
+        _phase = _PinSetupPhase.setNew;
+        _candidateNew = null;
+      });
+      _bumpField();
+    }
+  }
+
+  Future<void> _startRemovePin() async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final t = Theme.of(ctx);
+        return AlertDialog(
+          backgroundColor: t.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Supprimer le code ?',
+            style: TextStyle(color: t.colorScheme.onSurface, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'Tu pourras toujours utiliser la biométrie si elle est activée, sinon pense à désactiver le verrouillage de l’app.',
+            style: TextStyle(
+              color: t.textTheme.bodyMedium?.color ?? t.colorScheme.onSurface,
+              fontSize: 14,
+              height: 1.35,
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Continuer'),
+            ),
+          ],
+        );
+      },
     );
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (go != true || !mounted) return;
+    setState(() => _phase = _PinSetupPhase.removeVerify);
+    _bumpField();
+  }
+
+  String get _phaseTitle {
+    switch (_phase) {
+      case _PinSetupPhase.verifyOld:
+        return 'Code actuel';
+      case _PinSetupPhase.setNew:
+        return 'Nouveau code';
+      case _PinSetupPhase.confirmNew:
+        return 'Confirmer le code';
+      case _PinSetupPhase.removeVerify:
+        return 'Supprimer le code';
+    }
+  }
+
+  String get _phaseHint {
+    switch (_phase) {
+      case _PinSetupPhase.verifyOld:
+        return 'Entre ton code actuel (4 à 6 chiffres).';
+      case _PinSetupPhase.setNew:
+        return 'Choisis un code à 6 chiffres. La saisie se valide automatiquement.';
+      case _PinSetupPhase.confirmNew:
+        return 'Entre le même code à 6 chiffres pour confirmer.';
+      case _PinSetupPhase.removeVerify:
+        return 'Entre ton code actuel pour confirmer la suppression.';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: const OklAppBarBackButton(),
         automaticallyImplyLeading: false,
-        title: Text(_hasPin ? 'PIN de sécurité' : 'Définir un code PIN'),
+        title: Text(_hasPin ? 'Code PIN' : 'Définir un code'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               children: [
                 Text(
-                  _hasPin
-                      ? 'Le code PIN sur cet appareil protège l’accès à l’app lorsque le verrouillage est activé.'
-                      : 'Choisis un code d’au moins 4 chiffres. Tu pourras ensuite activer « Verrouiller à l’ouverture ».',
+                  _phaseHint,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
+                    color: cs.onSurface.withValues(alpha: 0.65),
+                    fontSize: 14,
                     height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 20),
-                if (_hasPin) ...[
-                  TextField(
-                    controller: _old,
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'PIN actuel'),
+                const SizedBox(height: 28),
+                Text(
+                  _phaseTitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
                   ),
-                  const SizedBox(height: 12),
+                ),
+                const SizedBox(height: 20),
+                OklPinCodeField(
+                  key: ValueKey<Object>('$_phase$_fieldSalt'),
+                  maxDigits: 6,
+                  autofocus: true,
+                  onChanged: (_phase == _PinSetupPhase.verifyOld ||
+                          _phase == _PinSetupPhase.removeVerify)
+                      ? _onVerifyOrRemoveDigits
+                      : null,
+                  onComplete: (_phase == _PinSetupPhase.setNew ||
+                          _phase == _PinSetupPhase.confirmNew)
+                      ? _onSixDigitsEntered
+                      : null,
+                ),
+                if (_hasPin && _phase != _PinSetupPhase.removeVerify) ...[
+                  const SizedBox(height: 32),
+                  Center(
+                    child: TextButton(
+                      onPressed: _startRemovePin,
+                      child: Text(
+                        'Supprimer le code PIN',
+                        style: TextStyle(
+                          color: AppColors.togoRed,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
-                TextField(
-                  controller: _n1,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Nouveau PIN'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _n2,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Confirmer le PIN'),
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _save,
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-                  child: const Text('Enregistrer'),
-                ),
               ],
             ),
     );

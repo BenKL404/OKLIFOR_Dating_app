@@ -11,6 +11,7 @@ import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../models/otp_route_extra.dart';
 import '../providers/auth_api_provider.dart';
+import '../utils/apply_post_login.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   const OtpScreen({super.key, required this.extra});
@@ -66,8 +67,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       );
       await api.persistTokens(tokens);
       final me = await api.fetchMe();
-      me.applyToLocalSessions();
-      if (mounted) context.go('/discovery');
+      if (mounted) applyMeAndGoHome(context, me);
     } on OkliforApiException catch (e) {
       if (mounted) {
         OklFeedback.alert(

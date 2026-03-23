@@ -200,6 +200,7 @@ class OkliforApiClient {
     String? education,
     String? coverUrl,
     String? avatarUrl,
+    bool? profileOnboardingCompleted,
   }) async {
     final body = <String, dynamic>{};
     if (displayName != null) body['displayName'] = displayName;
@@ -213,6 +214,9 @@ class OkliforApiClient {
     if (education != null) body['education'] = education;
     if (coverUrl != null) body['coverUrl'] = coverUrl;
     if (avatarUrl != null) body['avatarUrl'] = avatarUrl;
+    if (profileOnboardingCompleted != null) {
+      body['profileOnboardingCompleted'] = profileOnboardingCompleted;
+    }
     try {
       if (body.isNotEmpty) {
         await _dio.patch<void>('/api/v1/me/profile', data: body);

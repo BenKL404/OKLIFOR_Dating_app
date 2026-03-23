@@ -48,6 +48,7 @@ public class AccountProvisioningService {
         p.setCoverUrl("");
         p.setAvatarUrl("");
         p.setPhoneVerified(true);
+        p.setProfileOnboardingCompleted(false);
         profiles.save(p);
 
         UserSettingsDoc s = new UserSettingsDoc();

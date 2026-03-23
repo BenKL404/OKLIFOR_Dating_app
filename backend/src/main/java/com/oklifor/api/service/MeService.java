@@ -101,6 +101,9 @@ public class MeService {
         if (req.avatarUrl() != null) {
             p.setAvatarUrl(req.avatarUrl());
         }
+        if (req.profileOnboardingCompleted() != null) {
+            p.setProfileOnboardingCompleted(req.profileOnboardingCompleted());
+        }
         return ProfileResponse.from(profiles.save(p));
     }
 
