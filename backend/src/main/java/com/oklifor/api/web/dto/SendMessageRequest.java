@@ -7,5 +7,7 @@ public record SendMessageRequest(
         @NotNull ChatMessageKind kind,
         String text,
         String imageUrl,
+        String videoUrl,
+        String audioUrl,
         Integer voiceSeconds,
         String locationLabel) {}

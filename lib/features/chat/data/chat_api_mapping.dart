@@ -1,12 +1,12 @@
 import '../../../core/api/models/chat_api_models.dart';
+import '../../../core/config/oklifor_media_url.dart';
 import '../models/chat_models.dart';
 
 const kDefaultChatAvatarUrl =
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80&auto=format&fit=crop';
 
 /// Fils dont l’id est un UUID viennent du backend Spring.
-bool isBackendThreadId(String id) =>
-    id.length >= 32 && id.contains('-');
+bool isBackendThreadId(String id) => id.length >= 32 && id.contains('-');
 
 String _formatApiTime(String? iso) {
   if (iso == null || iso.isEmpty) return '';
@@ -17,7 +17,11 @@ String _formatApiTime(String? iso) {
       '${local.minute.toString().padLeft(2, '0')}';
 }
 
-ChatThread chatThreadFromPayload(ChatThreadPayload p, {required String? myUserId}) {
+ChatThread chatThreadFromPayload(
+  ChatThreadPayload p, {
+  required String? myUserId,
+  Map<String, String>? contactNameById,
+}) {
   final isGroup = p.type.toUpperCase() == 'GROUP';
   var title = p.name.trim();
   if (title.isEmpty && isGroup) {
@@ -33,7 +37,13 @@ ChatThread chatThreadFromPayload(ChatThreadPayload p, {required String? myUserId
       }
     }
     if (other != null && other.isNotEmpty) {
-      title = 'Utilisateur ${other.length >= 8 ? other.substring(0, 8) : other}';
+      final knownName = contactNameById?[other]?.trim();
+      if (knownName != null && knownName.isNotEmpty) {
+        title = knownName;
+      } else {
+        title =
+            'Utilisateur ${other.length >= 8 ? other.substring(0, 8) : other}';
+      }
     } else {
       title = 'Conversation';
     }
@@ -66,7 +76,10 @@ ChatMessageKind _parseMessageKind(String raw) {
   switch (raw.toUpperCase()) {
     case 'IMAGE':
       return ChatMessageKind.image;
+    case 'VIDEO':
+      return ChatMessageKind.video;
     case 'VOICE':
+    case 'AUDIO':
       return ChatMessageKind.voice;
     case 'LOCATION':
       return ChatMessageKind.location;
@@ -85,16 +98,23 @@ ChatMessage chatMessageFromPayload(
   final mine = myUserId != null && p.senderUserId == myUserId;
   final time = _formatApiTime(p.createdAt);
   final kind = _parseMessageKind(p.kind);
+  final created = p.createdAt == null || p.createdAt!.isEmpty
+      ? null
+      : DateTime.tryParse(p.createdAt!);
   return ChatMessage(
     id: p.id,
     kind: kind,
     text: p.text,
-    imageUrl: p.imageUrl,
+    imageUrl: p.imageUrl == null ? null : OkliforMediaUrl.resolve(p.imageUrl!),
+    videoUrl: p.videoUrl == null ? null : OkliforMediaUrl.resolve(p.videoUrl!),
+    audioUrl: p.audioUrl == null ? null : OkliforMediaUrl.resolve(p.audioUrl!),
     voiceSeconds: p.voiceSeconds,
     locationLabel: p.locationLabel,
     mine: mine,
     time: time.isEmpty ? '—' : time,
     showTail: true,
+    readByRecipient: mine ? p.readByRecipient : false,
+    createdAt: created,
   );
 }
 
@@ -104,8 +124,12 @@ List<ChatMessage> chatMessagesFromPayloads(
 }) {
   final sorted = List<ChatMessagePayload>.from(list);
   sorted.sort((a, b) {
-    final da = DateTime.tryParse(a.createdAt ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final db = DateTime.tryParse(b.createdAt ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final da =
+        DateTime.tryParse(a.createdAt ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final db =
+        DateTime.tryParse(b.createdAt ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
     return da.compareTo(db);
   });
   return sorted

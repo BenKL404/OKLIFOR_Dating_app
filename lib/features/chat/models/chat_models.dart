@@ -52,30 +52,70 @@ const kDemoContacts = <ChatContact>[
   ),
 ];
 
-enum ChatMessageKind { text, image, voice, location, system }
+enum ChatMessageKind { text, image, video, voice, location, system }
 
 class ChatMessage {
   final String id;
   final ChatMessageKind kind;
   final String? text;
   final String? imageUrl;
+  final String? videoUrl;
+  final String? audioUrl;
   final int? voiceSeconds;
   final String? locationLabel;
   final bool mine;
   final String time;
   final bool showTail;
+  final bool readByRecipient;
+  final DateTime? createdAt;
 
   const ChatMessage({
     required this.id,
     required this.kind,
     this.text,
     this.imageUrl,
+    this.videoUrl,
+    this.audioUrl,
     this.voiceSeconds,
     this.locationLabel,
     required this.mine,
     required this.time,
     this.showTail = true,
+    this.readByRecipient = false,
+    this.createdAt,
   });
+
+  ChatMessage copyWith({
+    String? id,
+    ChatMessageKind? kind,
+    String? text,
+    String? imageUrl,
+    String? videoUrl,
+    String? audioUrl,
+    int? voiceSeconds,
+    String? locationLabel,
+    bool? mine,
+    String? time,
+    bool? showTail,
+    bool? readByRecipient,
+    DateTime? createdAt,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      text: text ?? this.text,
+      imageUrl: imageUrl ?? this.imageUrl,
+      videoUrl: videoUrl ?? this.videoUrl,
+      audioUrl: audioUrl ?? this.audioUrl,
+      voiceSeconds: voiceSeconds ?? this.voiceSeconds,
+      locationLabel: locationLabel ?? this.locationLabel,
+      mine: mine ?? this.mine,
+      time: time ?? this.time,
+      showTail: showTail ?? this.showTail,
+      readByRecipient: readByRecipient ?? this.readByRecipient,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }
 
 /// Fil de discussion (1:1 ou groupe) pour la liste Messages.

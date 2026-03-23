@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/chat")
@@ -51,5 +52,11 @@ public class ChatController {
             @PathVariable String threadId,
             @Valid @RequestBody SendMessageRequest body) {
         return chatService.sendMessage(auth.getName(), threadId, body);
+    }
+
+    @PostMapping("/threads/{threadId}/read")
+    public Map<String, Long> markRead(Authentication auth, @PathVariable String threadId) {
+        long epoch = chatService.markThreadRead(auth.getName(), threadId);
+        return Map.of("readAtEpoch", epoch);
     }
 }

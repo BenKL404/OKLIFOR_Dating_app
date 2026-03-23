@@ -16,17 +16,24 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ChatService {
 
     private final ChatThreadRepository threads;
     private final ChatMessageRepository messages;
+    private final ChatMediaService chatMediaService;
 
-    public ChatService(ChatThreadRepository threads, ChatMessageRepository messages) {
+    public ChatService(
+            ChatThreadRepository threads,
+            ChatMessageRepository messages,
+            ChatMediaService chatMediaService) {
         this.threads = threads;
         this.messages = messages;
+        this.chatMediaService = chatMediaService;
     }
 
     public List<ChatThreadResponse> listThreads(String userId) {
@@ -54,10 +61,10 @@ public class ChatService {
     }
 
     public List<ChatMessageResponse> listMessages(String userId, String threadId, int size) {
-        ensureParticipant(userId, threadId);
+        ChatThread t = ensureParticipant(userId, threadId);
         var page = PageRequest.of(0, Math.min(size, 100));
         return messages.findByThreadIdOrderByCreatedAtDesc(threadId, page).stream()
-                .map(ChatMessageResponse::from)
+                .map(m -> toMessageResponse(m, userId, t))
                 .toList();
     }
 
@@ -68,14 +75,114 @@ public class ChatService {
         m.setSenderUserId(userId);
         m.setKind(req.kind() != null ? req.kind() : ChatMessageKind.TEXT);
         m.setText(req.text());
-        m.setImageUrl(req.imageUrl());
+        // Normaliser les médias hébergés sur notre bucket signé : URL relative + nouvelle signature,
+        // pour éviter d’enregistrer des hôtes spécifiques au client (10.0.2.2, LAN, etc.).
+        m.setImageUrl(refreshChatMediaUrlIfApplicable(req.imageUrl()));
+        m.setVideoUrl(refreshChatMediaUrlIfApplicable(req.videoUrl()));
+        m.setAudioUrl(refreshChatMediaUrlIfApplicable(req.audioUrl()));
         m.setVoiceSeconds(req.voiceSeconds());
         m.setLocationLabel(req.locationLabel());
         m = messages.save(m);
         t.setLastMessagePreview(preview(req));
         t.setLastMessageAt(m.getCreatedAt() != null ? m.getCreatedAt() : Instant.now());
         threads.save(t);
-        return ChatMessageResponse.from(m);
+        return toMessageResponse(m, userId, t);
+    }
+
+    /**
+     * Marque la conversation comme lue par {@code userId} jusqu’à l’instant courant (filigrane 1:1).
+     *
+     * @return epoch secondes du curseur de lecture enregistré
+     */
+    public long markThreadRead(String userId, String threadId) {
+        ChatThread t = ensureParticipant(userId, threadId);
+        Instant now = Instant.now();
+        Map<String, Instant> map = t.getLastReadAtByUserId();
+        if (map == null) {
+            map = new HashMap<>();
+            t.setLastReadAtByUserId(map);
+        }
+        Instant prev = map.get(userId);
+        if (prev == null || now.isAfter(prev)) {
+            map.put(userId, now);
+            threads.save(t);
+            return now.getEpochSecond();
+        }
+        return prev.getEpochSecond();
+    }
+
+    private ChatMessageResponse toMessageResponse(ChatMessage m, String viewerUserId, ChatThread thread) {
+        boolean readByRecipient = false;
+        if (viewerUserId.equals(m.getSenderUserId()) && thread.getType() == ChatThreadType.DIRECT) {
+            readByRecipient = isDirectMessageReadByPeer(thread, m.getSenderUserId(), m.getCreatedAt());
+        }
+        return new ChatMessageResponse(
+                m.getId(),
+                m.getThreadId(),
+                m.getSenderUserId(),
+                m.getKind(),
+                m.getText(),
+                refreshChatMediaUrlIfApplicable(m.getImageUrl()),
+                refreshChatMediaUrlIfApplicable(m.getVideoUrl()),
+                refreshChatMediaUrlIfApplicable(m.getAudioUrl()),
+                m.getVoiceSeconds(),
+                m.getLocationLabel(),
+                m.getCreatedAt(),
+                readByRecipient);
+    }
+
+    private String refreshChatMediaUrlIfApplicable(String url) {
+        if (url == null || url.isBlank()) {
+            return url;
+        }
+        if (url.contains("/api/v1/public/chat-media/")) {
+            return chatMediaService.refreshSignedMediaUrl(url);
+        }
+        return url;
+    }
+
+    private static boolean isDirectMessageReadByPeer(
+            ChatThread thread, String senderUserId, Instant messageCreatedAt) {
+        if (messageCreatedAt == null) {
+            return false;
+        }
+        List<String> parts = thread.getParticipantUserIds();
+        if (parts == null || parts.size() != 2) {
+            return false;
+        }
+        String peer = null;
+        for (String p : parts) {
+            if (!p.equals(senderUserId)) {
+                peer = p;
+                break;
+            }
+        }
+        if (peer == null) {
+            return false;
+        }
+        Map<String, Instant> map = thread.getLastReadAtByUserId();
+        if (map == null) {
+            return false;
+        }
+        Instant peerRead = map.get(peer);
+        if (peerRead == null) {
+            return false;
+        }
+        return !peerRead.isBefore(messageCreatedAt);
+    }
+
+    public void assertParticipant(String userId, String threadId) {
+        ensureParticipant(userId, threadId);
+    }
+
+    public List<String> participantIds(String userId, String threadId) {
+        return List.copyOf(ensureParticipant(userId, threadId).getParticipantUserIds());
+    }
+
+    public List<String> threadIdsForUser(String userId) {
+        return threads.findByParticipantUserIdsContainingOrderByLastMessageAtDesc(userId).stream()
+                .map(ChatThread::getId)
+                .toList();
     }
 
     private ChatThread ensureParticipant(String userId, String threadId) {
@@ -98,6 +205,7 @@ public class ChatService {
         }
         return switch (req.kind()) {
             case IMAGE -> "📷 Photo";
+            case VIDEO -> "🎬 Vidéo";
             case VOICE -> "🎤 Message vocal";
             case LOCATION -> "📍 Position";
             case SYSTEM -> "· · ·";

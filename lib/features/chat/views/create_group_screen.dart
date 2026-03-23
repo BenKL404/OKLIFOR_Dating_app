@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
@@ -7,26 +8,24 @@ import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../models/chat_models.dart';
+import '../providers/chat_contacts_provider.dart';
 
 class CreateGroupResult {
   final String name;
   final List<ChatContact> members;
 
-  const CreateGroupResult({
-    required this.name,
-    required this.members,
-  });
+  const CreateGroupResult({required this.name, required this.members});
 }
 
 /// Sélection de membres + nom du groupe (démo, max 8 personnes).
-class CreateGroupScreen extends StatefulWidget {
+class CreateGroupScreen extends ConsumerStatefulWidget {
   const CreateGroupScreen({super.key});
 
   @override
-  State<CreateGroupScreen> createState() => _CreateGroupScreenState();
+  ConsumerState<CreateGroupScreen> createState() => _CreateGroupScreenState();
 }
 
-class _CreateGroupScreenState extends State<CreateGroupScreen> {
+class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _nameController = TextEditingController();
   final Set<String> _selectedIds = {};
 
@@ -57,7 +56,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     setState(() => _selectedIds.add(c.id));
   }
 
-  void _submit() {
+  void _submit(List<ChatContact> contacts) {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       OklFeedback.alert(
@@ -75,13 +74,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       );
       return;
     }
-    final members =
-        kDemoContacts.where((c) => _selectedIds.contains(c.id)).toList();
+    final members = contacts.where((c) => _selectedIds.contains(c.id)).toList();
     Navigator.pop(context, CreateGroupResult(name: name, members: members));
   }
 
   @override
   Widget build(BuildContext context) {
+    final contactsAsync = ref.watch(chatContactsProvider);
     return Scaffold(
       backgroundColor: context.oklScaffold,
       appBar: AppBar(
@@ -91,7 +90,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         title: const Text('Nouveau groupe'),
         actions: [
           TextButton(
-            onPressed: _submit,
+            onPressed: contactsAsync.maybeWhen(
+              data: (contacts) =>
+                  () => _submit(contacts),
+              orElse: () => null,
+            ),
             child: Text(
               'Créer (${_selectedIds.length})',
               style: const TextStyle(
@@ -125,9 +128,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   decoration: InputDecoration(
                     hintText: 'Ex. Soirée Adidogomé',
                     hintStyle: TextStyle(
-                      color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                              context.oklOnSurfaceMuted(0.62))
-                          .withValues(alpha: 0.85),
+                      color:
+                          (Theme.of(context).textTheme.bodyMedium?.color ??
+                                  context.oklOnSurfaceMuted(0.62))
+                              .withValues(alpha: 0.85),
                     ),
                     filled: true,
                     fillColor: context.oklSurface,
@@ -152,7 +156,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 Icon(
                   LucideIcons.users,
                   size: 16,
-                  color: Theme.of(context).textTheme.bodyMedium?.color ??
+                  color:
+                      Theme.of(context).textTheme.bodyMedium?.color ??
                       context.oklOnSurfaceMuted(0.62),
                 ),
                 const SizedBox(width: 8),
@@ -160,9 +165,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   child: Text(
                     'Ajoute entre 2 et $_maxMembers personnes depuis tes matchs.',
                     style: TextStyle(
-                      color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                              context.oklOnSurfaceMuted(0.62))
-                          .withValues(alpha: 0.95),
+                      color:
+                          (Theme.of(context).textTheme.bodyMedium?.color ??
+                                  context.oklOnSurfaceMuted(0.62))
+                              .withValues(alpha: 0.95),
                       fontSize: 13,
                       height: 1.35,
                     ),
@@ -172,98 +178,105 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 24),
-              itemCount: kDemoContacts.length,
-              itemBuilder: (context, i) {
-                final c = kDemoContacts[i];
-                final on = _selectedIds.contains(c.id);
-                return Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _toggle(c),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              CircleAvatar(
-                                radius: 26,
-                                backgroundColor: context.oklSurface,
-                                child: ClipOval(
-                                  child: CachedNetworkImage(
-                                    imageUrl: c.avatarUrl,
-                                    width: 52,
-                                    height: 52,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 104,
-                                    placeholder: (c, u) =>
-                                        Container(color: context.oklSurface),
-                                  ),
-                                ),
-                              ),
-                              if (on)
-                                Positioned(
-                                  right: -2,
-                                  bottom: -2,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: BoxDecoration(
-                                      color: context.oklScaffold,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      LucideIcons.check,
-                                      color: AppColors.primary,
-                                      size: 18,
+            child: contactsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) =>
+                  const Center(child: Text('Chargement impossible')),
+              data: (contacts) => ListView.builder(
+                padding: const EdgeInsets.only(bottom: 24),
+                itemCount: contacts.length,
+                itemBuilder: (context, i) {
+                  final c = contacts[i];
+                  final on = _selectedIds.contains(c.id);
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _toggle(c),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: context.oklSurface,
+                                  child: ClipOval(
+                                    child: CachedNetworkImage(
+                                      imageUrl: c.avatarUrl,
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 104,
+                                      placeholder: (c, u) =>
+                                          Container(color: context.oklSurface),
                                     ),
                                   ),
                                 ),
-                            ],
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              c.name,
-                              style: TextStyle(
-                                color: context.oklOnSurface,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
+                                if (on)
+                                  Positioned(
+                                    right: -2,
+                                    bottom: -2,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: context.oklScaffold,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        LucideIcons.check,
+                                        color: AppColors.primary,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                c.name,
+                                style: TextStyle(
+                                  color: context.oklOnSurface,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
                               ),
                             ),
-                          ),
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: on ? AppColors.primary : context.oklDivider,
-                                width: 2,
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: on
+                                      ? AppColors.primary
+                                      : context.oklDivider,
+                                  width: 2,
+                                ),
+                                color: on
+                                    ? AppColors.primary.withValues(alpha: 0.2)
+                                    : null,
                               ),
-                              color: on
-                                  ? AppColors.primary.withValues(alpha: 0.2)
+                              child: on
+                                  ? const Icon(
+                                      LucideIcons.check,
+                                      size: 14,
+                                      color: AppColors.primary,
+                                    )
                                   : null,
                             ),
-                            child: on
-                                ? const Icon(
-                                    LucideIcons.check,
-                                    size: 14,
-                                    color: AppColors.primary,
-                                  )
-                                : null,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ],

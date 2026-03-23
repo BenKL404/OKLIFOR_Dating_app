@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -9,6 +10,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/flows/okl_flows.dart';
+import '../../auth/providers/auth_api_provider.dart';
 import '../../chat/models/chat_models.dart';
 import '../../chat/utils/okl_contact_qr_codec.dart';
 import '../../profile/models/user_profile.dart';
@@ -21,10 +23,15 @@ class ContactQrHubScreen extends StatefulWidget {
   /// Si vrai, après validation le [Navigator.pop] renvoie le [ChatContact] scanné.
   final bool popWithScannedContact;
 
+  /// Si vrai et [popWithScannedContact] est activé, le contact est d'abord
+  /// ajouté via API avant d'être renvoyé à l'écran appelant.
+  final bool addContactBeforePop;
+
   const ContactQrHubScreen({
     super.key,
     this.initialTab = 0,
     this.popWithScannedContact = false,
+    this.addContactBeforePop = false,
   });
 
   @override
@@ -77,11 +84,10 @@ class _ContactQrHubScreenState extends State<ContactQrHubScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _MyQrTab(
-            onShowSampleContacts: () => _showSampleQrSheet(context),
-          ),
+          _MyQrTab(onShowSampleContacts: () => _showSampleQrSheet(context)),
           _ScanQrTab(
             popWithScannedContact: widget.popWithScannedContact,
+            addContactBeforePop: widget.addContactBeforePop,
           ),
         ],
       ),
@@ -123,13 +129,26 @@ class _ContactQrHubScreenState extends State<ContactQrHubScreen>
                 const SizedBox(height: 16),
                 for (final c in kDemoContacts.take(4))
                   ListTile(
-                    leading: CircleAvatar(backgroundColor: AppColors.primary.withValues(alpha: 0.15)),
-                    title: Text(c.name, style: TextStyle(color: ctx.oklOnSurface, fontWeight: FontWeight.w600)),
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.primary.withValues(
+                        alpha: 0.15,
+                      ),
+                    ),
+                    title: Text(
+                      c.name,
+                      style: TextStyle(
+                        color: ctx.oklOnSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     subtitle: Text(
                       OklContactQrCodec.encodeContact(c),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: ctx.oklOnSurfaceMuted(0.5)),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: ctx.oklOnSurfaceMuted(0.5),
+                      ),
                     ),
                     onTap: () {
                       Navigator.pop(ctx);
@@ -166,7 +185,12 @@ class _MyQrTab extends StatelessWidget {
         );
         final hasUid = data.isNotEmpty;
         return ListView(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.paddingOf(context).bottom + 24),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            MediaQuery.paddingOf(context).bottom + 24,
+          ),
           children: [
             Text(
               'Ton code personnel',
@@ -261,17 +285,22 @@ class _MyQrTab extends StatelessWidget {
   }
 }
 
-class _ScanQrTab extends StatefulWidget {
+class _ScanQrTab extends ConsumerStatefulWidget {
   final bool popWithScannedContact;
+  final bool addContactBeforePop;
 
-  const _ScanQrTab({required this.popWithScannedContact});
+  const _ScanQrTab({
+    required this.popWithScannedContact,
+    required this.addContactBeforePop,
+  });
 
   @override
-  State<_ScanQrTab> createState() => _ScanQrTabState();
+  ConsumerState<_ScanQrTab> createState() => _ScanQrTabState();
 }
 
-class _ScanQrTabState extends State<_ScanQrTab> {
+class _ScanQrTabState extends ConsumerState<_ScanQrTab> {
   late final MobileScannerController _controller;
+  final TextEditingController _manualQrController = TextEditingController();
   String? _lastRaw;
   bool _dialogOpen = false;
 
@@ -285,6 +314,7 @@ class _ScanQrTabState extends State<_ScanQrTab> {
 
   @override
   void dispose() {
+    _manualQrController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -323,10 +353,15 @@ class _ScanQrTabState extends State<_ScanQrTab> {
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: ctx.oklSurface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text(
             'Contact détecté',
-            style: TextStyle(color: ctx.oklOnSurface, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: ctx.oklOnSurface,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -343,7 +378,10 @@ class _ScanQrTabState extends State<_ScanQrTab> {
               const SizedBox(height: 6),
               Text(
                 'ID : ${contact.id}',
-                style: TextStyle(color: ctx.oklOnSurfaceMuted(0.55), fontSize: 12),
+                style: TextStyle(
+                  color: ctx.oklOnSurfaceMuted(0.55),
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -355,7 +393,9 @@ class _ScanQrTabState extends State<_ScanQrTab> {
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-              child: Text(widget.popWithScannedContact ? 'Partager ce contact' : 'OK'),
+              child: Text(
+                widget.popWithScannedContact ? 'Partager ce contact' : 'OK',
+              ),
             ),
           ],
         );
@@ -368,34 +408,121 @@ class _ScanQrTabState extends State<_ScanQrTab> {
 
     if (go == true) {
       if (widget.popWithScannedContact) {
+        if (widget.addContactBeforePop) {
+          final added = await _addContact(contact);
+          if (!added) {
+            _lastRaw = null;
+            await _controller.start();
+            return;
+          }
+        }
+        if (!mounted) return;
         Navigator.of(context, rootNavigator: true).pop(contact);
         return;
       }
-      await OklFlows.pushResult(
-        context,
-        icon: LucideIcons.userPlus,
-        title: 'Contact enregistré',
-        subtitle: '${contact.name} peut être ajouté à tes conversations.',
-        primaryLabel: 'Super',
-      );
+      final added = await _addContact(contact);
+      if (!added) {
+        _lastRaw = null;
+        await _controller.start();
+        return;
+      }
     }
 
     _lastRaw = null;
     await _controller.start();
   }
 
+  Future<bool> _addContact(ChatContact contact) async {
+    try {
+      final api = ref.read(okliforApiClientProvider);
+      await api.addContactByUserId(contact.id);
+    } catch (_) {
+      if (!mounted) return false;
+      OklFeedback.alert(
+        context,
+        title: 'Ajout impossible',
+        message:
+            'Vérifie que le QR appartient à un compte existant et que tu es bien connecté.',
+      );
+      return false;
+    }
+    if (!mounted) return true;
+    await OklFlows.pushResult(
+      context,
+      icon: LucideIcons.userPlus,
+      title: 'Contact enregistré',
+      subtitle:
+          '${contact.name} est ajouté à tes contacts et prêt pour la messagerie.',
+      primaryLabel: 'Super',
+    );
+    return true;
+  }
+
+  Future<void> _addFromManualQr() async {
+    final raw = _manualQrController.text.trim();
+    if (raw.isEmpty) {
+      OklFeedback.alert(
+        context,
+        title: 'Code requis',
+        message: 'Colle le contenu du QR Oklifor pour ajouter le contact.',
+      );
+      return;
+    }
+    final contact = OklContactQrCodec.tryDecode(raw);
+    if (contact == null) {
+      OklFeedback.alert(
+        context,
+        title: 'Code non reconnu',
+        message: 'Le format ne correspond pas à un QR de contact Oklifor.',
+      );
+      return;
+    }
+    await _addContact(contact);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (kIsWeb) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Text(
-            'Le scan de QR code est prévu pour iOS et Android. Utilise un appareil mobile pour cette fonction.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: context.oklOnSurfaceMuted(0.65), height: 1.4),
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+        children: [
+          Text(
+            'Ajout sur Web',
+            style: TextStyle(
+              color: context.oklOnSurface,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
           ),
-        ),
+          const SizedBox(height: 8),
+          Text(
+            'La caméra QR est disponible sur iOS/Android. Sur Web, colle le contenu du QR Oklifor pour ajouter un contact.',
+            style: TextStyle(
+              color: context.oklOnSurfaceMuted(0.65),
+              height: 1.4,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _manualQrController,
+            minLines: 2,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: 'oklifor://profile?uid=...&n=...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _addFromManualQr,
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            icon: const Icon(LucideIcons.userPlus, size: 18),
+            label: const Text('Ajouter ce contact'),
+          ),
+        ],
       );
     }
 
@@ -424,7 +551,10 @@ class _ScanQrTabState extends State<_ScanQrTab> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(14),

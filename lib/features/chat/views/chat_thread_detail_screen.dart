@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/flows/okl_flows.dart';
@@ -8,7 +9,8 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../models/chat_models.dart'
-    show ChatContact, ChatThread, demoMembersForGroup, demoPeerBioForThread, kDemoContacts;
+    show ChatContact, ChatThread, demoMembersForGroup, demoPeerBioForThread;
+import '../providers/chat_contacts_provider.dart';
 
 /// Détails du contact ou du groupe depuis l’en-tête de conversation.
 class ChatThreadDetailScreen extends StatelessWidget {
@@ -145,7 +147,7 @@ class _DirectDetailBody extends StatelessWidget {
                         color: thread.online
                             ? AppColors.green
                             : (Theme.of(context).textTheme.bodyMedium?.color ??
-                                context.oklOnSurfaceMuted(0.62)),
+                                  context.oklOnSurfaceMuted(0.62)),
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                       ),
@@ -157,9 +159,10 @@ class _DirectDetailBody extends StatelessWidget {
                   bio,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                            context.oklOnSurfaceMuted(0.62))
-                        .withValues(alpha: 0.98),
+                    color:
+                        (Theme.of(context).textTheme.bodyMedium?.color ??
+                                context.oklOnSurfaceMuted(0.62))
+                            .withValues(alpha: 0.98),
                     fontSize: 15,
                     height: 1.45,
                   ),
@@ -204,7 +207,8 @@ class _DirectDetailBody extends StatelessWidget {
                   subtitle: 'Silencieux, mentions…',
                   onTap: () => Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => _ContactNotificationsSubPage(thread: thread),
+                      builder: (_) =>
+                          _ContactNotificationsSubPage(thread: thread),
                     ),
                   ),
                 ),
@@ -249,9 +253,7 @@ class _GroupDetailBody extends StatelessWidget {
               thread.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             background: Stack(
               fit: StackFit.expand,
@@ -287,9 +289,10 @@ class _GroupDetailBody extends StatelessWidget {
                 Text(
                   '${thread.groupMemberCount} membres · groupe',
                   style: TextStyle(
-                    color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                            context.oklOnSurfaceMuted(0.62))
-                        .withValues(alpha: 0.95),
+                    color:
+                        (Theme.of(context).textTheme.bodyMedium?.color ??
+                                context.oklOnSurfaceMuted(0.62))
+                            .withValues(alpha: 0.95),
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -299,9 +302,10 @@ class _GroupDetailBody extends StatelessWidget {
                   'Organisez vos sorties, partagez des photos et gardez tout le monde au courant. '
                   '(Description démo — sera liée au vrai groupe plus tard.)',
                   style: TextStyle(
-                    color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                            context.oklOnSurfaceMuted(0.62))
-                        .withValues(alpha: 0.95),
+                    color:
+                        (Theme.of(context).textTheme.bodyMedium?.color ??
+                                context.oklOnSurfaceMuted(0.62))
+                            .withValues(alpha: 0.95),
                     fontSize: 14,
                     height: 1.45,
                   ),
@@ -311,11 +315,13 @@ class _GroupDetailBody extends StatelessWidget {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => Navigator.of(context, rootNavigator: true).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => _GroupInviteScreen(thread: thread),
-                          ),
-                        ),
+                        onPressed: () =>
+                            Navigator.of(context, rootNavigator: true).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    _GroupInviteScreen(thread: thread),
+                              ),
+                            ),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
@@ -327,11 +333,13 @@ class _GroupDetailBody extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     OutlinedButton(
-                      onPressed: () => Navigator.of(context, rootNavigator: true).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => _GroupSettingsScreen(thread: thread),
-                        ),
-                      ),
+                      onPressed: () =>
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  _GroupSettingsScreen(thread: thread),
+                            ),
+                          ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: context.oklOnSurface,
                         side: BorderSide(color: context.oklDivider),
@@ -362,10 +370,7 @@ class _GroupDetailBody extends StatelessWidget {
                       for (var i = 0; i < members.length; i++) ...[
                         if (i > 0)
                           Divider(height: 1, color: context.oklDivider),
-                        _MemberTile(
-                          contact: members[i],
-                          isAdmin: i == 0,
-                        ),
+                        _MemberTile(contact: members[i], isAdmin: i == 0),
                       ],
                     ],
                   ),
@@ -465,7 +470,8 @@ class _MemberTile extends StatelessWidget {
       ),
       onTap: () => Navigator.of(context, rootNavigator: true).push(
         MaterialPageRoute<void>(
-          builder: (_) => _GroupMemberProfileSubPage(contact: contact, isAdmin: isAdmin),
+          builder: (_) =>
+              _GroupMemberProfileSubPage(contact: contact, isAdmin: isAdmin),
         ),
       ),
     );
@@ -497,7 +503,8 @@ class _ContactProfileSubPage extends StatelessWidget {
           const SizedBox(height: 10),
           _SimpleInfoCard(
             title: 'Centres d’intérêt',
-            subtitle: 'Sorties, découvertes locales, discussions et rencontres.',
+            subtitle:
+                'Sorties, découvertes locales, discussions et rencontres.',
             icon: LucideIcons.sparkles,
           ),
           const SizedBox(height: 10),
@@ -576,20 +583,31 @@ class _ContactCallsSubPage extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemCount: rows.length,
-        separatorBuilder: (context, index) => Divider(height: 1, color: context.oklDivider),
+        separatorBuilder: (context, index) =>
+            Divider(height: 1, color: context.oklDivider),
         itemBuilder: (context, i) {
           final r = rows[i];
           return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 4,
+            ),
             leading: CircleAvatar(
               backgroundColor: context.oklSurface,
               child: Icon(
-                r.incoming ? LucideIcons.phoneIncoming : LucideIcons.phoneOutgoing,
-                color: r.missed ? AppColors.primary : context.oklOnSurfaceMuted(0.62),
+                r.incoming
+                    ? LucideIcons.phoneIncoming
+                    : LucideIcons.phoneOutgoing,
+                color: r.missed
+                    ? AppColors.primary
+                    : context.oklOnSurfaceMuted(0.62),
                 size: 18,
               ),
             ),
-            title: Text(thread.name, style: TextStyle(color: context.oklOnSurface)),
+            title: Text(
+              thread.name,
+              style: TextStyle(color: context.oklOnSurface),
+            ),
             subtitle: Text(
               r.when,
               style: TextStyle(color: context.oklOnSurfaceMuted(0.55)),
@@ -614,10 +632,12 @@ class _ContactNotificationsSubPage extends StatefulWidget {
   const _ContactNotificationsSubPage({required this.thread});
 
   @override
-  State<_ContactNotificationsSubPage> createState() => _ContactNotificationsSubPageState();
+  State<_ContactNotificationsSubPage> createState() =>
+      _ContactNotificationsSubPageState();
 }
 
-class _ContactNotificationsSubPageState extends State<_ContactNotificationsSubPage> {
+class _ContactNotificationsSubPageState
+    extends State<_ContactNotificationsSubPage> {
   bool muted = false;
   bool popup = true;
   bool vibration = true;
@@ -638,17 +658,26 @@ class _ContactNotificationsSubPageState extends State<_ContactNotificationsSubPa
           SwitchListTile.adaptive(
             value: muted,
             onChanged: (v) => setState(() => muted = v),
-            title: Text('Silencieux', style: TextStyle(color: context.oklOnSurface)),
+            title: Text(
+              'Silencieux',
+              style: TextStyle(color: context.oklOnSurface),
+            ),
           ),
           SwitchListTile.adaptive(
             value: popup,
             onChanged: (v) => setState(() => popup = v),
-            title: Text('Aperçu popup', style: TextStyle(color: context.oklOnSurface)),
+            title: Text(
+              'Aperçu popup',
+              style: TextStyle(color: context.oklOnSurface),
+            ),
           ),
           SwitchListTile.adaptive(
             value: vibration,
             onChanged: (v) => setState(() => vibration = v),
-            title: Text('Vibrations', style: TextStyle(color: context.oklOnSurface)),
+            title: Text(
+              'Vibrations',
+              style: TextStyle(color: context.oklOnSurface),
+            ),
           ),
         ],
       ),
@@ -755,19 +784,20 @@ class _GroupMediaSubPage extends StatelessWidget {
   }
 }
 
-class _GroupInviteScreen extends StatefulWidget {
+class _GroupInviteScreen extends ConsumerStatefulWidget {
   final ChatThread thread;
   const _GroupInviteScreen({required this.thread});
 
   @override
-  State<_GroupInviteScreen> createState() => _GroupInviteScreenState();
+  ConsumerState<_GroupInviteScreen> createState() => _GroupInviteScreenState();
 }
 
-class _GroupInviteScreenState extends State<_GroupInviteScreen> {
+class _GroupInviteScreenState extends ConsumerState<_GroupInviteScreen> {
   final Set<String> _selected = {};
 
   @override
   Widget build(BuildContext context) {
+    final contactsAsync = ref.watch(chatContactsProvider);
     return Scaffold(
       backgroundColor: context.oklScaffold,
       appBar: AppBar(
@@ -779,33 +809,46 @@ class _GroupInviteScreenState extends State<_GroupInviteScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-                  child: Text(
-                    'Sélectionne des contacts à ajouter à « ${widget.thread.name} » (démo).',
-                    style: TextStyle(color: context.oklOnSurfaceMuted(0.62), height: 1.35),
-                  ),
-                ),
-                for (final c in kDemoContacts)
-                  CheckboxListTile(
-                    value: _selected.contains(c.id),
-                    onChanged: (v) {
-                      setState(() {
-                        if (v == true) {
-                          _selected.add(c.id);
-                        } else {
-                          _selected.remove(c.id);
-                        }
-                      });
-                    },
-                    title: Text(c.name, style: TextStyle(color: context.oklOnSurface)),
-                    secondary: CircleAvatar(
-                      backgroundImage: CachedNetworkImageProvider(c.avatarUrl),
+            child: contactsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) =>
+                  const Center(child: Text('Chargement impossible')),
+              data: (contacts) => ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                    child: Text(
+                      'Sélectionne des contacts à ajouter à « ${widget.thread.name} ».',
+                      style: TextStyle(
+                        color: context.oklOnSurfaceMuted(0.62),
+                        height: 1.35,
+                      ),
                     ),
                   ),
-              ],
+                  for (final c in contacts)
+                    CheckboxListTile(
+                      value: _selected.contains(c.id),
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == true) {
+                            _selected.add(c.id);
+                          } else {
+                            _selected.remove(c.id);
+                          }
+                        });
+                      },
+                      title: Text(
+                        c.name,
+                        style: TextStyle(color: context.oklOnSurface),
+                      ),
+                      secondary: CircleAvatar(
+                        backgroundImage: CachedNetworkImageProvider(
+                          c.avatarUrl,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           SafeArea(
@@ -826,7 +869,8 @@ class _GroupInviteScreenState extends State<_GroupInviteScreen> {
                   OklFlows.pushResult(
                     context,
                     icon: LucideIcons.userPlus,
-                    title: 'Invitation${n > 1 ? 's' : ''} envoyée${n > 1 ? 's' : ''}',
+                    title:
+                        'Invitation${n > 1 ? 's' : ''} envoyée${n > 1 ? 's' : ''}',
                     subtitle:
                         '$n contact${n > 1 ? 's' : ''} recevront une invitation pour « ${widget.thread.name} ».',
                     primaryLabel: 'Parfait',
@@ -892,12 +936,18 @@ class _GroupSettingsScreenState extends State<_GroupSettingsScreen> {
           ),
           const SizedBox(height: 16),
           SwitchListTile(
-            title: Text('Seuls les admins peuvent modifier le nom', style: TextStyle(color: context.oklOnSurface)),
+            title: Text(
+              'Seuls les admins peuvent modifier le nom',
+              style: TextStyle(color: context.oklOnSurface),
+            ),
             value: _onlyAdmins,
             onChanged: (v) => setState(() => _onlyAdmins = v),
           ),
           SwitchListTile(
-            title: Text('Couper les notifs du groupe', style: TextStyle(color: context.oklOnSurface)),
+            title: Text(
+              'Couper les notifs du groupe',
+              style: TextStyle(color: context.oklOnSurface),
+            ),
             value: _muteAll,
             onChanged: (v) => setState(() => _muteAll = v),
           ),
@@ -926,7 +976,10 @@ class _GroupSettingsScreenState extends State<_GroupSettingsScreen> {
 class _GroupMemberProfileSubPage extends StatelessWidget {
   final ChatContact contact;
   final bool isAdmin;
-  const _GroupMemberProfileSubPage({required this.contact, required this.isAdmin});
+  const _GroupMemberProfileSubPage({
+    required this.contact,
+    required this.isAdmin,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1056,7 +1109,10 @@ class _SimpleActionRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(color: context.oklOnSurface, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: context.oklOnSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Icon(
@@ -1108,7 +1164,7 @@ class _ActionCard extends StatelessWidget {
                 color: destructive
                     ? AppColors.primary
                     : (Theme.of(context).textTheme.bodyMedium?.color ??
-                        context.oklOnSurfaceMuted(0.62)),
+                          context.oklOnSurfaceMuted(0.62)),
                 size: 20,
               ),
               const SizedBox(width: 14),
@@ -1119,7 +1175,9 @@ class _ActionCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        color: destructive ? AppColors.primary : context.oklOnSurface,
+                        color: destructive
+                            ? AppColors.primary
+                            : context.oklOnSurface,
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                       ),
@@ -1128,9 +1186,10 @@ class _ActionCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                                context.oklOnSurfaceMuted(0.62))
-                            .withValues(alpha: 0.95),
+                        color:
+                            (Theme.of(context).textTheme.bodyMedium?.color ??
+                                    context.oklOnSurfaceMuted(0.62))
+                                .withValues(alpha: 0.95),
                         fontSize: 12,
                       ),
                     ),

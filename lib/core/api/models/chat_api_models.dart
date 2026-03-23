@@ -39,9 +39,12 @@ class ChatMessagePayload {
     required this.kind,
     this.text,
     this.imageUrl,
+    this.videoUrl,
+    this.audioUrl,
     this.voiceSeconds,
     this.locationLabel,
     this.createdAt,
+    this.readByRecipient = false,
   });
 
   final String id;
@@ -50,12 +53,17 @@ class ChatMessagePayload {
   final String kind;
   final String? text;
   final String? imageUrl;
+  final String? videoUrl;
+  final String? audioUrl;
   final int? voiceSeconds;
   final String? locationLabel;
   final String? createdAt;
+  final bool readByRecipient;
 
   factory ChatMessagePayload.fromJson(Map<String, dynamic> j) {
     final vs = j['voiceSeconds'];
+    final rb = j['readByRecipient'];
+    final readByRecipient = rb is bool ? rb : false;
     return ChatMessagePayload(
       id: j['id'] as String? ?? '',
       threadId: j['threadId'] as String? ?? '',
@@ -63,9 +71,26 @@ class ChatMessagePayload {
       kind: j['kind'] as String? ?? 'TEXT',
       text: j['text'] as String?,
       imageUrl: j['imageUrl'] as String?,
+      videoUrl: j['videoUrl'] as String?,
+      audioUrl: j['audioUrl'] as String?,
       voiceSeconds: vs is int ? vs : (vs is num ? vs.toInt() : null),
       locationLabel: j['locationLabel'] as String?,
       createdAt: j['createdAt'] as String?,
+      readByRecipient: readByRecipient,
+    );
+  }
+}
+
+class ChatMediaUploadPayload {
+  ChatMediaUploadPayload({required this.mediaKind, required this.signedUrl});
+
+  final String mediaKind;
+  final String signedUrl;
+
+  factory ChatMediaUploadPayload.fromJson(Map<String, dynamic> j) {
+    return ChatMediaUploadPayload(
+      mediaKind: j['mediaKind'] as String? ?? 'IMAGE',
+      signedUrl: j['signedUrl'] as String? ?? '',
     );
   }
 }

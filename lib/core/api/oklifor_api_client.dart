@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../config/oklifor_api_config.dart';
 import 'auth_token_storage.dart';
 import 'models/chat_api_models.dart';
+import 'models/contact_api_models.dart';
 import 'models/me_response.dart';
 import 'models/settings_patch_body.dart';
 import 'oklifor_api_exception.dart';
@@ -41,7 +43,7 @@ class OkliforApiClient {
       BaseOptions(
         baseUrl: OkliforApiConfig.baseUrl,
         connectTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
+        sendTimeout: kIsWeb ? null : const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 45),
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +78,9 @@ class OkliforApiClient {
     }
   }
 
-  Future<TokenResponse> loginWithFirebaseIdToken({required String idToken}) async {
+  Future<TokenResponse> loginWithFirebaseIdToken({
+    required String idToken,
+  }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/api/v1/auth/firebase',
@@ -127,7 +131,9 @@ class OkliforApiClient {
       final pdfName = idPdfFilename;
       map['idPdf'] = MultipartFile.fromBytes(
         pdfBytes,
-        filename: (pdfName != null && pdfName.isNotEmpty) ? pdfName : 'piece.pdf',
+        filename: (pdfName != null && pdfName.isNotEmpty)
+            ? pdfName
+            : 'piece.pdf',
       );
     } else {
       final r = idRectoBytes;
@@ -139,11 +145,15 @@ class OkliforApiClient {
       final versoName = idVersoFilename;
       map['idRecto'] = MultipartFile.fromBytes(
         r,
-        filename: (rectoName != null && rectoName.isNotEmpty) ? rectoName : 'recto.jpg',
+        filename: (rectoName != null && rectoName.isNotEmpty)
+            ? rectoName
+            : 'recto.jpg',
       );
       map['idVerso'] = MultipartFile.fromBytes(
         v,
-        filename: (versoName != null && versoName.isNotEmpty) ? versoName : 'verso.jpg',
+        filename: (versoName != null && versoName.isNotEmpty)
+            ? versoName
+            : 'verso.jpg',
       );
     }
     final form = FormData.fromMap(map);
@@ -325,6 +335,16 @@ class OkliforApiClient {
     }
   }
 
+  Future<void> markThreadRead(String threadId) async {
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        '/api/v1/chat/threads/$threadId/read',
+      );
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
   Future<List<ChatMessagePayload>> fetchChatMessages(
     String threadId, {
     int size = 50,
@@ -349,6 +369,8 @@ class OkliforApiClient {
     required String kind,
     String? text,
     String? imageUrl,
+    String? videoUrl,
+    String? audioUrl,
     int? voiceSeconds,
     String? locationLabel,
   }) async {
@@ -359,11 +381,38 @@ class OkliforApiClient {
           'kind': kind,
           'text': ?text,
           'imageUrl': ?imageUrl,
+          'videoUrl': ?videoUrl,
+          'audioUrl': ?audioUrl,
           'voiceSeconds': ?voiceSeconds,
           'locationLabel': ?locationLabel,
         },
       );
       return ChatMessagePayload.fromJson(res.data ?? {});
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<ChatMediaUploadPayload> uploadChatMedia({
+    required String threadId,
+    required String filename,
+    Uint8List? fileBytes,
+    String? filePath,
+  }) async {
+    if ((fileBytes == null || fileBytes.isEmpty) &&
+        (filePath == null || filePath.isEmpty)) {
+      throw ArgumentError('Aucun fichier média fourni');
+    }
+    final filePart = fileBytes != null && fileBytes.isNotEmpty
+        ? MultipartFile.fromBytes(fileBytes, filename: filename)
+        : await MultipartFile.fromFile(filePath!, filename: filename);
+    final form = FormData.fromMap({'file': filePart});
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/chat/threads/$threadId/media',
+        data: form,
+      );
+      return ChatMediaUploadPayload.fromJson(res.data ?? {});
     } on DioException catch (e) {
       throw OkliforApiException.fromDio(e);
     }
@@ -376,6 +425,39 @@ class OkliforApiClient {
         data: {'peerUserId': peerUserId},
       );
       return ChatThreadPayload.fromJson(res.data ?? {});
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<List<ContactPayload>> fetchContacts() async {
+    try {
+      final res = await _dio.get<List<dynamic>>('/api/v1/contacts');
+      final list = res.data ?? [];
+      return list
+          .whereType<Map>()
+          .map((m) => ContactPayload.fromJson(Map<String, dynamic>.from(m)))
+          .toList(growable: false);
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<ContactPayload> addContactByUserId(String peerUserId) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/contacts',
+        data: {'peerUserId': peerUserId},
+      );
+      return ContactPayload.fromJson(res.data ?? {});
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<void> removeContact(String contactUserId) async {
+    try {
+      await _dio.delete<void>('/api/v1/contacts/$contactUserId');
     } on DioException catch (e) {
       throw OkliforApiException.fromDio(e);
     }

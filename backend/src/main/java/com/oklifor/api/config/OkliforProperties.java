@@ -16,6 +16,7 @@ public class OkliforProperties {
     private final FirebaseAdmin firebase = new FirebaseAdmin();
     private final Verification verification = new Verification();
     private final ProfileMedia profileMedia = new ProfileMedia();
+    private final ChatMedia chatMedia = new ChatMedia();
 
     @Getter
     @Setter
@@ -59,5 +60,16 @@ public class OkliforProperties {
     public static class ProfileMedia {
         /** Dossier racine : sous-dossiers par {@code userId}. */
         private String uploadDir = "data/profile-media";
+    }
+
+    @Getter
+    @Setter
+    public static class ChatMedia {
+        /** Dossier racine : sous-dossiers par threadId. */
+        private String uploadDir = "data/chat-media";
+        /** Durée de validité de l'URL signée en secondes. */
+        private long signedUrlTtlSeconds = 3600;
+        /** TTL du cache Redis pour la résolution d'URL signée. */
+        private long resolveCacheSeconds = 20;
     }
 }

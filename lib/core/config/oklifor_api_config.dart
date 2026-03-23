@@ -37,7 +37,9 @@ class OkliforApiConfig {
       return _normalizeBase(fromDot);
     }
     if (kIsWeb) {
-      return 'http://127.0.0.1:$_defaultPort';
+      final base = Uri.base;
+      final scheme = base.scheme == 'https' ? 'https' : 'http';
+      return '$scheme://${base.host}:$_defaultPort';
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:

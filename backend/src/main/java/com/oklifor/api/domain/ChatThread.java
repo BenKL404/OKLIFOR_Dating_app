@@ -7,7 +7,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Document(collection = "chat_threads")
 @Getter
@@ -25,4 +27,7 @@ public class ChatThread extends UuidMongoDocument {
 
     @Indexed
     private Instant lastMessageAt;
+
+    /** Dernière lecture par utilisateur (UUID → instant) — surtout 1:1. */
+    private Map<String, Instant> lastReadAtByUserId = new HashMap<>();
 }

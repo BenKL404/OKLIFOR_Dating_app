@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -19,6 +20,7 @@ import '../../../core/widgets/okl_pill_search_bar.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../auth/providers/auth_api_provider.dart';
 import '../data/chat_api_mapping.dart';
+import '../data/chat_websocket_client.dart';
 import '../models/chat_models.dart';
 import 'conversation_screen.dart';
 import 'create_group_screen.dart';
@@ -50,13 +52,22 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   bool _showArchived = false;
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
+  ChatWebSocketClient? _wsClient;
+  StreamSubscription<dynamic>? _wsMessageSub;
+  StreamSubscription<dynamic>? _wsPresenceSub;
+  StreamSubscription<dynamic>? _wsTypingSub;
+  String? _myUserId;
+  final Map<String, bool> _typingByThreadId = <String, bool>{};
+  final Map<String, Timer> _typingHideTimersByThreadId = <String, Timer>{};
 
   @override
   void initState() {
     super.initState();
     _threads = List<ChatThread>.from(kSeedThreads);
     _searchController.addListener(() => setState(() {}));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _tryLoadRemoteThreads());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _tryLoadRemoteThreads(),
+    );
   }
 
   Future<void> _tryLoadRemoteThreads() async {
@@ -64,18 +75,154 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       final api = ref.read(okliforApiClientProvider);
       final storage = ref.read(authTokenStorageProvider);
       final myId = await storage.readUserId();
+      final token = await storage.readAccessToken();
       final raw = await api.fetchChatThreads();
-      final mapped =
-          raw.map((p) => chatThreadFromPayload(p, myUserId: myId)).toList();
+      final contacts = await api.fetchContacts();
+      final contactNameById = <String, String>{
+        for (final c in contacts) c.userId: c.displayName,
+      };
+      final mapped = raw
+          .map(
+            (p) => chatThreadFromPayload(
+              p,
+              myUserId: myId,
+              contactNameById: contactNameById,
+            ),
+          )
+          .toList();
       if (!mounted) return;
-      setState(() => _threads = mapped);
+      setState(() {
+        _threads = mapped;
+        _myUserId = myId;
+      });
+      if (token != null && token.isNotEmpty) {
+        await _connectRealtime(token, mapped.map((e) => e.id).toList());
+      }
     } catch (_) {
       // Pas de token / API : on garde les conversations démo.
     }
   }
 
+  Future<void> _connectRealtime(String token, List<String> threadIds) async {
+    await _wsMessageSub?.cancel();
+    await _wsPresenceSub?.cancel();
+    await _wsTypingSub?.cancel();
+    await _wsClient?.dispose();
+    final client = ChatWebSocketClient();
+    await client.connect(accessToken: token);
+    for (final id in threadIds) {
+      await client.subscribeThread(id);
+    }
+    _wsClient = client;
+    _wsMessageSub = client.messages.listen(_applyIncomingRealtimeMessage);
+    _wsPresenceSub = client.presence.listen(_applyIncomingPresence);
+    _wsTypingSub = client.typing.listen(_applyIncomingTyping);
+  }
+
+  void _applyIncomingRealtimeMessage(dynamic payload) {
+    if (!mounted) return;
+    final p = payload;
+    final threadId = p.threadId as String;
+    final kind = (p.kind as String).toUpperCase();
+    final mine = _myUserId != null && p.senderUserId == _myUserId;
+    final preview = _previewForRealtime(kind, p.text as String?);
+    final last = mine ? 'Vous: $preview' : preview;
+    final t = _formatTimeRealtime(p.createdAt as String?);
+
+    setState(() {
+      final i = _threads.indexWhere((x) => x.id == threadId);
+      if (i < 0) return;
+      final updated = _threads[i].copyWith(
+        lastMsg: last,
+        time: t,
+        isUnread: mine ? false : true,
+        unreadCount: mine ? 0 : (_threads[i].unreadCount + 1),
+      );
+      _typingHideTimersByThreadId.remove(threadId)?.cancel();
+      _typingByThreadId[threadId] = false;
+      _threads.removeAt(i);
+      _threads.insert(0, updated);
+    });
+  }
+
+  void _applyIncomingPresence(dynamic payload) {
+    if (!mounted) return;
+    final p = payload;
+    if (_myUserId != null && p.userId == _myUserId) return;
+    final threadId = p.threadId as String;
+    final online = p.online as bool;
+    setState(() {
+      final i = _threads.indexWhere((x) => x.id == threadId);
+      if (i < 0) return;
+      _threads[i] = _threads[i].copyWith(online: online);
+      if (online) {
+        _typingHideTimersByThreadId.remove(threadId)?.cancel();
+        _typingByThreadId[threadId] = false;
+      }
+    });
+  }
+
+  void _applyIncomingTyping(dynamic payload) {
+    if (!mounted) return;
+    final p = payload;
+    if (_myUserId != null && p.userId == _myUserId) return;
+    final threadId = p.threadId as String;
+    final typing = p.typing as bool;
+    _typingHideTimersByThreadId.remove(threadId)?.cancel();
+    if (!typing) {
+      _typingHideTimersByThreadId[threadId] = Timer(
+        const Duration(milliseconds: 900),
+        () {
+          if (!mounted) return;
+          setState(() {
+            final i = _threads.indexWhere((x) => x.id == threadId);
+            if (i < 0) return;
+            _typingByThreadId[threadId] = false;
+          });
+        },
+      );
+      return;
+    }
+    setState(() {
+      final i = _threads.indexWhere((x) => x.id == threadId);
+      if (i < 0) return;
+      _typingByThreadId[threadId] = typing;
+    });
+  }
+
+  static String _previewForRealtime(String kind, String? text) {
+    if (text != null && text.trim().isNotEmpty) return text.trim();
+    switch (kind) {
+      case 'IMAGE':
+        return '📷 Photo';
+      case 'VIDEO':
+        return '🎬 Vidéo';
+      case 'VOICE':
+        return '🎤 Message vocal';
+      case 'LOCATION':
+        return '📍 Position';
+      default:
+        return 'Message';
+    }
+  }
+
+  static String _formatTimeRealtime(String? iso) {
+    final dt = iso == null ? null : DateTime.tryParse(iso);
+    if (dt == null) return formatTimeNow();
+    final local = dt.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
+    _wsMessageSub?.cancel();
+    _wsPresenceSub?.cancel();
+    _wsTypingSub?.cancel();
+    for (final t in _typingHideTimersByThreadId.values) {
+      t.cancel();
+    }
+    _typingHideTimersByThreadId.clear();
+    _wsClient?.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -131,24 +278,26 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             solidBackground: _myTextStatus!.backgroundColor,
           )
         : (_myMediaStatusLocalPath != null &&
-                _myMediaStatusLocalPath!.isNotEmpty)
-            ? StatusStory(
-                name: 'Mon statut',
-                avatarUrl: _mineStoryUrl,
-                imageUrl: _myMediaStatusLocalPath!,
-                caption: _myMediaStatusCaption,
-                timeAgo: 'à l’instant',
-              )
-            : StatusStory(
-                name: 'Mon statut',
-                avatarUrl: _mineStoryUrl,
-                imageUrl: _mineStatusImageUrl,
-                caption: 'Mon humeur du jour.',
-                timeAgo: 'à l’instant',
-              );
+              _myMediaStatusLocalPath!.isNotEmpty)
+        ? StatusStory(
+            name: 'Mon statut',
+            avatarUrl: _mineStoryUrl,
+            imageUrl: _myMediaStatusLocalPath!,
+            caption: _myMediaStatusCaption,
+            timeAgo: 'à l’instant',
+          )
+        : StatusStory(
+            name: 'Mon statut',
+            avatarUrl: _mineStoryUrl,
+            imageUrl: _mineStatusImageUrl,
+            caption: 'Mon humeur du jour.',
+            timeAgo: 'à l’instant',
+          );
     return [
       mine,
-      ..._threads.where((c) => c.hasStory).map(
+      ..._threads
+          .where((c) => c.hasStory)
+          .map(
             (c) => StatusStory(
               name: c.name,
               avatarUrl: c.avatarUrl,
@@ -164,10 +313,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final stories = _storiesForViewer();
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => StatusViewerScreen(
-          stories: stories,
-          initialIndex: initialIndex,
-        ),
+        builder: (_) =>
+            StatusViewerScreen(stories: stories, initialIndex: initialIndex),
       ),
     );
   }
@@ -198,7 +345,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Prendre une photo ou video',
                   style: TextStyle(
-                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color:
+                        Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -221,7 +369,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Choisir depuis les photos',
                   style: TextStyle(
-                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color:
+                        Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -243,12 +392,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 ),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  final r = await Navigator.of(context, rootNavigator: true).push<TextStatusPublishResult>(
-                    MaterialPageRoute(
-                      fullscreenDialog: true,
-                      builder: (_) => const CreateTextStatusScreen(),
-                    ),
-                  );
+                  final r = await Navigator.of(context, rootNavigator: true)
+                      .push<TextStatusPublishResult>(
+                        MaterialPageRoute(
+                          fullscreenDialog: true,
+                          builder: (_) => const CreateTextStatusScreen(),
+                        ),
+                      );
                   if (!mounted || r == null) return;
                   setState(() {
                     _myTextStatus = r;
@@ -271,10 +421,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     );
   }
 
-  void _openPickMediaMenu(
-    BuildContext context, {
-    required ImageSource source,
-  }) {
+  void _openPickMediaMenu(BuildContext context, {required ImageSource source}) {
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -300,7 +447,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Choisir ou capturer une image',
                   style: TextStyle(
-                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color:
+                        Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -327,7 +475,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Choisir ou capturer une vidéo',
                   style: TextStyle(
-                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color:
+                        Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -397,7 +546,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         }
       }
     } else {
-      if (!await OklPickMediaPermissions.ensureGalleryForPick(context, isVideo: isVideo)) {
+      if (!await OklPickMediaPermissions.ensureGalleryForPick(
+        context,
+        isVideo: isVideo,
+      )) {
         return;
       }
     }
@@ -443,7 +595,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ListTile(
                 leading: Icon(
                   LucideIcons.messageSquarePlus,
-                  color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                  color:
+                      Theme.of(ctx).textTheme.bodyMedium?.color ??
                       ctx.oklOnSurfaceMuted(0.62),
                 ),
                 title: Text(
@@ -456,7 +609,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Écrire à un match',
                   style: TextStyle(
-                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color:
+                        Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -470,7 +624,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ListTile(
                 leading: Icon(
                   LucideIcons.users,
-                  color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                  color:
+                      Theme.of(ctx).textTheme.bodyMedium?.color ??
                       ctx.oklOnSurfaceMuted(0.62),
                 ),
                 title: Text(
@@ -483,7 +638,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Jusqu’à 8 personnes (démo)',
                   style: TextStyle(
-                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color:
+                        Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -497,7 +653,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ListTile(
                 leading: Icon(
                   LucideIcons.camera,
-                  color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                  color:
+                      Theme.of(ctx).textTheme.bodyMedium?.color ??
                       ctx.oklOnSurfaceMuted(0.62),
                 ),
                 title: Text(
@@ -510,7 +667,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Ouvre l’appareil ou la galerie',
                   style: TextStyle(
-                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color:
+                        Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -528,11 +686,34 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   Future<void> _openNewMessageFlow() async {
-    final c = await Navigator.of(context, rootNavigator: true).push<ChatContact>(
-      MaterialPageRoute<ChatContact>(builder: (_) => const NewMessageScreen()),
-    );
+    final c = await Navigator.of(context, rootNavigator: true)
+        .push<ChatContact>(
+          MaterialPageRoute<ChatContact>(
+            builder: (_) => const NewMessageScreen(),
+          ),
+        );
     if (!mounted || c == null) return;
-    final id = 'dm_${c.id}';
+    String id = 'dm_${c.id}';
+    try {
+      final api = ref.read(okliforApiClientProvider);
+      final storage = ref.read(authTokenStorageProvider);
+      final myId = await storage.readUserId();
+      final remote = await api.createDirectThread(c.id);
+      final mapped = chatThreadFromPayload(
+        remote,
+        myUserId: myId,
+        contactNameById: {c.id: c.name},
+      );
+      id = mapped.id;
+      final remoteIdx = _threads.indexWhere((t) => t.id == mapped.id);
+      if (remoteIdx >= 0) {
+        setState(() => _threads[remoteIdx] = mapped);
+      } else {
+        setState(() => _threads.insert(0, mapped));
+      }
+    } catch (_) {
+      // Mode dégradé: création locale si API indisponible.
+    }
     final idx = _threads.indexWhere((t) => t.id == id);
     final ChatThread thread;
     if (idx >= 0) {
@@ -551,13 +732,17 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       );
       setState(() => _threads.insert(0, thread));
     }
+    if (!mounted) return;
     _openConversation(context, thread);
   }
 
   Future<void> _openCreateGroupFlow() async {
-    final r = await Navigator.of(context, rootNavigator: true).push<CreateGroupResult>(
-      MaterialPageRoute<CreateGroupResult>(builder: (_) => const CreateGroupScreen()),
-    );
+    final r = await Navigator.of(context, rootNavigator: true)
+        .push<CreateGroupResult>(
+          MaterialPageRoute<CreateGroupResult>(
+            builder: (_) => const CreateGroupScreen(),
+          ),
+        );
     if (!mounted || r == null) return;
     final id = 'group_${DateTime.now().millisecondsSinceEpoch}';
     final thread = ChatThread(
@@ -566,7 +751,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       lastMsg: 'Groupe créé — dis bonjour 👋',
       time: formatTimeNow(),
       avatarUrl: r.members.first.avatarUrl,
-      statusImageUrl: r.members.length > 1 ? r.members[1].avatarUrl : r.members.first.avatarUrl,
+      statusImageUrl: r.members.length > 1
+          ? r.members[1].avatarUrl
+          : r.members.first.avatarUrl,
       statusCaption: r.name,
       statusTimeAgo: 'à l’instant',
       isGroup: true,
@@ -641,7 +828,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         child: SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.togoGold),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.togoGold,
+                          ),
                         ),
                       ),
                     ),
@@ -730,7 +920,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             ),
             _SheetAction(
               icon: chat.isUnread ? LucideIcons.checkCheck : LucideIcons.circle,
-              label: chat.isUnread ? 'Marquer comme lu' : 'Marquer comme non lu',
+              label: chat.isUnread
+                  ? 'Marquer comme lu'
+                  : 'Marquer comme non lu',
               onTap: () {
                 Navigator.pop(ctx);
                 _updateThreadById(chat.id, (current) {
@@ -752,7 +944,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 Navigator.pop(ctx);
                 _updateThreadById(
                   chat.id,
-                  (current) => current.copyWith(isArchived: !current.isArchived),
+                  (current) =>
+                      current.copyWith(isArchived: !current.isArchived),
                 );
               },
             ),
@@ -787,12 +980,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             setState(() {
               final i = _threads.indexWhere((t) => t.id == chat.id);
               if (i >= 0) {
-                _threads[i] = _threads[i].copyWith(
-                  lastMsg: last,
+                final updated = _threads[i].copyWith(
+                  lastMsg: 'Vous: $last',
                   time: time,
                   isUnread: false,
                   unreadCount: 0,
                 );
+                _threads.removeAt(i);
+                _threads.insert(0, updated);
               }
             });
           },
@@ -806,8 +1001,11 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final visibleChats = _visibleChats;
     final archivedChats = _archivedChats;
     final hasArchived = archivedChats.isNotEmpty;
-    final extraArchivedItems = (hasArchived && _showArchived) ? archivedChats.length : 0;
-    final totalItems = visibleChats.length + (hasArchived ? 1 : 0) + extraArchivedItems;
+    final extraArchivedItems = (hasArchived && _showArchived)
+        ? archivedChats.length
+        : 0;
+    final totalItems =
+        visibleChats.length + (hasArchived ? 1 : 0) + extraArchivedItems;
     final isDark = context.oklMeetIsDark;
     final titleColor = isDark ? Colors.white : context.oklOnSurface;
 
@@ -848,26 +1046,39 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                       final t = q.trim();
                                       if (t.isEmpty) return;
                                       final results = _visibleChats;
-                                      Navigator.of(context, rootNavigator: true).push<void>(
+                                      Navigator.of(
+                                        context,
+                                        rootNavigator: true,
+                                      ).push<void>(
                                         MaterialPageRoute<void>(
-                                          builder: (_) => ChatSearchResultsScreen(
-                                            query: t,
-                                            threads: results,
-                                            onThreadUpdated: (id, last, time) {
-                                              if (!mounted) return;
-                                              setState(() {
-                                                final i = _threads.indexWhere((x) => x.id == id);
-                                                if (i >= 0) {
-                                                  _threads[i] = _threads[i].copyWith(
-                                                    lastMsg: last,
-                                                    time: time,
-                                                    isUnread: false,
-                                                    unreadCount: 0,
-                                                  );
-                                                }
-                                              });
-                                            },
-                                          ),
+                                          builder: (_) =>
+                                              ChatSearchResultsScreen(
+                                                query: t,
+                                                threads: results,
+                                                onThreadUpdated:
+                                                    (id, last, time) {
+                                                      if (!mounted) return;
+                                                      setState(() {
+                                                        final i = _threads
+                                                            .indexWhere(
+                                                              (x) => x.id == id,
+                                                            );
+                                                        if (i >= 0) {
+                                                          _threads[i] =
+                                                              _threads[i]
+                                                                  .copyWith(
+                                                                    lastMsg:
+                                                                        last,
+                                                                    time: time,
+                                                                    isUnread:
+                                                                        false,
+                                                                    unreadCount:
+                                                                        0,
+                                                                  );
+                                                        }
+                                                      });
+                                                    },
+                                              ),
                                         ),
                                       );
                                     },
@@ -926,108 +1137,114 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-            SizedBox(
-              height: 96,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _StoryBubble(
-                    name: 'Mon statut',
-                    isMine: true,
-                    showActiveStoryRing: _myTextStatus != null,
-                    imageUrl: _mineStoryUrl,
-                    onTap: () => _openStatusViewer(context, 0),
-                    onAddTap: () => _openMyStatusAddMenu(context),
-                  ),
-                  ..._threads
-                      .where((c) => c.hasStory)
-                      .toList()
-                      .asMap()
-                      .entries
-                      .map(
-                        (entry) {
+              SizedBox(
+                height: 96,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _StoryBubble(
+                      name: 'Mon statut',
+                      isMine: true,
+                      showActiveStoryRing: _myTextStatus != null,
+                      imageUrl: _mineStoryUrl,
+                      onTap: () => _openStatusViewer(context, 0),
+                      onAddTap: () => _openMyStatusAddMenu(context),
+                    ),
+                    ..._threads
+                        .where((c) => c.hasStory)
+                        .toList()
+                        .asMap()
+                        .entries
+                        .map((entry) {
                           final idx = entry.key;
                           final c = entry.value;
                           return _StoryBubble(
-                          name: c.name,
-                          imageUrl: c.avatarUrl,
-                          onTap: () => _openStatusViewer(context, idx + 1),
-                        );
-                        },
-                      ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Divider(height: 1, color: context.oklDivider),
-            Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.only(
-                  bottom: oklMainShellListBottomPadding(context),
+                            name: c.name,
+                            imageUrl: c.avatarUrl,
+                            onTap: () => _openStatusViewer(context, idx + 1),
+                          );
+                        }),
+                  ],
                 ),
-                itemCount: totalItems,
-                itemBuilder: (context, i) {
-                  final archiveHeaderIndex = hasArchived ? 0 : -1;
-                  final archivedStartIndex = hasArchived ? 1 : 0;
-                  final activeStartIndex = archivedStartIndex + extraArchivedItems;
+              ),
+              const SizedBox(height: 8),
+              Divider(height: 1, color: context.oklDivider),
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.only(
+                    bottom: oklMainShellListBottomPadding(context),
+                  ),
+                  itemCount: totalItems,
+                  itemBuilder: (context, i) {
+                    final archiveHeaderIndex = hasArchived ? 0 : -1;
+                    final archivedStartIndex = hasArchived ? 1 : 0;
+                    final activeStartIndex =
+                        archivedStartIndex + extraArchivedItems;
 
-                  if (hasArchived && i == archiveHeaderIndex) {
-                    return Column(
-                      children: [
-                        _ArchiveHeaderTile(
-                          count: archivedChats.length,
-                          expanded: _showArchived,
-                          onTap: () => setState(() => _showArchived = !_showArchived),
-                        ),
-                        Divider(height: 1, color: context.oklDivider),
-                      ],
-                    );
-                  }
+                    if (hasArchived && i == archiveHeaderIndex) {
+                      return Column(
+                        children: [
+                          _ArchiveHeaderTile(
+                            count: archivedChats.length,
+                            expanded: _showArchived,
+                            onTap: () =>
+                                setState(() => _showArchived = !_showArchived),
+                          ),
+                          Divider(height: 1, color: context.oklDivider),
+                        ],
+                      );
+                    }
 
-                  if (hasArchived && _showArchived && i >= archivedStartIndex && i < activeStartIndex) {
-                    final archivedIndex = i - archivedStartIndex;
-                    final chat = archivedChats[archivedIndex];
-                    final isLastArchived = archivedIndex == archivedChats.length - 1;
+                    if (hasArchived &&
+                        _showArchived &&
+                        i >= archivedStartIndex &&
+                        i < activeStartIndex) {
+                      final archivedIndex = i - archivedStartIndex;
+                      final chat = archivedChats[archivedIndex];
+                      final isLastArchived =
+                          archivedIndex == archivedChats.length - 1;
+                      return Column(
+                        children: [
+                          _ChatTile(
+                            chat: chat,
+                            showTyping: _typingByThreadId[chat.id] ?? false,
+                            onTap: () => _openConversation(context, chat),
+                            onLongPress: () => _openChatActions(context, chat),
+                          ),
+                          if (!isLastArchived)
+                            Divider(
+                              height: 1,
+                              color: context.oklDivider,
+                              indent: 76,
+                            ),
+                        ],
+                      );
+                    }
+
+                    final activeIndex = i - activeStartIndex;
+                    final chat = visibleChats[activeIndex];
                     return Column(
                       children: [
                         _ChatTile(
                           chat: chat,
+                          showTyping: _typingByThreadId[chat.id] ?? false,
                           onTap: () => _openConversation(context, chat),
                           onLongPress: () => _openChatActions(context, chat),
                         ),
-                        if (!isLastArchived)
-                          Divider(
-                            height: 1,
-                            color: context.oklDivider,
-                            indent: 76,
-                          ),
+                        Divider(
+                          height: 1,
+                          color: context.oklDivider,
+                          indent: 76,
+                        ),
                       ],
                     );
-                  }
-
-                  final activeIndex = i - activeStartIndex;
-                  final chat = visibleChats[activeIndex];
-                  return Column(
-                    children: [
-                      _ChatTile(
-                        chat: chat,
-                        onTap: () => _openConversation(context, chat),
-                        onLongPress: () => _openChatActions(context, chat),
-                      ),
-                      Divider(
-                        height: 1,
-                        color: context.oklDivider,
-                        indent: 76,
-                      ),
-                    ],
-                  );
-                },
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
       floatingActionButton: Padding(
         padding: EdgeInsets.only(
@@ -1133,7 +1350,8 @@ class _SheetAction extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: Theme.of(context).textTheme.bodyMedium?.color ??
+                  color:
+                      Theme.of(context).textTheme.bodyMedium?.color ??
                       context.oklOnSurfaceMuted(0.62),
                   size: 20,
                 ),
@@ -1144,7 +1362,7 @@ class _SheetAction extends StatelessWidget {
                     style: TextStyle(
                       color: subtle
                           ? (Theme.of(context).textTheme.bodyMedium?.color ??
-                              context.oklOnSurfaceMuted(0.62))
+                                context.oklOnSurfaceMuted(0.62))
                           : context.oklOnSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -1167,11 +1385,13 @@ class _SheetAction extends StatelessWidget {
 
 class _ChatTile extends StatelessWidget {
   final ChatThread chat;
+  final bool showTyping;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   const _ChatTile({
     required this.chat,
+    this.showTyping = false,
     required this.onTap,
     required this.onLongPress,
   });
@@ -1189,17 +1409,62 @@ class _ChatTile extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  chat.hasStory
-                      ? OklStoryGaugeRing(
-                          outerSize: 56,
-                          strokeWidth: 2,
-                          child: SizedBox(
-                            width: 52,
-                            height: 52,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    chat.hasStory
+                        ? OklStoryGaugeRing(
+                            outerSize: 56,
+                            strokeWidth: 2,
+                            child: SizedBox(
+                              width: 52,
+                              height: 52,
+                              child: CircleAvatar(
+                                radius: 26,
+                                backgroundColor: context.oklScaffold,
+                                child: CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: context.oklSurface,
+                                  child: ClipOval(
+                                    child: CachedNetworkImage(
+                                      imageUrl: chat.avatarUrl,
+                                      width: 48,
+                                      height: 48,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 96,
+                                      filterQuality: FilterQuality.medium,
+                                      placeholder: (c, u) => Container(
+                                        width: 48,
+                                        height: 48,
+                                        color: context.oklSurface,
+                                        child: const Center(
+                                          child: SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.togoGold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      errorWidget: (c, u, e) => Icon(
+                                        LucideIcons.user,
+                                        color: context.oklOnSurfaceMuted(0.55),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.transparent,
+                            ),
                             child: CircleAvatar(
                               radius: 26,
                               backgroundColor: context.oklScaffold,
@@ -1238,165 +1503,152 @@ class _ChatTile extends StatelessWidget {
                               ),
                             ),
                           ),
-                        )
-                      : Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
+                    if (chat.online)
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: AppColors.green,
                             shape: BoxShape.circle,
-                            color: Colors.transparent,
-                          ),
-                          child: CircleAvatar(
-                            radius: 26,
-                            backgroundColor: context.oklScaffold,
-                            child: CircleAvatar(
-                              radius: 24,
-                              backgroundColor: context.oklSurface,
-                              child: ClipOval(
-                                child: CachedNetworkImage(
-                                  imageUrl: chat.avatarUrl,
-                                  width: 48,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 96,
-                                  filterQuality: FilterQuality.medium,
-                                  placeholder: (c, u) => Container(
-                                    width: 48,
-                                    height: 48,
-                                    color: context.oklSurface,
-                                    child: const Center(
-                                      child: SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppColors.togoGold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  errorWidget: (c, u, e) => Icon(
-                                    LucideIcons.user,
-                                    color: context.oklOnSurfaceMuted(0.55),
-                                  ),
-                                ),
-                              ),
+                            border: Border.all(
+                              color: context.oklScaffold,
+                              width: 2,
                             ),
                           ),
                         ),
-                  if (chat.online)
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: AppColors.green,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: context.oklScaffold, width: 2),
-                        ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      chat.name,
-                      style: TextStyle(
-                        color: context.oklOnSurface,
-                        fontSize: 15,
-                        fontWeight: chat.isUnread ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                    ),
-                    if (chat.isGroup) ...[
-                      const SizedBox(height: 2),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'Groupe · ${chat.groupMemberCount} membres',
+                        chat.name,
                         style: TextStyle(
-                          color: context.oklOnSurfaceMuted(0.52),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                          color: context.oklOnSurface,
+                          fontSize: 15,
+                          fontWeight: chat.isUnread
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
+                      ),
+                      if (chat.isGroup) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Groupe · ${chat.groupMemberCount} membres',
+                          style: TextStyle(
+                            color: context.oklOnSurfaceMuted(0.52),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          if (!showTyping && chat.lastMsg.startsWith('Vous:'))
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(
+                                LucideIcons.checkCheck,
+                                size: 14,
+                                color: chat.isUnread
+                                    ? context.oklOnSurfaceMuted(0.62)
+                                    : AppColors.primary,
+                              ),
+                            ),
+                          Expanded(
+                            child: Text(
+                              showTyping ? 'Écrit…' : chat.lastMsg,
+                              style: TextStyle(
+                                color: showTyping
+                                    ? AppColors.primary
+                                    : chat.isUnread
+                                    ? (Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium?.color ??
+                                          context.oklOnSurfaceMuted(0.62))
+                                    : context.oklOnSurfaceMuted(0.55),
+                                fontSize: 13,
+                                fontWeight: showTyping
+                                    ? FontWeight.w600
+                                    : chat.isUnread
+                                    ? FontWeight.w500
+                                    : FontWeight.w400,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                    const SizedBox(height: 2),
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
                     Text(
-                      chat.lastMsg,
+                      chat.time,
                       style: TextStyle(
                         color: chat.isUnread
-                            ? (Theme.of(context).textTheme.bodyMedium?.color ??
-                                context.oklOnSurfaceMuted(0.62))
+                            ? AppColors.primary
                             : context.oklOnSurfaceMuted(0.55),
-                        fontSize: 13,
-                        fontWeight: chat.isUnread ? FontWeight.w500 : FontWeight.w400,
+                        fontSize: 12,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 24,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (chat.isMuted)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Icon(
+                                LucideIcons.bellOff,
+                                size: 16,
+                                color: context.oklOnSurfaceMuted(0.55),
+                              ),
+                            ),
+                          if (chat.isUnread && chat.unreadCount > 0)
+                            Container(
+                              constraints: const BoxConstraints(
+                                minWidth: 22,
+                                minHeight: 22,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${chat.unreadCount}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (!chat.isMuted)
+                            const SizedBox(width: 22, height: 22),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    chat.time,
-                    style: TextStyle(
-                      color: chat.isUnread
-                          ? AppColors.primary
-                          : context.oklOnSurfaceMuted(0.55),
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    height: 24,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (chat.isMuted)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Icon(
-                              LucideIcons.bellOff,
-                              size: 16,
-                              color: context.oklOnSurfaceMuted(0.55),
-                            ),
-                          ),
-                        if (chat.isUnread && chat.unreadCount > 0)
-                          Container(
-                            constraints: const BoxConstraints(
-                              minWidth: 22,
-                              minHeight: 22,
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${chat.unreadCount}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          )
-                        else if (!chat.isMuted)
-                          const SizedBox(width: 22, height: 22),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
             ),
           ),
         ),
@@ -1405,10 +1657,10 @@ class _ChatTile extends StatelessWidget {
   }
 }
 
-
 class _StoryBubble extends StatelessWidget {
   final String name;
   final bool isMine;
+
   /// Anneau jauge rouge (ex. statut texte publié à l’instant).
   final bool showActiveStoryRing;
   final String? imageUrl;
@@ -1450,18 +1702,18 @@ class _StoryBubble extends StatelessWidget {
                         child: ClipOval(
                           child: isMine
                               ? (imageUrl != null
-                                  ? CachedNetworkImage(
-                                      imageUrl: imageUrl!,
-                                      width: 52,
-                                      height: 52,
-                                      fit: BoxFit.cover,
-                                      memCacheWidth: 104,
-                                    )
-                                  : Container(
-                                      width: 52,
-                                      height: 52,
-                                      color: context.oklSurface,
-                                    ))
+                                    ? CachedNetworkImage(
+                                        imageUrl: imageUrl!,
+                                        width: 52,
+                                        height: 52,
+                                        fit: BoxFit.cover,
+                                        memCacheWidth: 104,
+                                      )
+                                    : Container(
+                                        width: 52,
+                                        height: 52,
+                                        color: context.oklSurface,
+                                      ))
                               : CachedNetworkImage(
                                   imageUrl: imageUrl ?? '',
                                   width: 52,
@@ -1484,7 +1736,10 @@ class _StoryBubble extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: context.oklSurface,
-                        border: Border.all(color: context.oklDivider, width: 1.5),
+                        border: Border.all(
+                          color: context.oklDivider,
+                          width: 1.5,
+                        ),
                       ),
                       child: Center(
                         child: ClipOval(
@@ -1517,7 +1772,10 @@ class _StoryBubble extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: AppColors.primary,
                             shape: BoxShape.circle,
-                            border: Border.all(color: context.oklScaffold, width: 1.8),
+                            border: Border.all(
+                              color: context.oklScaffold,
+                              width: 1.8,
+                            ),
                           ),
                           child: const Icon(
                             LucideIcons.plus,
@@ -1539,7 +1797,8 @@ class _StoryBubble extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Theme.of(context).textTheme.bodyMedium?.color ??
+                  color:
+                      Theme.of(context).textTheme.bodyMedium?.color ??
                       context.oklOnSurfaceMuted(0.62),
                   fontSize: 11,
                 ),
@@ -1551,4 +1810,3 @@ class _StoryBubble extends StatelessWidget {
     );
   }
 }
-

@@ -12,9 +12,12 @@ public record ChatMessageResponse(
         ChatMessageKind kind,
         String text,
         String imageUrl,
+        String videoUrl,
+        String audioUrl,
         Integer voiceSeconds,
         String locationLabel,
-        Instant createdAt) {
+        Instant createdAt,
+        boolean readByRecipient) {
 
     public static ChatMessageResponse from(ChatMessage m) {
         return new ChatMessageResponse(
@@ -24,8 +27,11 @@ public record ChatMessageResponse(
                 m.getKind(),
                 m.getText(),
                 m.getImageUrl(),
+                m.getVideoUrl(),
+                m.getAudioUrl(),
                 m.getVoiceSeconds(),
                 m.getLocationLabel(),
-                m.getCreatedAt());
+                m.getCreatedAt(),
+                false);
     }
 }

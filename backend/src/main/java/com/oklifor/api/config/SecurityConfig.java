@@ -31,7 +31,11 @@ public class SecurityConfig {
                         auth ->
                                 auth.requestMatchers("/api/v1/auth/**")
                                         .permitAll()
+                                        .requestMatchers("/ws/**")
+                                        .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/public/profile-media/**")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/api/v1/public/chat-media/**")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans")
                                         .permitAll()
