@@ -33,6 +33,7 @@ import 'conversation_search_screen.dart';
 import 'conversation_media_screen.dart';
 import 'conversation_mute_screen.dart';
 import 'gallery_picker_screen.dart';
+import 'document_compose_screen.dart';
 import 'share_contact_screen.dart';
 import 'new_message_screen.dart';
 
@@ -1136,6 +1137,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       );
       return;
     }
+
+    final composed = await Navigator.of(context, rootNavigator: true)
+        .push<DocumentComposeResult>(
+      MaterialPageRoute<DocumentComposeResult>(
+        builder: (_) => DocumentComposeScreen(file: f),
+      ),
+    );
+    if (!mounted || composed == null) return;
+
     try {
       final upload = await ref.read(okliforApiClientProvider).uploadChatMedia(
             threadId: widget.thread.id,
@@ -1143,7 +1153,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             fileBytes: kIsWeb ? f.bytes : null,
             filePath: kIsWeb ? null : f.path,
           );
-      final label = '📄 ${f.name}';
+      final caption = composed.caption.trim();
+      final label = caption.isEmpty ? '📄 ${f.name}' : '📄 ${f.name}\n$caption';
       final abs = _absoluteMediaUrl(upload.signedUrl);
       _appendLocalMineMessage(
         kind: ChatMessageKind.file,
@@ -2070,7 +2081,18 @@ String _formatBytes(int bytes) {
 String _cleanDocumentLabel(String? raw) {
   final s = (raw ?? '').trim();
   if (s.isEmpty) return 'Document';
-  return s.replaceFirst(RegExp(r'^📄\s*'), '').trim();
+  final noIcon = s.replaceFirst(RegExp(r'^📄\s*'), '').trim();
+  final firstLine = noIcon.split('\n').first.trim();
+  return firstLine.isEmpty ? 'Document' : firstLine;
+}
+
+String _documentCaption(String? raw) {
+  final s = (raw ?? '').trim();
+  if (s.isEmpty) return '';
+  final noIcon = s.replaceFirst(RegExp(r'^📄\s*'), '').trim();
+  final parts = noIcon.split('\n');
+  if (parts.length <= 1) return '';
+  return parts.sublist(1).join('\n').trim();
 }
 
 String _fileExt(String name) {
@@ -2227,6 +2249,7 @@ class _DocumentMessageCardState extends State<_DocumentMessageCard> {
   Widget build(BuildContext context) {
     final m = widget.message;
     final title = _cleanDocumentLabel(m.text);
+    final caption = _documentCaption(m.text);
     final ext = _fileExt(title);
     final extLabel = (ext.isEmpty ? 'FILE' : ext.toUpperCase());
 
@@ -2343,10 +2366,36 @@ class _DocumentMessageCardState extends State<_DocumentMessageCard> {
                             return _DocProgressRing(value: _progress);
                           }
                           if (persisted) {
-                            return _DocActionIcon(
-                              icon: LucideIcons.checkCircle2,
-                              tooltip: 'Téléchargé',
-                              onTap: () => unawaited(_openCachedOrDownload()),
+                            return SizedBox(
+                              height: 34,
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    unawaited(_openCachedOrDownload()),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.12),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  foregroundColor:
+                                      Colors.white.withValues(alpha: 0.92),
+                                ),
+                                icon: const Icon(
+                                  LucideIcons.externalLink,
+                                  size: 16,
+                                ),
+                                label: const Text(
+                                  'Ouvrir',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
                             );
                           }
                           return _DocActionIcon(
@@ -2356,16 +2405,40 @@ class _DocumentMessageCardState extends State<_DocumentMessageCard> {
                           );
                         },
                       ),
-                      if (_openable) ...[
-                        const SizedBox(width: 6),
-                        _DocActionIcon(
-                          icon: LucideIcons.save,
-                          tooltip: 'Enregistrer',
-                          onTap: () => unawaited(_saveToDownloads()),
-                        ),
-                      ],
+                      FutureBuilder<bool>(
+                        future: _persisted(),
+                        builder: (ctx, snap) {
+                          final persisted = snap.data == true;
+                          if (!_openable || kIsWeb) return const SizedBox.shrink();
+                          if (persisted) return const SizedBox.shrink();
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(width: 6),
+                              _DocActionIcon(
+                                icon: LucideIcons.save,
+                                tooltip: 'Enregistrer',
+                                onTap: () => unawaited(_saveToDownloads()),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ],
                   ),
+                  if (caption.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        caption,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.90),
+                          fontSize: 13,
+                          height: 1.25,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 6),
                   Row(
                     mainAxisSize: MainAxisSize.min,
