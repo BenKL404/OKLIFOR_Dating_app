@@ -2,12 +2,14 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:oklifor_dating_app/features/chat/data/chat_local_cache.dart';
 
 import '../config/oklifor_api_config.dart';
 import 'auth_token_storage.dart';
 import 'models/chat_api_models.dart';
 import 'models/contact_api_models.dart';
 import 'models/me_response.dart';
+import 'models/user_status_models.dart';
 import 'models/settings_patch_body.dart';
 import 'oklifor_api_exception.dart';
 
@@ -297,6 +299,7 @@ class OkliforApiClient {
 
   Future<void> logout() async {
     await _storage.clear();
+    await ChatLocalCache.clearAll();
   }
 
   Future<MeResponse> activateSubscription({
@@ -373,6 +376,7 @@ class OkliforApiClient {
     String? audioUrl,
     int? voiceSeconds,
     String? locationLabel,
+    String? fileUrl,
   }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
@@ -385,6 +389,7 @@ class OkliforApiClient {
           'audioUrl': ?audioUrl,
           'voiceSeconds': ?voiceSeconds,
           'locationLabel': ?locationLabel,
+          'fileUrl': ?fileUrl,
         },
       );
       return ChatMessagePayload.fromJson(res.data ?? {});
@@ -458,6 +463,95 @@ class OkliforApiClient {
   Future<void> removeContact(String contactUserId) async {
     try {
       await _dio.delete<void>('/api/v1/contacts/$contactUserId');
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<MyUserStatusPayload?> fetchMyUserStatus() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/me/status',
+        options: Options(validateStatus: (s) => s == 200 || s == 204),
+      );
+      if (res.statusCode == 204 || res.data == null) {
+        return null;
+      }
+      return MyUserStatusPayload.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<void> deleteMyUserStatus() async {
+    try {
+      await _dio.delete<void>('/api/v1/me/status');
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<MyUserStatusPayload> publishTextUserStatus({
+    required String text,
+    String? backgroundColorHex,
+  }) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/me/status/text',
+        data: {
+          'text': text,
+          if (backgroundColorHex != null && backgroundColorHex.isNotEmpty)
+            'backgroundColorHex': backgroundColorHex,
+        },
+      );
+      return MyUserStatusPayload.fromJson(res.data ?? {});
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<MyUserStatusPayload> publishMediaUserStatus({
+    required String filename,
+    Uint8List? fileBytes,
+    String? filePath,
+    String? caption,
+  }) async {
+    if ((fileBytes == null || fileBytes.isEmpty) &&
+        (filePath == null || filePath.isEmpty)) {
+      throw ArgumentError('Aucun fichier pour le statut');
+    }
+    final filePart = fileBytes != null && fileBytes.isNotEmpty
+        ? MultipartFile.fromBytes(fileBytes, filename: filename)
+        : await MultipartFile.fromFile(filePath!, filename: filename);
+    final form = FormData.fromMap({
+      'file': filePart,
+      if (caption != null && caption.isNotEmpty) 'caption': caption,
+    });
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/me/status/media',
+        data: form,
+      );
+      return MyUserStatusPayload.fromJson(res.data ?? {});
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<List<StatusPreviewPayload>> fetchStatusPreviews(
+    List<String> userIds,
+  ) async {
+    if (userIds.isEmpty) return const [];
+    try {
+      final res = await _dio.post<List<dynamic>>(
+        '/api/v1/status/previews',
+        data: {'userIds': userIds},
+      );
+      final list = res.data ?? [];
+      return list
+          .whereType<Map>()
+          .map((m) => StatusPreviewPayload.fromJson(Map<String, dynamic>.from(m)))
+          .toList(growable: false);
     } on DioException catch (e) {
       throw OkliforApiException.fromDio(e);
     }

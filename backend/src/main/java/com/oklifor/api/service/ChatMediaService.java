@@ -32,6 +32,14 @@ public class ChatMediaService {
     private static final Set<String> IMAGE_CT = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> VIDEO_CT = Set.of("video/mp4", "video/webm", "video/quicktime");
     private static final Set<String> AUDIO_CT = Set.of("audio/mpeg", "audio/mp4", "audio/aac", "audio/wav", "audio/webm", "audio/ogg");
+    private static final Set<String> FILE_CT =
+            Set.of(
+                    "application/pdf",
+                    "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.ms-excel",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "text/plain");
     private static final String RESOLVE_CACHE_PREFIX = "okl:chat-media:resolve:";
 
     private final OkliforProperties props;
@@ -52,6 +60,9 @@ public class ChatMediaService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "thread_invalide");
         }
         String ct = normalizeContentType(file);
+        if (ct.isEmpty() || "application/octet-stream".equals(ct)) {
+            ct = inferContentTypeFromFilename(file.getOriginalFilename());
+        }
         ChatMessageKind kind = kindFromContentType(ct);
         String ext = extensionFor(kind, file.getOriginalFilename());
         String safeThreadId = threadId.replaceAll("[^a-zA-Z0-9\\-]", "");
@@ -200,7 +211,34 @@ public class ChatMediaService {
         if (IMAGE_CT.contains(ct)) return ChatMessageKind.IMAGE;
         if (VIDEO_CT.contains(ct)) return ChatMessageKind.VIDEO;
         if (AUDIO_CT.contains(ct)) return ChatMessageKind.VOICE;
+        if (FILE_CT.contains(ct)) return ChatMessageKind.FILE;
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type_media_non_supporte");
+    }
+
+    private static String inferContentTypeFromFilename(String originalFilename) {
+        if (originalFilename == null || originalFilename.isBlank()) {
+            return "";
+        }
+        String n = originalFilename.toLowerCase(Locale.ROOT);
+        if (n.endsWith(".pdf")) {
+            return "application/pdf";
+        }
+        if (n.endsWith(".doc")) {
+            return "application/msword";
+        }
+        if (n.endsWith(".docx")) {
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        }
+        if (n.endsWith(".xls")) {
+            return "application/vnd.ms-excel";
+        }
+        if (n.endsWith(".xlsx")) {
+            return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        }
+        if (n.endsWith(".txt") || n.endsWith(".csv")) {
+            return "text/plain";
+        }
+        return "";
     }
 
     private static String normalizeContentType(MultipartFile file) {
@@ -215,6 +253,16 @@ public class ChatMediaService {
             case IMAGE -> n.endsWith(".png") ? ".png" : n.endsWith(".webp") ? ".webp" : ".jpg";
             case VIDEO -> n.endsWith(".webm") ? ".webm" : n.endsWith(".mov") ? ".mov" : ".mp4";
             case VOICE -> n.endsWith(".wav") ? ".wav" : n.endsWith(".ogg") ? ".ogg" : n.endsWith(".webm") ? ".webm" : ".m4a";
+            case FILE -> {
+                if (n.endsWith(".pdf")) yield ".pdf";
+                if (n.endsWith(".docx")) yield ".docx";
+                if (n.endsWith(".doc")) yield ".doc";
+                if (n.endsWith(".xlsx")) yield ".xlsx";
+                if (n.endsWith(".xls")) yield ".xls";
+                if (n.endsWith(".csv")) yield ".csv";
+                if (n.endsWith(".txt")) yield ".txt";
+                yield ".bin";
+            }
             default -> ".bin";
         };
     }

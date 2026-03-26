@@ -54,6 +54,20 @@ public class PublicChatMediaController {
                 mt = MediaType.parseMediaType("audio/webm");
             } else if (name.endsWith(".aac")) {
                 mt = MediaType.parseMediaType("audio/aac");
+            } else if (name.endsWith(".pdf")) {
+                mt = MediaType.parseMediaType("application/pdf");
+            } else if (name.endsWith(".doc")) {
+                mt = MediaType.parseMediaType("application/msword");
+            } else if (name.endsWith(".docx")) {
+                mt = MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            } else if (name.endsWith(".xls")) {
+                mt = MediaType.parseMediaType("application/vnd.ms-excel");
+            } else if (name.endsWith(".xlsx")) {
+                mt = MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            } else if (name.endsWith(".txt") || name.endsWith(".csv")) {
+                mt = MediaType.parseMediaType("text/plain");
             } else if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
                 mt = MediaType.IMAGE_JPEG;
             } else if (name.endsWith(".png")) {

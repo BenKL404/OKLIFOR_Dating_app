@@ -3,12 +3,14 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../core/config/oklifor_media_url.dart';
 import '../../../core/utils/okl_pick_media_permissions.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
@@ -19,7 +21,10 @@ import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../auth/providers/auth_api_provider.dart';
+import '../../../core/api/models/user_status_models.dart';
+import '../../../core/api/models/chat_api_models.dart';
 import '../data/chat_api_mapping.dart';
+import '../data/chat_local_cache.dart';
 import '../data/chat_websocket_client.dart';
 import '../models/chat_models.dart';
 import 'conversation_screen.dart';
@@ -47,6 +52,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   TextStatusPublishResult? _myTextStatus;
   String? _myMediaStatusLocalPath;
   String _myMediaStatusCaption = 'Mon humeur du jour.';
+  /// Statut synchronisé avec le backend (prioritaire pour l’affichage).
+  MyUserStatusPayload? _apiMyStatus;
 
   bool _searchMode = false;
   bool _showArchived = false;
@@ -56,18 +63,55 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   StreamSubscription<dynamic>? _wsMessageSub;
   StreamSubscription<dynamic>? _wsPresenceSub;
   StreamSubscription<dynamic>? _wsTypingSub;
+  StreamSubscription<String>? _wsErrorSub;
   String? _myUserId;
   final Map<String, bool> _typingByThreadId = <String, bool>{};
   final Map<String, Timer> _typingHideTimersByThreadId = <String, Timer>{};
+  Timer? _persistThreadsDebounce;
+  bool _ensuringMissingContacts = false;
 
   @override
   void initState() {
     super.initState();
     _threads = List<ChatThread>.from(kSeedThreads);
     _searchController.addListener(() => setState(() {}));
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _tryLoadRemoteThreads(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapChatData());
+  }
+
+  Future<void> _bootstrapChatData() async {
+    final storage = ref.read(authTokenStorageProvider);
+    final myId = await storage.readUserId();
+    final token = await storage.readAccessToken();
+    final hasSession =
+        myId != null &&
+        myId.isNotEmpty &&
+        token != null &&
+        token.isNotEmpty;
+    if (hasSession) {
+      final cached = await ChatLocalCache.loadThreads(myId);
+      if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _threads = cached;
+          _myUserId = myId;
+        });
+      }
+    }
+    await _tryLoadRemoteThreads();
+  }
+
+  Future<void> _persistThreadsCache() async {
+    var uid = _myUserId ?? await ref.read(authTokenStorageProvider).readUserId();
+    if (uid == null || uid.isEmpty) return;
+    await ChatLocalCache.saveThreads(uid, List<ChatThread>.from(_threads));
+  }
+
+  void _schedulePersistThreads() {
+    _persistThreadsDebounce?.cancel();
+    _persistThreadsDebounce = Timer(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      unawaited(_persistThreadsCache());
+    });
   }
 
   Future<void> _tryLoadRemoteThreads() async {
@@ -81,12 +125,16 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       final contactNameById = <String, String>{
         for (final c in contacts) c.userId: c.displayName,
       };
+      final contactAvatarById = <String, String>{
+        for (final c in contacts) c.userId: c.avatarUrl,
+      };
       final mapped = raw
           .map(
             (p) => chatThreadFromPayload(
               p,
               myUserId: myId,
               contactNameById: contactNameById,
+              contactAvatarById: contactAvatarById,
             ),
           )
           .toList();
@@ -95,11 +143,107 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         _threads = mapped;
         _myUserId = myId;
       });
+      // Si certains threads directs n'ont pas de contact, on tente de les
+      // ajouter automatiquement pour récupérer nom + avatar (puis on remappe).
+      unawaited(_ensureMissingPeerContacts(rawThreads: raw, myUserId: myId));
+      if (myId != null && myId.isNotEmpty) {
+        unawaited(ChatLocalCache.saveThreads(myId, mapped));
+      }
       if (token != null && token.isNotEmpty) {
         await _connectRealtime(token, mapped.map((e) => e.id).toList());
+        await _syncRemoteStatuses();
       }
     } catch (_) {
-      // Pas de token / API : on garde les conversations démo.
+      if (!mounted) return;
+      final storage = ref.read(authTokenStorageProvider);
+      final myId = await storage.readUserId();
+      final token = await storage.readAccessToken();
+      final hasSession =
+          myId != null &&
+          myId.isNotEmpty &&
+          token != null &&
+          token.isNotEmpty;
+      if (hasSession) {
+        final cached = await ChatLocalCache.loadThreads(myId);
+        if (!mounted) return;
+        if (cached != null && cached.isNotEmpty) {
+          setState(() {
+            _threads = cached;
+            _myUserId = myId;
+          });
+        } else {
+          setState(() {
+            _threads = [];
+            _myUserId = myId;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _ensureMissingPeerContacts({
+    required List<ChatThreadPayload> rawThreads,
+    required String? myUserId,
+  }) async {
+    if (_ensuringMissingContacts) return;
+    if (myUserId == null || myUserId.isEmpty) return;
+    try {
+      _ensuringMissingContacts = true;
+      final api = ref.read(okliforApiClientProvider);
+      final existing = await api.fetchContacts();
+      final known = <String>{for (final c in existing) c.userId};
+
+      // Limite pour éviter de spammer l'API si beaucoup de threads inconnus.
+      const maxAdds = 4;
+      var added = 0;
+
+      for (final t in rawThreads) {
+        final isGroup = (t.type).toUpperCase() == 'GROUP';
+        if (isGroup) continue;
+        String? peerId;
+        for (final id in t.participantUserIds) {
+          if (id != myUserId) {
+            peerId = id;
+            break;
+          }
+        }
+        if (peerId == null || peerId.isEmpty) continue;
+        if (known.contains(peerId)) continue;
+        try {
+          await api.addContactByUserId(peerId);
+          known.add(peerId);
+          added += 1;
+          if (added >= maxAdds) break;
+        } catch (_) {
+          // Ignore: certains users ne sont peut-être pas ajoutables.
+        }
+      }
+
+      if (!mounted || added == 0) return;
+
+      // Re-fetch contacts and remap threads with real displayName/avatar.
+      final contacts = await api.fetchContacts();
+      final contactNameById = <String, String>{
+        for (final c in contacts) c.userId: c.displayName,
+      };
+      final contactAvatarById = <String, String>{
+        for (final c in contacts) c.userId: c.avatarUrl,
+      };
+      final remapped = rawThreads
+          .map(
+            (p) => chatThreadFromPayload(
+              p,
+              myUserId: myUserId,
+              contactNameById: contactNameById,
+              contactAvatarById: contactAvatarById,
+            ),
+          )
+          .toList(growable: false);
+      if (!mounted) return;
+      setState(() => _threads = remapped);
+      _schedulePersistThreads();
+    } finally {
+      _ensuringMissingContacts = false;
     }
   }
 
@@ -111,12 +255,23 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final client = ChatWebSocketClient();
     await client.connect(accessToken: token);
     for (final id in threadIds) {
-      await client.subscribeThread(id);
+      try {
+        await client.subscribeThreadAndWait(id);
+      } catch (e) {
+        // If a thread subscription fails, keep the socket alive for the others.
+        // The error itself is still surfaced via client.errors.
+      }
     }
     _wsClient = client;
     _wsMessageSub = client.messages.listen(_applyIncomingRealtimeMessage);
     _wsPresenceSub = client.presence.listen(_applyIncomingPresence);
     _wsTypingSub = client.typing.listen(_applyIncomingTyping);
+    _wsErrorSub?.cancel();
+    _wsErrorSub = client.errors.listen((code) {
+      // Helps diagnose "it doesn't work" without crashing.
+      // ignore: avoid_print
+      print('WS chat error: $code');
+    });
   }
 
   void _applyIncomingRealtimeMessage(dynamic payload) {
@@ -143,6 +298,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       _threads.removeAt(i);
       _threads.insert(0, updated);
     });
+    _schedulePersistThreads();
   }
 
   void _applyIncomingPresence(dynamic payload) {
@@ -160,6 +316,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         _typingByThreadId[threadId] = false;
       }
     });
+    _schedulePersistThreads();
   }
 
   void _applyIncomingTyping(dynamic payload) {
@@ -218,10 +375,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     _wsMessageSub?.cancel();
     _wsPresenceSub?.cancel();
     _wsTypingSub?.cancel();
+    _wsErrorSub?.cancel();
     for (final t in _typingHideTimersByThreadId.values) {
       t.cancel();
     }
     _typingHideTimersByThreadId.clear();
+    _persistThreadsDebounce?.cancel();
     _wsClient?.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
@@ -254,6 +413,138 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         .toList(growable: false);
   }
 
+  Future<void> _syncRemoteStatuses() async {
+    if (!mounted || _myUserId == null) return;
+    try {
+      final api = ref.read(okliforApiClientProvider);
+      final mine = await api.fetchMyUserStatus();
+      if (!mounted) return;
+      setState(() => _apiMyStatus = mine);
+
+      final peerIds = <String>{};
+      for (final t in _threads) {
+        if (t.isGroup) continue;
+        for (final id in t.participantUserIds) {
+          if (id != _myUserId) peerIds.add(id);
+        }
+      }
+      if (peerIds.isEmpty) return;
+      final previews = await api.fetchStatusPreviews(peerIds.toList());
+      if (!mounted) return;
+      final byUser = {for (final p in previews) p.userId: p};
+      setState(() {
+        _threads = _threads.map((t) {
+          if (t.isGroup) return t;
+          String? peer;
+          for (final id in t.participantUserIds) {
+            if (id != _myUserId) {
+              peer = id;
+              break;
+            }
+          }
+          if (peer == null) return t;
+          final pv = byUser[peer];
+          if (pv == null || !pv.hasStory) {
+            return t.copyWith(
+              hasStory: false,
+              statusCaption: '',
+              statusTimeAgo: '',
+              statusKind: null,
+              statusBackgroundHex: null,
+            );
+          }
+          final caption = (pv.text != null && pv.text!.trim().isNotEmpty)
+              ? pv.text!.trim()
+              : (pv.caption ?? '');
+          if (pv.kind == 'TEXT') {
+            return t.copyWith(
+              hasStory: true,
+              statusKind: 'TEXT',
+              statusBackgroundHex: pv.backgroundColorHex,
+              statusImageUrl: t.avatarUrl,
+              statusCaption: caption,
+              statusTimeAgo: _formatRelativeStatusTime(pv.createdAt),
+            );
+          }
+          final mediaRaw = pv.mediaUrl ?? '';
+          final previewUrl = (pv.kind == 'IMAGE' || pv.kind == 'VIDEO') &&
+                  mediaRaw.isNotEmpty
+              ? OkliforMediaUrl.resolve(mediaRaw)
+              : t.avatarUrl;
+          return t.copyWith(
+            hasStory: true,
+            statusKind: pv.kind,
+            statusBackgroundHex: null,
+            statusImageUrl: previewUrl,
+            statusCaption: caption,
+            statusTimeAgo: _formatRelativeStatusTime(pv.createdAt),
+          );
+        }).toList();
+      });
+      _schedulePersistThreads();
+    } catch (_) {
+      // Statuts optionnels si l’API échoue
+    }
+  }
+
+  String _formatRelativeStatusTime(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return '';
+    final d = DateTime.now().difference(dt.toLocal());
+    if (d.inSeconds < 60) return 'à l’instant';
+    if (d.inMinutes < 60) return 'il y a ${d.inMinutes} min';
+    if (d.inHours < 24) return 'il y a ${d.inHours} h';
+    if (d.inDays < 7) return 'il y a ${d.inDays} j';
+    return 'récemment';
+  }
+
+  String _rgbColorToHex(Color c) {
+    final r = (c.r * 255.0).round().clamp(0, 255);
+    final g = (c.g * 255.0).round().clamp(0, 255);
+    final b = (c.b * 255.0).round().clamp(0, 255);
+    return '#${r.toRadixString(16).padLeft(2, '0')}'
+        '${g.toRadixString(16).padLeft(2, '0')}'
+        '${b.toRadixString(16).padLeft(2, '0')}';
+  }
+
+  Color? _parseStoryHexColor(String? h) {
+    if (h == null || h.isEmpty) return null;
+    var s = h.trim().replaceFirst('#', '');
+    if (s.length == 6) {
+      s = 'FF$s';
+    }
+    if (s.length != 8) return null;
+    return Color(int.parse(s, radix: 16));
+  }
+
+  Future<bool> _hasAuthToken() async {
+    final t = await ref.read(authTokenStorageProvider).readAccessToken();
+    return t != null && t.isNotEmpty;
+  }
+
+  StatusStory _threadToStatusStory(ChatThread c) {
+    if (c.statusKind == 'TEXT') {
+      return StatusStory(
+        name: c.name,
+        avatarUrl: c.avatarUrl,
+        imageUrl: '',
+        caption: c.statusCaption,
+        timeAgo: c.statusTimeAgo,
+        solidBackground:
+            _parseStoryHexColor(c.statusBackgroundHex) ??
+            const Color(0xFF1E3A5F),
+      );
+    }
+    return StatusStory(
+      name: c.name,
+      avatarUrl: c.avatarUrl,
+      imageUrl: c.statusImageUrl,
+      caption: c.statusCaption,
+      timeAgo: c.statusTimeAgo,
+    );
+  }
+
   List<ChatThread> get _archivedChats {
     final archived = _threads.where((c) => c.isArchived);
     final q = _searchController.text.trim().toLowerCase();
@@ -268,44 +559,62 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   List<StatusStory> _storiesForViewer() {
-    final mine = _myTextStatus != null
-        ? StatusStory(
-            name: 'Mon statut',
-            avatarUrl: _mineStoryUrl,
-            imageUrl: '',
-            caption: _myTextStatus!.text,
-            timeAgo: 'à l’instant',
-            solidBackground: _myTextStatus!.backgroundColor,
-          )
-        : (_myMediaStatusLocalPath != null &&
-              _myMediaStatusLocalPath!.isNotEmpty)
-        ? StatusStory(
-            name: 'Mon statut',
-            avatarUrl: _mineStoryUrl,
-            imageUrl: _myMediaStatusLocalPath!,
-            caption: _myMediaStatusCaption,
-            timeAgo: 'à l’instant',
-          )
-        : StatusStory(
-            name: 'Mon statut',
-            avatarUrl: _mineStoryUrl,
-            imageUrl: _mineStatusImageUrl,
-            caption: 'Mon humeur du jour.',
-            timeAgo: 'à l’instant',
-          );
+    final StatusStory mine;
+    if (_apiMyStatus != null) {
+      final s = _apiMyStatus!;
+      if (s.kind == 'TEXT') {
+        mine = StatusStory(
+          name: 'Mon statut',
+          avatarUrl: _mineStoryUrl,
+          imageUrl: '',
+          caption: s.text ?? '',
+          timeAgo: _formatRelativeStatusTime(s.createdAt),
+          solidBackground:
+              _parseStoryHexColor(s.backgroundColorHex) ??
+              const Color(0xFF1E3A5F),
+        );
+      } else {
+        final url = OkliforMediaUrl.resolve(s.mediaUrl ?? '');
+        mine = StatusStory(
+          name: 'Mon statut',
+          avatarUrl: _mineStoryUrl,
+          imageUrl: url,
+          caption: s.caption ?? '',
+          timeAgo: _formatRelativeStatusTime(s.createdAt),
+        );
+      }
+    } else if (_myTextStatus != null) {
+      mine = StatusStory(
+        name: 'Mon statut',
+        avatarUrl: _mineStoryUrl,
+        imageUrl: '',
+        caption: _myTextStatus!.text,
+        timeAgo: 'à l’instant',
+        solidBackground: _myTextStatus!.backgroundColor,
+      );
+    } else if (_myMediaStatusLocalPath != null &&
+        _myMediaStatusLocalPath!.isNotEmpty) {
+      mine = StatusStory(
+        name: 'Mon statut',
+        avatarUrl: _mineStoryUrl,
+        imageUrl: _myMediaStatusLocalPath!,
+        caption: _myMediaStatusCaption,
+        timeAgo: 'à l’instant',
+      );
+    } else {
+      mine = StatusStory(
+        name: 'Mon statut',
+        avatarUrl: _mineStoryUrl,
+        imageUrl: _mineStatusImageUrl,
+        caption: 'Mon humeur du jour.',
+        timeAgo: 'à l’instant',
+      );
+    }
     return [
       mine,
       ..._threads
           .where((c) => c.hasStory)
-          .map(
-            (c) => StatusStory(
-              name: c.name,
-              avatarUrl: c.avatarUrl,
-              imageUrl: c.statusImageUrl,
-              caption: c.statusCaption,
-              timeAgo: c.statusTimeAgo,
-            ),
-          ),
+          .map(_threadToStatusStory),
     ];
   }
 
@@ -333,6 +642,42 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (_apiMyStatus != null ||
+                  _myTextStatus != null ||
+                  (_myMediaStatusLocalPath != null &&
+                      _myMediaStatusLocalPath!.isNotEmpty)) ...[
+                ListTile(
+                  leading: Icon(
+                    LucideIcons.trash2,
+                    color: Theme.of(ctx).colorScheme.error,
+                  ),
+                  title: Text(
+                    'Supprimer mon statut',
+                    style: TextStyle(
+                      color: ctx.oklOnSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    if (await _hasAuthToken()) {
+                      try {
+                        await ref.read(okliforApiClientProvider).deleteMyUserStatus();
+                      } catch (_) {}
+                    }
+                    if (!mounted) return;
+                    setState(() {
+                      _apiMyStatus = null;
+                      _myTextStatus = null;
+                      _myMediaStatusLocalPath = null;
+                    });
+                    if (context.mounted) {
+                      OklFeedback.snack(context, 'Statut supprimé');
+                    }
+                  },
+                ),
+                Divider(height: 1, color: ctx.oklDivider),
+              ],
               ListTile(
                 leading: Icon(LucideIcons.camera, color: ctx.oklOnSurface),
                 title: Text(
@@ -400,10 +745,30 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         ),
                       );
                   if (!mounted || r == null) return;
-                  setState(() {
-                    _myTextStatus = r;
-                    _myMediaStatusLocalPath = null;
-                  });
+                  if (await _hasAuthToken()) {
+                    try {
+                      final api = ref.read(okliforApiClientProvider);
+                      final published = await api.publishTextUserStatus(
+                        text: r.text,
+                        backgroundColorHex: _rgbColorToHex(r.backgroundColor),
+                      );
+                      if (!mounted) return;
+                      setState(() {
+                        _apiMyStatus = published;
+                        _myTextStatus = null;
+                        _myMediaStatusLocalPath = null;
+                      });
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      OklFeedback.snack(context, 'Publication impossible : $e');
+                      return;
+                    }
+                  } else {
+                    setState(() {
+                      _myTextStatus = r;
+                      _myMediaStatusLocalPath = null;
+                    });
+                  }
                   if (!context.mounted) return;
                   OklFlows.pushResult(
                     context,
@@ -561,11 +926,35 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
     if (!mounted || xFile == null) return;
 
-    setState(() {
-      _myTextStatus = null;
-      _myMediaStatusLocalPath = xFile.path;
-      _myMediaStatusCaption = 'Mon statut média.';
-    });
+    if (await _hasAuthToken()) {
+      try {
+        final api = ref.read(okliforApiClientProvider);
+        final bytes = kIsWeb ? await xFile.readAsBytes() : null;
+        final published = await api.publishMediaUserStatus(
+          filename: xFile.name,
+          fileBytes: bytes,
+          filePath: kIsWeb ? null : xFile.path,
+          caption: isVideo ? 'Ma vidéo statut' : 'Ma photo statut',
+        );
+        if (!mounted) return;
+        setState(() {
+          _apiMyStatus = published;
+          _myTextStatus = null;
+          _myMediaStatusLocalPath = null;
+          _myMediaStatusCaption = published.caption ?? _myMediaStatusCaption;
+        });
+      } catch (e) {
+        if (!context.mounted) return;
+        OklFeedback.snack(context, 'Envoi du statut impossible : $e');
+        return;
+      }
+    } else {
+      setState(() {
+        _myTextStatus = null;
+        _myMediaStatusLocalPath = xFile.path;
+        _myMediaStatusCaption = 'Mon statut média.';
+      });
+    }
 
     if (!context.mounted) return;
     OklFlows.pushResult(
@@ -698,11 +1087,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       final api = ref.read(okliforApiClientProvider);
       final storage = ref.read(authTokenStorageProvider);
       final myId = await storage.readUserId();
+      final token = await storage.readAccessToken();
       final remote = await api.createDirectThread(c.id);
       final mapped = chatThreadFromPayload(
         remote,
         myUserId: myId,
         contactNameById: {c.id: c.name},
+        contactAvatarById: {c.id: c.avatarUrl},
       );
       id = mapped.id;
       final remoteIdx = _threads.indexWhere((t) => t.id == mapped.id);
@@ -710,6 +1101,25 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         setState(() => _threads[remoteIdx] = mapped);
       } else {
         setState(() => _threads.insert(0, mapped));
+      }
+      _schedulePersistThreads();
+      // Important: si la connexion WS est déjà active, s’abonner immédiatement
+      // au nouveau thread pour recevoir les messages entrant (réponse du contact).
+      if (token != null && token.isNotEmpty) {
+        try {
+          if (_wsClient == null || _wsClient?.isConnected != true) {
+            await _connectRealtime(token, _threads.map((e) => e.id).toList());
+          } else {
+            // Wait for server ack; otherwise the thread may look "connected"
+            // but won't receive incoming messages after QR add / new DM creation.
+            await _wsClient!.subscribeThreadAndWait(mapped.id);
+          }
+        } catch (_) {
+          // If subscribe failed, try a full reconnect including the new thread.
+          try {
+            await _connectRealtime(token, _threads.map((e) => e.id).toList());
+          } catch (_) {}
+        }
       }
     } catch (_) {
       // Mode dégradé: création locale si API indisponible.
@@ -731,6 +1141,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         online: true,
       );
       setState(() => _threads.insert(0, thread));
+      _schedulePersistThreads();
     }
     if (!mounted) return;
     _openConversation(context, thread);
@@ -761,6 +1172,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       online: false,
     );
     setState(() => _threads.insert(0, thread));
+    _schedulePersistThreads();
     _openConversation(context, thread);
   }
 
@@ -774,11 +1186,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       if (i < 0) return;
       _threads[i] = transform(_threads[i]);
     });
+    _schedulePersistThreads();
   }
 
   void _removeThreadById(String threadId) {
     if (!mounted) return;
     setState(() => _threads.removeWhere((t) => t.id == threadId));
+    _schedulePersistThreads();
   }
 
   void _openChatActions(BuildContext context, ChatThread chat) {
@@ -990,6 +1404,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 _threads.insert(0, updated);
               }
             });
+            _schedulePersistThreads();
           },
         ),
       ),
@@ -1077,6 +1492,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                                                   );
                                                         }
                                                       });
+                                                      _schedulePersistThreads();
                                                     },
                                               ),
                                         ),
@@ -1146,7 +1562,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     _StoryBubble(
                       name: 'Mon statut',
                       isMine: true,
-                      showActiveStoryRing: _myTextStatus != null,
+                      showActiveStoryRing: _apiMyStatus != null ||
+                          _myTextStatus != null ||
+                          (_myMediaStatusLocalPath != null &&
+                              _myMediaStatusLocalPath!.isNotEmpty),
                       imageUrl: _mineStoryUrl,
                       onTap: () => _openStatusViewer(context, 0),
                       onAddTap: () => _openMyStatusAddMenu(context),

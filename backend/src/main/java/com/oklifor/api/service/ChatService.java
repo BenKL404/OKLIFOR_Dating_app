@@ -81,6 +81,7 @@ public class ChatService {
         m.setVideoUrl(refreshChatMediaUrlIfApplicable(req.videoUrl()));
         m.setAudioUrl(refreshChatMediaUrlIfApplicable(req.audioUrl()));
         m.setVoiceSeconds(req.voiceSeconds());
+        m.setFileUrl(refreshChatMediaUrlIfApplicable(req.fileUrl()));
         m.setLocationLabel(req.locationLabel());
         m = messages.save(m);
         t.setLastMessagePreview(preview(req));
@@ -127,6 +128,7 @@ public class ChatService {
                 refreshChatMediaUrlIfApplicable(m.getAudioUrl()),
                 m.getVoiceSeconds(),
                 m.getLocationLabel(),
+                refreshChatMediaUrlIfApplicable(m.getFileUrl()),
                 m.getCreatedAt(),
                 readByRecipient);
     }
@@ -207,6 +209,7 @@ public class ChatService {
             case IMAGE -> "📷 Photo";
             case VIDEO -> "🎬 Vidéo";
             case VOICE -> "🎤 Message vocal";
+            case FILE -> "📄 Fichier";
             case LOCATION -> "📍 Position";
             case SYSTEM -> "· · ·";
             default -> "Message";

@@ -42,6 +42,7 @@ class ChatMessagePayload {
     this.videoUrl,
     this.audioUrl,
     this.voiceSeconds,
+    this.fileUrl,
     this.locationLabel,
     this.createdAt,
     this.readByRecipient = false,
@@ -56,6 +57,7 @@ class ChatMessagePayload {
   final String? videoUrl;
   final String? audioUrl;
   final int? voiceSeconds;
+  final String? fileUrl;
   final String? locationLabel;
   final String? createdAt;
   final bool readByRecipient;
@@ -74,6 +76,7 @@ class ChatMessagePayload {
       videoUrl: j['videoUrl'] as String?,
       audioUrl: j['audioUrl'] as String?,
       voiceSeconds: vs is int ? vs : (vs is num ? vs.toInt() : null),
+      fileUrl: j['fileUrl'] as String?,
       locationLabel: j['locationLabel'] as String?,
       createdAt: j['createdAt'] as String?,
       readByRecipient: readByRecipient,

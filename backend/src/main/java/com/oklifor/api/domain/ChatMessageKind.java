@@ -5,6 +5,7 @@ public enum ChatMessageKind {
     IMAGE,
     VIDEO,
     VOICE,
+    FILE,
     LOCATION,
     SYSTEM
 }

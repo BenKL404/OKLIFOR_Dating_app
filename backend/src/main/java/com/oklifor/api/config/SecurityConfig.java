@@ -37,6 +37,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/public/chat-media/**")
                                         .permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/api/v1/public/status-media/**")
+                                        .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans")
                                         .permitAll()
                                         .anyRequest()

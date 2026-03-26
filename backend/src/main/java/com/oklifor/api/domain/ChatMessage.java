@@ -23,5 +23,6 @@ public class ChatMessage extends UuidMongoDocument {
     private String videoUrl;
     private String audioUrl;
     private Integer voiceSeconds;
+    private String fileUrl;
     private String locationLabel;
 }

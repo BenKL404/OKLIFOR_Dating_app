@@ -17,6 +17,7 @@ public class OkliforProperties {
     private final Verification verification = new Verification();
     private final ProfileMedia profileMedia = new ProfileMedia();
     private final ChatMedia chatMedia = new ChatMedia();
+    private final StatusMedia statusMedia = new StatusMedia();
 
     @Getter
     @Setter
@@ -71,5 +72,12 @@ public class OkliforProperties {
         private long signedUrlTtlSeconds = 3600;
         /** TTL du cache Redis pour la résolution d'URL signée. */
         private long resolveCacheSeconds = 20;
+    }
+
+    @Getter
+    @Setter
+    public static class StatusMedia {
+        private String uploadDir = "data/status-media";
+        private long signedUrlTtlSeconds = 3600;
     }
 }

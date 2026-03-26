@@ -21,6 +21,7 @@ ChatThread chatThreadFromPayload(
   ChatThreadPayload p, {
   required String? myUserId,
   Map<String, String>? contactNameById,
+  Map<String, String>? contactAvatarById,
 }) {
   final isGroup = p.type.toUpperCase() == 'GROUP';
   var title = p.name.trim();
@@ -41,13 +42,25 @@ ChatThread chatThreadFromPayload(
       if (knownName != null && knownName.isNotEmpty) {
         title = knownName;
       } else {
-        title =
-            'Utilisateur ${other.length >= 8 ? other.substring(0, 8) : other}';
+        // Ne jamais afficher d'ID utilisateur brut dans l'UI.
+        title = 'Utilisateur';
       }
     } else {
       title = 'Conversation';
     }
   }
+  final mine = myUserId ?? '';
+  String? otherUserId;
+  for (final id in p.participantUserIds) {
+    if (id != mine) {
+      otherUserId = id;
+      break;
+    }
+  }
+  final rawAvatar = otherUserId == null ? null : contactAvatarById?[otherUserId];
+  final resolvedAvatar = (rawAvatar != null && rawAvatar.trim().isNotEmpty)
+      ? OkliforMediaUrl.resolve(rawAvatar.trim())
+      : kDefaultChatAvatarUrl;
   final preview = p.lastMessagePreview.trim().isEmpty
       ? 'Aucun message'
       : p.lastMessagePreview;
@@ -57,10 +70,13 @@ ChatThread chatThreadFromPayload(
     name: title,
     lastMsg: preview,
     time: time.isEmpty ? '—' : time,
-    avatarUrl: kDefaultChatAvatarUrl,
-    statusImageUrl: kDefaultChatAvatarUrl,
+    avatarUrl: resolvedAvatar,
+    statusImageUrl: resolvedAvatar,
     statusCaption: '',
     statusTimeAgo: '',
+    participantUserIds: List<String>.from(p.participantUserIds),
+    statusKind: null,
+    statusBackgroundHex: null,
     hasStory: false,
     isUnread: false,
     unreadCount: 0,
@@ -81,6 +97,8 @@ ChatMessageKind _parseMessageKind(String raw) {
     case 'VOICE':
     case 'AUDIO':
       return ChatMessageKind.voice;
+    case 'FILE':
+      return ChatMessageKind.file;
     case 'LOCATION':
       return ChatMessageKind.location;
     case 'SYSTEM':
@@ -109,6 +127,7 @@ ChatMessage chatMessageFromPayload(
     videoUrl: p.videoUrl == null ? null : OkliforMediaUrl.resolve(p.videoUrl!),
     audioUrl: p.audioUrl == null ? null : OkliforMediaUrl.resolve(p.audioUrl!),
     voiceSeconds: p.voiceSeconds,
+    fileUrl: p.fileUrl == null ? null : OkliforMediaUrl.resolve(p.fileUrl!),
     locationLabel: p.locationLabel,
     mine: mine,
     time: time.isEmpty ? '—' : time,

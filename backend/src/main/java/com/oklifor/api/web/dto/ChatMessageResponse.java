@@ -16,6 +16,7 @@ public record ChatMessageResponse(
         String audioUrl,
         Integer voiceSeconds,
         String locationLabel,
+        String fileUrl,
         Instant createdAt,
         boolean readByRecipient) {
 
@@ -31,6 +32,7 @@ public record ChatMessageResponse(
                 m.getAudioUrl(),
                 m.getVoiceSeconds(),
                 m.getLocationLabel(),
+                m.getFileUrl(),
                 m.getCreatedAt(),
                 false);
     }

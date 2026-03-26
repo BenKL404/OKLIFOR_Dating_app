@@ -52,7 +52,7 @@ const kDemoContacts = <ChatContact>[
   ),
 ];
 
-enum ChatMessageKind { text, image, video, voice, location, system }
+enum ChatMessageKind { text, image, video, voice, file, location, system }
 
 class ChatMessage {
   final String id;
@@ -62,6 +62,7 @@ class ChatMessage {
   final String? videoUrl;
   final String? audioUrl;
   final int? voiceSeconds;
+  final String? fileUrl;
   final String? locationLabel;
   final bool mine;
   final String time;
@@ -77,6 +78,7 @@ class ChatMessage {
     this.videoUrl,
     this.audioUrl,
     this.voiceSeconds,
+    this.fileUrl,
     this.locationLabel,
     required this.mine,
     required this.time,
@@ -93,6 +95,7 @@ class ChatMessage {
     String? videoUrl,
     String? audioUrl,
     int? voiceSeconds,
+    String? fileUrl,
     String? locationLabel,
     bool? mine,
     String? time,
@@ -108,6 +111,7 @@ class ChatMessage {
       videoUrl: videoUrl ?? this.videoUrl,
       audioUrl: audioUrl ?? this.audioUrl,
       voiceSeconds: voiceSeconds ?? this.voiceSeconds,
+      fileUrl: fileUrl ?? this.fileUrl,
       locationLabel: locationLabel ?? this.locationLabel,
       mine: mine ?? this.mine,
       time: time ?? this.time,
@@ -128,6 +132,9 @@ class ChatThread {
   final String statusImageUrl;
   final String statusCaption;
   final String statusTimeAgo;
+  /// `TEXT` / `IMAGE` / `VIDEO` si statut distant connu (sinon null).
+  final String? statusKind;
+  final String? statusBackgroundHex;
   final bool hasStory;
   final bool isUnread;
   final int unreadCount;
@@ -136,6 +143,8 @@ class ChatThread {
   final int groupMemberCount;
   final bool isMuted;
   final bool isArchived;
+  /// Participants (fil backend) — utilisé pour les aperçus de statut.
+  final List<String> participantUserIds;
 
   const ChatThread({
     required this.id,
@@ -146,6 +155,9 @@ class ChatThread {
     required this.statusImageUrl,
     required this.statusCaption,
     required this.statusTimeAgo,
+    this.participantUserIds = const [],
+    this.statusKind,
+    this.statusBackgroundHex,
     this.hasStory = false,
     this.isUnread = false,
     this.unreadCount = 0,
@@ -165,6 +177,8 @@ class ChatThread {
     String? statusImageUrl,
     String? statusCaption,
     String? statusTimeAgo,
+    String? statusKind,
+    String? statusBackgroundHex,
     bool? hasStory,
     bool? isUnread,
     int? unreadCount,
@@ -173,6 +187,7 @@ class ChatThread {
     int? groupMemberCount,
     bool? isMuted,
     bool? isArchived,
+    List<String>? participantUserIds,
   }) {
     return ChatThread(
       id: id ?? this.id,
@@ -183,6 +198,9 @@ class ChatThread {
       statusImageUrl: statusImageUrl ?? this.statusImageUrl,
       statusCaption: statusCaption ?? this.statusCaption,
       statusTimeAgo: statusTimeAgo ?? this.statusTimeAgo,
+      participantUserIds: participantUserIds ?? this.participantUserIds,
+      statusKind: statusKind ?? this.statusKind,
+      statusBackgroundHex: statusBackgroundHex ?? this.statusBackgroundHex,
       hasStory: hasStory ?? this.hasStory,
       isUnread: isUnread ?? this.isUnread,
       unreadCount: unreadCount ?? this.unreadCount,

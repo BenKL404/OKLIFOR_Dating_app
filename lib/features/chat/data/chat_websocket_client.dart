@@ -52,12 +52,17 @@ class ChatWebSocketClient {
   final _typingController = StreamController<ChatTypingEvent>.broadcast();
   final _readReceiptController =
       StreamController<ChatReadReceiptEvent>.broadcast();
+  final _errorsController = StreamController<String>.broadcast();
+  final _subscribedController = StreamController<String>.broadcast();
+  final Set<String> _subscribedThreads = <String>{};
   bool _connected = false;
 
   Stream<ChatMessagePayload> get messages => _messagesController.stream;
   Stream<ChatPresenceEvent> get presence => _presenceController.stream;
   Stream<ChatTypingEvent> get typing => _typingController.stream;
   Stream<ChatReadReceiptEvent> get readReceipts => _readReceiptController.stream;
+  Stream<String> get errors => _errorsController.stream;
+  Stream<String> get subscribed => _subscribedController.stream;
   bool get isConnected => _connected;
 
   Future<void> connect({required String accessToken}) async {
@@ -76,6 +81,15 @@ class ChatWebSocketClient {
             final payload = ChatMessagePayload.fromJson(msg);
             _messagesController.add(payload);
           }
+        } else if (type == 'subscribed') {
+          final threadId = (json['threadId'] as String?) ?? '';
+          if (threadId.isNotEmpty) {
+            _subscribedThreads.add(threadId);
+            _subscribedController.add(threadId);
+          }
+        } else if (type == 'error') {
+          final code = (json['code'] as String?) ?? 'ws_error';
+          _errorsController.add(code);
         } else if (type == 'presence') {
           _presenceController.add(
             ChatPresenceEvent(
@@ -126,6 +140,23 @@ class ChatWebSocketClient {
     );
   }
 
+  Future<void> subscribeThreadAndWait(
+    String threadId, {
+    Duration timeout = const Duration(seconds: 4),
+  }) async {
+    await subscribeThread(threadId);
+    if (_subscribedThreads.contains(threadId)) return;
+
+    await subscribed.firstWhere(
+      (t) => t == threadId,
+      orElse: () => '',
+    ).timeout(timeout);
+
+    if (!_subscribedThreads.contains(threadId)) {
+      throw TimeoutException('subscribe_timeout', timeout);
+    }
+  }
+
   Future<void> sendMessage({
     required String threadId,
     required String kind,
@@ -135,6 +166,7 @@ class ChatWebSocketClient {
     String? audioUrl,
     int? voiceSeconds,
     String? locationLabel,
+    String? fileUrl,
   }) async {
     final c = _channel;
     if (!_connected || c == null) {
@@ -151,6 +183,7 @@ class ChatWebSocketClient {
         'audioUrl': audioUrl,
         'voiceSeconds': voiceSeconds,
         'locationLabel': locationLabel,
+        'fileUrl': fileUrl,
       }),
     );
   }
@@ -178,6 +211,7 @@ class ChatWebSocketClient {
 
   Future<void> disconnect() async {
     _connected = false;
+    _subscribedThreads.clear();
     await _sub?.cancel();
     _sub = null;
     await _channel?.sink.close();
@@ -190,6 +224,8 @@ class ChatWebSocketClient {
     await _presenceController.close();
     await _typingController.close();
     await _readReceiptController.close();
+    await _errorsController.close();
+    await _subscribedController.close();
   }
 
   static Uri _buildWsUri(String token) {

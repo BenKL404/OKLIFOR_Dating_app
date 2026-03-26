@@ -10,4 +10,5 @@ public record SendMessageRequest(
         String videoUrl,
         String audioUrl,
         Integer voiceSeconds,
-        String locationLabel) {}
+        String locationLabel,
+        String fileUrl) {}

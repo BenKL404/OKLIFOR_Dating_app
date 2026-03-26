@@ -135,7 +135,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                             nullableText(root, "videoUrl"),
                             nullableText(root, "audioUrl"),
                             root.path("voiceSeconds").isNumber() ? root.path("voiceSeconds").asInt() : null,
-                            nullableText(root, "locationLabel"));
+                            nullableText(root, "locationLabel"),
+                            nullableText(root, "fileUrl"));
             ChatMessageResponse saved = chatService.sendMessage(userId, threadId, req);
             String payload =
                     objectMapper.writeValueAsString(

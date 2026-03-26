@@ -40,7 +40,20 @@ bool _isVideoStatusPath(String u) {
       l.endsWith('.mov') ||
       l.endsWith('.m4v') ||
       l.endsWith('.mkv') ||
-      l.endsWith('.webm');
+      l.endsWith('.webm') ||
+      l.endsWith('.3gp');
+}
+
+/// Extensions Android [ImageDecoder] décode en bitmap sans erreur type `unimplemented`.
+/// HEIC/HEIF et chemins sans extension ne passent pas par [Image.file].
+bool _isRasterImagePath(String path) {
+  final l = path.toLowerCase();
+  return l.endsWith('.jpg') ||
+      l.endsWith('.jpeg') ||
+      l.endsWith('.png') ||
+      l.endsWith('.webp') ||
+      l.endsWith('.gif') ||
+      l.endsWith('.bmp');
 }
 
 class StatusViewerScreen extends StatefulWidget {
@@ -372,20 +385,31 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                                   size: 56,
                                 ),
                               )
-                            : Image.file(
-                                File(s.imageUrl),
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.high,
-                                errorBuilder: (c, o, st) => Container(
-                                  color: context.oklSurface,
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    LucideIcons.imageOff,
-                                    color: context.oklOnSurfaceMuted(0.55),
-                                    size: 42,
+                            : _isRasterImagePath(s.imageUrl)
+                                ? Image.file(
+                                    File(s.imageUrl),
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.high,
+                                    errorBuilder: (c, o, st) => Container(
+                                      color: context.oklSurface,
+                                      alignment: Alignment.center,
+                                      child: Icon(
+                                        LucideIcons.imageOff,
+                                        color:
+                                            context.oklOnSurfaceMuted(0.55),
+                                        size: 42,
+                                      ),
+                                    ),
+                                  )
+                                : Container(
+                                    color: context.oklSurface,
+                                    alignment: Alignment.center,
+                                    child: Icon(
+                                      LucideIcons.imageOff,
+                                      color: context.oklOnSurfaceMuted(0.55),
+                                      size: 42,
+                                    ),
                                   ),
-                                ),
-                              ),
                   if (!s.isTextOnly)
                     const DecoratedBox(
                       decoration: BoxDecoration(

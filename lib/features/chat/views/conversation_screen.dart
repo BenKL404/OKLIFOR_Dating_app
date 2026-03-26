@@ -1,14 +1,15 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:video_player/video_player.dart';
@@ -17,9 +18,13 @@ import '../../../core/config/oklifor_media_url.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../../core/utils/okl_chat_attachment_launch.dart';
 import '../../../core/utils/okl_feedback.dart';
+import '../../../core/utils/okl_media_cache.dart';
+import '../../../core/utils/okl_persistent_media_store.dart';
 import '../../auth/providers/auth_api_provider.dart';
 import '../data/chat_api_mapping.dart';
+import '../data/chat_local_cache.dart';
 import '../data/chat_websocket_client.dart';
 import '../models/chat_models.dart';
 import 'chat_image_viewer_screen.dart';
@@ -27,16 +32,19 @@ import 'chat_thread_detail_screen.dart';
 import 'conversation_search_screen.dart';
 import 'conversation_media_screen.dart';
 import 'conversation_mute_screen.dart';
+import 'gallery_picker_screen.dart';
 import 'share_contact_screen.dart';
 import 'new_message_screen.dart';
 
-final _chatMediaCache = CacheManager(
-  Config(
-    'okliforChatMediaCache',
-    stalePeriod: const Duration(days: 7),
-    maxNrOfCacheObjects: 300,
-  ),
-);
+final _chatMediaCache = oklChatMediaCache;
+
+const _waBg = Color(0xFF0B141A);
+const _waAppBar = Color(0xFF202C33);
+const _waIncomingBubble = Color(0xFF202C33);
+const _waOutgoingBubble = Color(0xFF005C4B);
+const _waInput = Color(0xFF202C33);
+const _waTextPrimary = Colors.white;
+const _waTextSecondary = Color(0xFF8696A0);
 
 /// Conversation 1:1 ou groupe avec bulles riches (texte, image, vocal, lieu, système).
 class ConversationScreen extends ConsumerStatefulWidget {
@@ -72,6 +80,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   StreamSubscription<dynamic>? _wsPresenceSub;
   StreamSubscription<dynamic>? _wsTypingSub;
   StreamSubscription<dynamic>? _wsReadReceiptSub;
+  StreamSubscription<String>? _wsErrorSub;
   String? _myUserId;
   bool _peerOnline = false;
   bool _peerTyping = false;
@@ -82,6 +91,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   DateTime? _lastTypingSentAt;
   late final AudioRecorder _audioRecorder;
   ChatMessage? _replyingTo;
+  Timer? _persistMessagesDebounce;
+  final Map<String, String> _messageReactions = <String, String>{};
+  String? _resolvedPeerName;
+  String? _resolvedPeerAvatarUrl;
+  final Set<String> _prefetchedMediaUrls = <String>{};
+  final Set<String> _prefetchedPersistentUrls = <String>{};
 
   @override
   void initState() {
@@ -105,16 +120,78 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
     _audioRecorder = AudioRecorder();
     _messageController.addListener(_syncSendState);
+    if (isBackendThreadId(widget.thread.id) && !widget.thread.isGroup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_hydratePeerIdentity());
+      });
+    }
     if (!useRemote) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
     }
   }
 
-  Future<void> _loadRemoteMessages() async {
+  Future<void> _hydratePeerIdentity() async {
     try {
       final api = ref.read(okliforApiClientProvider);
       final storage = ref.read(authTokenStorageProvider);
       final myId = await storage.readUserId();
+      String? peerId;
+      for (final id in widget.thread.participantUserIds) {
+        if (id != myId) {
+          peerId = id;
+          break;
+        }
+      }
+      if (peerId == null) return;
+      final contacts = await api.fetchContacts();
+      dynamic match;
+      for (final c in contacts) {
+        if (c.userId == peerId) {
+          match = c;
+          break;
+        }
+      }
+      // Fallback: si pas dans les contacts, on tente de l'ajouter pour obtenir
+      // displayName/avatar (et on garde les infos si dispo).
+      if (match == null) {
+        try {
+          match = await api.addContactByUserId(peerId);
+        } catch (_) {}
+      }
+      if (!mounted || match == null) return;
+      final displayName = (match.displayName as String?)?.trim();
+      final avatarRaw = (match.avatarUrl as String?)?.trim();
+      setState(() {
+        if (displayName != null && displayName.isNotEmpty) {
+          _resolvedPeerName = displayName;
+        }
+        if (avatarRaw != null && avatarRaw.isNotEmpty) {
+          _resolvedPeerAvatarUrl = OkliforMediaUrl.resolve(avatarRaw);
+        }
+      });
+    } catch (_) {
+      // Ignore: keep thread seed data if contact lookup fails.
+    }
+  }
+
+  Future<void> _loadRemoteMessages() async {
+    final storage = ref.read(authTokenStorageProvider);
+    final myId = await storage.readUserId();
+
+    if (myId != null && myId.isNotEmpty) {
+      final cached = await ChatLocalCache.loadMessages(myId, widget.thread.id);
+      if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _messages = List<ChatMessage>.from(cached);
+          _loadingRemote = false;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+      }
+    }
+
+    try {
+      final api = ref.read(okliforApiClientProvider);
       final list = await api.fetchChatMessages(widget.thread.id);
       final mapped = chatMessagesFromPayloads(list, myUserId: myId);
       if (!mounted) return;
@@ -122,17 +199,49 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         _messages = List<ChatMessage>.from(mapped);
         _loadingRemote = false;
       });
+      _prefetchRecentMedia(mapped);
+      _prefetchPersistentDocuments(mapped);
+      if (myId != null && myId.isNotEmpty) {
+        unawaited(
+          ChatLocalCache.saveMessages(myId, widget.thread.id, _messages),
+        );
+      }
       unawaited(_markReadHttp());
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _messages = List<ChatMessage>.from(
-          seedMessagesForThread(widget.thread.id),
-        );
-        _loadingRemote = false;
-      });
+      if (_messages.isEmpty) {
+        setState(() {
+          _messages = List<ChatMessage>.from(
+            seedMessagesForThread(widget.thread.id),
+          );
+          _loadingRemote = false;
+        });
+      } else {
+        setState(() => _loadingRemote = false);
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    }
+  }
+
+  void _prefetchPersistentDocuments(List<ChatMessage> msgs) {
+    for (final m in msgs) {
+      if (m.kind != ChatMessageKind.file) continue;
+      final raw = (m.fileUrl ?? '').trim();
+      if (raw.isEmpty) continue;
+      final resolved = OkliforMediaUrl.resolve(raw);
+      if (!_prefetchedPersistentUrls.add(resolved)) continue;
+      unawaited(
+        ensureOkliforLocalFile(
+          resolved,
+          bucket: OklMediaBucket.documents,
+          displayName: _cleanDocumentLabel(m.text),
+        ).then((_) {
+          if (!mounted) return;
+          // Refresh doc card state ("Télécharger" disappears).
+          setState(() {});
+        }),
+      );
     }
   }
 
@@ -142,10 +251,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _wsPresenceSub?.cancel();
     _wsTypingSub?.cancel();
     _wsReadReceiptSub?.cancel();
+    _wsErrorSub?.cancel();
     _wsClient?.dispose();
     _recordTimer?.cancel();
     _typingStopDebounce?.cancel();
     _peerTypingHideTimer?.cancel();
+    _persistMessagesDebounce?.cancel();
     _messageController.removeListener(_syncSendState);
     _audioRecorder.dispose();
     _messageController.dispose();
@@ -163,11 +274,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       _myUserId = myId;
       final client = ChatWebSocketClient();
       await client.connect(accessToken: token);
-      await client.subscribeThread(widget.thread.id);
+      try {
+        await client.subscribeThreadAndWait(widget.thread.id);
+      } catch (e) {
+        // ignore: avoid_print
+        print('WS subscribe failed for ${widget.thread.id}: $e');
+      }
       await _wsMessageSub?.cancel();
       await _wsPresenceSub?.cancel();
       await _wsTypingSub?.cancel();
       await _wsReadReceiptSub?.cancel();
+      await _wsErrorSub?.cancel();
       _wsClient = client;
       _wsMessageSub = client.messages.listen((payload) {
         if (!mounted) return;
@@ -185,6 +302,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           );
           if (localIdx >= 0) {
             setState(() => _messages.removeAt(localIdx));
+            _schedulePersistMessages();
           }
         }
         final dupIdx = _messages.indexWhere((m) => m.id == msg.id);
@@ -195,11 +313,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               () => _messages[dupIdx] =
                   prev.copyWith(readByRecipient: true),
             );
+            _schedulePersistMessages();
           }
           if (!msg.mine) unawaited(_notifyReadCur());
           return;
         }
         setState(() => _messages.add(msg));
+        // Auto-download documents on receipt.
+        if (!msg.mine && msg.kind == ChatMessageKind.file) {
+          _prefetchPersistentDocuments([msg]);
+        }
         if (!msg.mine) {
           unawaited(_notifyReadCur());
           if (_peerTyping) setState(() => _peerTyping = false);
@@ -231,6 +354,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       _wsReadReceiptSub = client.readReceipts.listen((event) {
         if (!mounted) return;
         _applyReadReceipt(event.threadId, event.userId, event.readAtEpoch);
+      });
+      _wsErrorSub = client.errors.listen((code) {
+        // ignore: avoid_print
+        print('WS chat error: $code');
       });
       unawaited(_notifyReadCur());
     } catch (_) {
@@ -278,6 +405,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         return m;
       }).toList();
     });
+    _schedulePersistMessages();
   }
 
   Future<bool> _sendBackendMessage({
@@ -288,6 +416,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     String? audioUrl,
     int? voiceSeconds,
     String? locationLabel,
+    String? fileUrl,
   }) async {
     if (!isBackendThreadId(widget.thread.id)) return false;
     final ws = _wsClient;
@@ -302,6 +431,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           audioUrl: audioUrl,
           voiceSeconds: voiceSeconds,
           locationLabel: locationLabel,
+          fileUrl: fileUrl,
         );
         return true;
       } catch (_) {
@@ -321,6 +451,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         audioUrl: audioUrl,
         voiceSeconds: voiceSeconds,
         locationLabel: locationLabel,
+        fileUrl: fileUrl,
       );
       if (!mounted) return true;
       final mapped = chatMessageFromPayload(sent, myUserId: myId);
@@ -390,13 +521,32 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (nav.canPop()) nav.pop();
   }
 
+  Future<void> _persistMessagesForCache() async {
+    if (!isBackendThreadId(widget.thread.id)) return;
+    final myId = await ref.read(authTokenStorageProvider).readUserId();
+    if (myId == null || myId.isEmpty || !mounted) return;
+    await ChatLocalCache.saveMessages(
+      myId,
+      widget.thread.id,
+      List<ChatMessage>.from(_messages),
+    );
+  }
+
+  void _schedulePersistMessages() {
+    if (!isBackendThreadId(widget.thread.id)) return;
+    _persistMessagesDebounce?.cancel();
+    _persistMessagesDebounce = Timer(const Duration(milliseconds: 800), () {
+      unawaited(_persistMessagesForCache());
+    });
+  }
+
   void _afterAppend() {
     widget.onThreadPreviewUpdated?.call(
-      _messages.last.kind == ChatMessageKind.text
-          ? _messages.last.text ?? 'Message'
-          : _labelForKind(_messages.last.kind),
+      _messagePreview(_messages.last),
       _messages.last.time,
     );
+    _schedulePersistMessages();
+    _prefetchRecentMedia(_messages);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -408,6 +558,29 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     });
   }
 
+  void _prefetchRecentMedia(List<ChatMessage> messages) {
+    if (kIsWeb) return;
+    const maxPrefetch = 4;
+    var count = 0;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      final m = messages[i];
+      final raw = switch (m.kind) {
+        ChatMessageKind.image => (m.imageUrl ?? '').trim(),
+        ChatMessageKind.video => (m.videoUrl ?? '').trim(),
+        ChatMessageKind.voice => (m.audioUrl ?? '').trim(),
+        _ => '',
+      };
+      if (raw.isEmpty) continue;
+      final url = _absoluteMediaUrl(raw).trim();
+      if (url.isEmpty) continue;
+      if (_prefetchedMediaUrls.contains(url)) continue;
+      _prefetchedMediaUrls.add(url);
+      count += 1;
+      unawaited(_chatMediaCache.downloadFile(url));
+      if (count >= maxPrefetch) break;
+    }
+  }
+
   String _messagePreview(ChatMessage m) {
     if (m.text != null && m.text!.trim().isNotEmpty) return m.text!.trim();
     switch (m.kind) {
@@ -417,29 +590,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         return '🎬 Vidéo';
       case ChatMessageKind.voice:
         return '🎤 Vocal';
+      case ChatMessageKind.file:
+        return m.text?.trim().isNotEmpty == true ? m.text!.trim() : '📄 Fichier';
       case ChatMessageKind.location:
         return '📍 Position';
       case ChatMessageKind.system:
         return 'Système';
       case ChatMessageKind.text:
         return 'Message';
-    }
-  }
-
-  String _labelForKind(ChatMessageKind k) {
-    switch (k) {
-      case ChatMessageKind.image:
-        return '📷 Photo';
-      case ChatMessageKind.video:
-        return '🎬 Vidéo';
-      case ChatMessageKind.voice:
-        return '🎤 Message vocal';
-      case ChatMessageKind.location:
-        return '📍 Position';
-      case ChatMessageKind.system:
-        return _messages.last.text ?? '';
-      case ChatMessageKind.text:
-        return _messages.last.text ?? '';
     }
   }
 
@@ -454,21 +612,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       return '${t.groupMemberCount} membres · Infos du groupe';
     }
     if (_peerTyping) return 'Écrit…';
-    if (_peerOnline) return 'En ligne · Voir le profil';
+    if (_peerOnline) return 'En ligne';
     if (_peerLastSeenEpoch != null && _peerLastSeenEpoch! > 0) {
       final dt = DateTime.fromMillisecondsSinceEpoch(
         _peerLastSeenEpoch! * 1000,
       ).toLocal();
       final hh = dt.hour.toString().padLeft(2, '0');
       final mm = dt.minute.toString().padLeft(2, '0');
-      return 'Vu à $hh:$mm · Voir le profil';
+      return 'Vu à $hh:$mm';
     }
-    return 'Hors ligne · Voir le profil';
+    return 'Hors ligne';
   }
 
   Future<void> _toggleRecording() async {
     if (_isRecording) {
-      final duration = _formatDuration(_recordingSeconds);
       _recordTimer?.cancel();
       setState(() => _isRecording = false);
       final seconds = _recordingSeconds.clamp(1, 999);
@@ -493,6 +650,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               audioUrl: url,
               voiceSeconds: seconds,
             );
+            // Persist sender-side (no re-download): copy from recorded file.
+            if (!kIsWeb) {
+              try {
+                await persistOkliforLocalFileFromPath(
+                  upload.signedUrl,
+                  bucket: OklMediaBucket.voiceNotes,
+                  sourcePath: recordedPath,
+                  displayName: 'voice_${widget.thread.id}_$seconds.m4a',
+                );
+              } catch (_) {}
+            }
             await _sendBackendMessage(
               kind: mediaKind,
               audioUrl: (mediaKind == 'VOICE' || mediaKind == 'AUDIO')
@@ -525,14 +693,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         setState(() => _messages.add(msg));
         _afterAppend();
       }
-      if (!mounted) return;
-      OklFlows.pushResult(
-        context,
-        icon: LucideIcons.mic,
-        title: 'Note vocale envoyée',
-        subtitle: 'Durée : $duration — ton message est dans la conversation.',
-        primaryLabel: 'OK',
-      );
       return;
     }
 
@@ -625,6 +785,80 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _afterAppend();
   }
 
+  void _openGalleryMediaChoice() {
+    if (!isBackendThreadId(widget.thread.id)) {
+      _pushDemoMessage(
+        ChatMessage(
+          id: 'img${DateTime.now().millisecondsSinceEpoch}',
+          kind: ChatMessageKind.image,
+          imageUrl:
+              'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80&auto=format&fit=crop',
+          mine: true,
+          time: formatTimeNow(),
+        ),
+      );
+      return;
+    }
+    _runMediaUpload(
+      _openWhatsAppGalleryFlow,
+      onError: 'Échec de l’envoi média',
+    );
+  }
+
+  Future<void> _openWhatsAppGalleryFlow() async {
+    final composed = await Navigator.of(context, rootNavigator: true)
+        .push<OklComposedMedia>(
+      MaterialPageRoute<OklComposedMedia>(
+        builder: (_) => const GalleryPickerScreen(),
+      ),
+    );
+    if (!mounted) return;
+    if (composed == null) return;
+
+    final upload = await ref.read(okliforApiClientProvider).uploadChatMedia(
+          threadId: widget.thread.id,
+          filename: composed.filename,
+          fileBytes: kIsWeb ? Uint8List.fromList(composed.bytes ?? []) : (composed.bytes == null ? null : Uint8List.fromList(composed.bytes!)),
+          filePath: kIsWeb ? null : composed.filePath,
+        );
+    final kind = upload.mediaKind.toUpperCase();
+    final abs = _absoluteMediaUrl(upload.signedUrl);
+    final caption = composed.caption.trim();
+
+    if (kind == 'IMAGE') {
+      _appendLocalMineMessage(
+        kind: ChatMessageKind.image,
+        imageUrl: abs,
+        text: caption.isEmpty ? null : caption,
+      );
+      await _sendBackendMessage(
+        kind: 'IMAGE',
+        imageUrl: upload.signedUrl,
+        text: caption.isEmpty ? null : caption,
+      );
+    } else if (kind == 'VIDEO') {
+      _appendLocalMineMessage(
+        kind: ChatMessageKind.video,
+        videoUrl: abs,
+        text: caption.isEmpty ? null : caption,
+      );
+      await _sendBackendMessage(
+        kind: 'VIDEO',
+        videoUrl: upload.signedUrl,
+        text: caption.isEmpty ? null : caption,
+      );
+    } else {
+      // Fallback: serveur a classé en FILE → on l’envoie comme document.
+      final label = '📄 ${composed.filename}';
+      _appendLocalMineMessage(
+        kind: ChatMessageKind.file,
+        text: label,
+        fileUrl: abs,
+      );
+      await _sendBackendMessage(kind: 'FILE', text: label, fileUrl: upload.signedUrl);
+    }
+  }
+
   void _openAttachmentOptions() {
     showModalBottomSheet<void>(
       context: context,
@@ -646,22 +880,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     label: 'Document',
                     onTap: () {
                       Navigator.pop(ctx);
-                      if (isBackendThreadId(widget.thread.id)) {
-                        _runMediaUpload(
-                          _pickAndSendDocumentFile,
-                          onError: 'Échec de l’envoi document',
-                        );
-                      } else {
-                        _pushDemoMessage(
-                          ChatMessage(
-                            id: 'doc${DateTime.now().millisecondsSinceEpoch}',
-                            kind: ChatMessageKind.text,
-                            text: '📄 document_contrat.pdf (démo)',
-                            mine: true,
-                            time: formatTimeNow(),
-                          ),
-                        );
-                      }
+                      _runMediaUpload(
+                        _pickAndSendDocumentFile,
+                        onError: 'Échec de l’envoi document',
+                      );
                     },
                   ),
                   _AttachTile(
@@ -669,23 +891,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     label: 'Galerie',
                     onTap: () {
                       Navigator.pop(ctx);
-                      if (isBackendThreadId(widget.thread.id)) {
-                        _runMediaUpload(
-                          _pickAndSendImageFromGallery,
-                          onError: 'Échec de l’envoi image',
-                        );
-                      } else {
-                        _pushDemoMessage(
-                          ChatMessage(
-                            id: 'img${DateTime.now().millisecondsSinceEpoch}',
-                            kind: ChatMessageKind.image,
-                            imageUrl:
-                                'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80&auto=format&fit=crop',
-                            mine: true,
-                            time: formatTimeNow(),
-                          ),
-                        );
-                      }
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        _openGalleryMediaChoice();
+                      });
                     },
                   ),
                   _AttachTile(
@@ -820,6 +1029,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     String? videoUrl,
     String? audioUrl,
     int? voiceSeconds,
+    String? fileUrl,
     String? locationLabel,
   }) {
     final msg = ChatMessage(
@@ -830,6 +1040,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       videoUrl: videoUrl,
       audioUrl: audioUrl,
       voiceSeconds: voiceSeconds,
+      fileUrl: fileUrl,
       locationLabel: locationLabel,
       mine: true,
       time: formatTimeNow(),
@@ -837,33 +1048,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
     setState(() => _messages.add(msg));
     _afterAppend();
-  }
-
-  Future<void> _pickAndSendImageFromGallery() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-    final bytes = kIsWeb ? await picked.readAsBytes() : null;
-    final upload = await ref
-        .read(okliforApiClientProvider)
-        .uploadChatMedia(
-          threadId: widget.thread.id,
-          filename: picked.name,
-          fileBytes: bytes,
-          filePath: kIsWeb ? null : picked.path,
-        );
-    await _sendBackendMessage(
-      kind: upload.mediaKind.toUpperCase(),
-      imageUrl: upload.mediaKind.toUpperCase() == 'IMAGE'
-          ? upload.signedUrl
-          : null,
-    );
-    if (upload.mediaKind.toUpperCase() == 'IMAGE') {
-      _appendLocalMineMessage(
-        kind: ChatMessageKind.image,
-        imageUrl: _absoluteMediaUrl(upload.signedUrl),
-      );
-    }
   }
 
   Future<void> _pickAndSendVideoFromCamera() async {
@@ -911,6 +1095,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         );
     final mediaKind = upload.mediaKind.toUpperCase();
     final absAudio = _absoluteMediaUrl(upload.signedUrl);
+    // Persist sender-side (no re-download): copy from picked file.
+    if (!kIsWeb && (f.path ?? '').isNotEmpty) {
+      try {
+        await persistOkliforLocalFileFromPath(
+          upload.signedUrl,
+          bucket: OklMediaBucket.audio,
+          sourcePath: f.path!,
+          displayName: f.name,
+        );
+      } catch (_) {}
+    }
     if (mediaKind == 'VOICE' || mediaKind == 'AUDIO') {
       _appendLocalMineMessage(
         kind: ChatMessageKind.voice,
@@ -929,15 +1124,63 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final picked = await FilePicker.platform.pickFiles(withData: kIsWeb);
     final f = picked?.files.single;
     if (f == null) return;
-    final text = '📄 ${f.name}';
-    _appendLocalMineMessage(kind: ChatMessageKind.text, text: text);
-    final ok = await _sendBackendMessage(kind: 'TEXT', text: text);
-    if (!ok && mounted) {
-      setState(() {
-        _messages.removeWhere(
-          (m) => m.id.startsWith('local_') && m.mine && (m.text ?? '') == text,
-        );
-      });
+    if (!isBackendThreadId(widget.thread.id)) {
+      _pushDemoMessage(
+        ChatMessage(
+          id: 'doc${DateTime.now().millisecondsSinceEpoch}',
+          kind: ChatMessageKind.file,
+          text: '📄 ${f.name}',
+          mine: true,
+          time: formatTimeNow(),
+        ),
+      );
+      return;
+    }
+    try {
+      final upload = await ref.read(okliforApiClientProvider).uploadChatMedia(
+            threadId: widget.thread.id,
+            filename: f.name,
+            fileBytes: kIsWeb ? f.bytes : null,
+            filePath: kIsWeb ? null : f.path,
+          );
+      final label = '📄 ${f.name}';
+      final abs = _absoluteMediaUrl(upload.signedUrl);
+      _appendLocalMineMessage(
+        kind: ChatMessageKind.file,
+        text: label,
+        fileUrl: abs,
+      );
+      // Persist sender-side (no re-download): copy from picked file.
+      if (!kIsWeb && (f.path ?? '').isNotEmpty) {
+        try {
+          await persistOkliforLocalFileFromPath(
+            upload.signedUrl,
+            bucket: OklMediaBucket.documents,
+            sourcePath: f.path!,
+            displayName: f.name,
+          );
+        } catch (_) {}
+      }
+      final ok = await _sendBackendMessage(
+        kind: 'FILE',
+        text: label,
+        fileUrl: abs,
+      );
+      if (!ok && mounted) {
+        setState(() {
+          _messages.removeWhere(
+            (m) =>
+                m.id.startsWith('local_') &&
+                m.mine &&
+                m.kind == ChatMessageKind.file &&
+                (m.text ?? '') == label,
+          );
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        OklFeedback.snack(context, 'Envoi du document impossible');
+      }
     }
   }
 
@@ -997,7 +1240,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => ChatImageViewerScreen(imageUrl: url, heroTag: tag),
+        builder: (_) => ChatImageViewerScreen(
+          imageUrl: url,
+          heroTag: tag,
+          caption: (message.text ?? '').trim().isEmpty ? null : message.text,
+        ),
       ),
     );
   }
@@ -1123,7 +1370,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final t = widget.thread;
+    final t = widget.thread.isGroup
+        ? widget.thread
+        : widget.thread.copyWith(
+            name: _resolvedPeerName ?? widget.thread.name,
+            avatarUrl: _resolvedPeerAvatarUrl ?? widget.thread.avatarUrl,
+          );
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -1132,9 +1384,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         _popConversationRoot();
       },
       child: Scaffold(
-        backgroundColor: context.oklScaffold,
+        backgroundColor: _waBg,
         appBar: AppBar(
-          backgroundColor: context.oklScaffold,
+          backgroundColor: _waAppBar,
+          foregroundColor: _waTextPrimary,
+          elevation: 0,
           leading: OklAppBarBackButton(onPressed: _popConversationRoot),
           automaticallyImplyLeading: false,
           titleSpacing: 0,
@@ -1211,7 +1465,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                           Text(
                             t.name,
                             style: TextStyle(
-                              color: context.oklOnSurface,
+                              color: _waTextPrimary,
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1222,18 +1476,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             _presenceSubtitle(t),
                             style: TextStyle(
                               color: t.isGroup
-                                  ? (Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium?.color ??
-                                        context.oklOnSurfaceMuted(0.62))
+                                  ? _waTextSecondary
                                   : (_peerTyping
-                                        ? AppColors.primary
+                                        ? const Color(0xFF25D366)
                                         : (_peerOnline
-                                        ? AppColors.green
-                                        : (Theme.of(
-                                                context,
-                                              ).textTheme.bodyMedium?.color ??
-                                              context.oklOnSurfaceMuted(0.62)))),
+                                        ? const Color(0xFF25D366)
+                                        : _waTextSecondary)),
                               fontSize: 11,
                             ),
                           ),
@@ -1286,13 +1534,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: context.oklSurface,
+                                color: _waAppBar.withValues(alpha: 0.82),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
                                 'Aujourd’hui',
                                 style: TextStyle(
-                                  color: context.oklOnSurfaceMuted(0.55),
+                                  color: _waTextSecondary,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -1302,16 +1550,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         );
                       }
                       final msg = _messages[i - 1];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: GestureDetector(
-                          onLongPress: () => _openMessageActions(msg),
-                          child: _RichMessageBubble(
-                            message: msg,
-                            onTapImage: msg.kind == ChatMessageKind.image
-                                ? () => _openImageViewer(msg)
-                                : null,
-                            onMessageMenu: _openMessageActions,
+                      return KeyedSubtree(
+                        key: ValueKey('msg_${msg.id}'),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: GestureDetector(
+                            onLongPress: () => _openMessageActions(msg),
+                            child: _RichMessageBubble(
+                              message: msg,
+                              peerDisplayName: widget.thread.name,
+                              peerAvatarUrl: widget.thread.avatarUrl,
+                              reactionEmoji: _messageReactions[msg.id],
+                              onTapImage: msg.kind == ChatMessageKind.image
+                                  ? () => _openImageViewer(msg)
+                                  : null,
+                              onMessageMenu: _openMessageActions,
+                            ),
                           ),
                         ),
                       );
@@ -1417,25 +1671,21 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                 child: Container(
                                   height: 44,
                                   decoration: BoxDecoration(
-                                    color: context.oklSurface,
+                                    color: _waInput,
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                   child: TextField(
                                     controller: _messageController,
                                     readOnly: _isRecording || _isUploadingMedia,
                                     style: TextStyle(
-                                      color: context.oklOnSurface,
+                                      color: _waTextPrimary,
                                     ),
                                     decoration: InputDecoration(
                                       hintText: _isRecording
                                           ? 'Enregistrement… ${_formatDuration(_recordingSeconds)}'
                                           : 'Message…',
                                       hintStyle: TextStyle(
-                                        color:
-                                            Theme.of(
-                                              context,
-                                            ).textTheme.bodyMedium?.color ??
-                                            context.oklOnSurfaceMuted(0.62),
+                                        color: _waTextSecondary,
                                       ),
                                       isDense: true,
                                       enabledBorder: InputBorder.none,
@@ -1448,14 +1698,95 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                           ),
                                       prefixIcon: Padding(
                                         padding: const EdgeInsets.only(left: 6),
-                                        child: Icon(
-                                          LucideIcons.smile,
-                                          size: 18,
-                                          color:
-                                              Theme.of(
-                                                context,
-                                              ).textTheme.bodyMedium?.color ??
-                                              context.oklOnSurfaceMuted(0.62),
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            final common = [
+                                              '😊',
+                                              '😂',
+                                              '❤️',
+                                              '🔥',
+                                              '🙏',
+                                            ];
+                                            showModalBottomSheet<void>(
+                                              context: context,
+                                              backgroundColor: context.oklSurface,
+                                              shape: const RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.vertical(
+                                                  top: Radius.circular(18),
+                                                ),
+                                              ),
+                                              builder: (sheetContext) => SafeArea(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(14),
+                                                  child: Wrap(
+                                                    spacing: 10,
+                                                    runSpacing: 10,
+                                                    children: common
+                                                        .map(
+                                                          (emoji) => InkWell(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  999,
+                                                                ),
+                                                            onTap: () {
+                                                              Navigator.pop(
+                                                                sheetContext,
+                                                              );
+                                                              final cur =
+                                                                  _messageController
+                                                                      .text;
+                                                              final next = cur.isEmpty
+                                                                  ? emoji
+                                                                  : '$cur $emoji';
+                                                              _messageController.text =
+                                                                  next;
+                                                              _messageController
+                                                                      .selection =
+                                                                  TextSelection.collapsed(
+                                                                offset: next.length,
+                                                              );
+                                                            },
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        14,
+                                                                    vertical: 8,
+                                                                  ),
+                                                              decoration: BoxDecoration(
+                                                                color: context
+                                                                    .oklScaffold,
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                  999,
+                                                                ),
+                                                                border: Border.all(
+                                                                  color: context
+                                                                      .oklDivider,
+                                                                ),
+                                                              ),
+                                                              child: Text(
+                                                                emoji,
+                                                                style:
+                                                                    const TextStyle(
+                                                                      fontSize: 22,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        )
+                                                        .toList(growable: false),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          child: Icon(
+                                            LucideIcons.smile,
+                                            size: 18,
+                                            color:
+                                                _waTextSecondary,
+                                          ),
                                         ),
                                       ),
                                       suffixIconConstraints:
@@ -1464,22 +1795,32 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                             minHeight: 36,
                                           ),
                                       suffixIcon: Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 8,
-                                        ),
-                                        child: GestureDetector(
-                                          onTap: _isUploadingMedia
-                                              ? null
-                                              : _openAttachmentOptions,
-                                          child: Icon(
-                                            LucideIcons.plus,
-                                            size: 18,
-                                            color:
-                                                Theme.of(
-                                                  context,
-                                                ).textTheme.bodyMedium?.color ??
-                                                context.oklOnSurfaceMuted(0.62),
-                                          ),
+                                        padding: const EdgeInsets.only(right: 8),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            GestureDetector(
+                                              onTap: _isUploadingMedia
+                                                  ? null
+                                                  : _openAttachmentOptions,
+                                              child: Icon(
+                                                LucideIcons.paperclip,
+                                                size: 18,
+                                                color: _waTextSecondary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            GestureDetector(
+                                              onTap: _isUploadingMedia
+                                                  ? null
+                                                  : _openGalleryMediaChoice,
+                                              child: Icon(
+                                                LucideIcons.camera,
+                                                size: 18,
+                                                color: _waTextSecondary,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                       contentPadding:
@@ -1502,7 +1843,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                     ? AppColors.primary
                                     : _isRecording
                                     ? AppColors.togoRed
-                                    : context.oklSurface,
+                                    : _waInput,
                                 shape: BoxShape.circle,
                               ),
                               child: IconButton(
@@ -1583,6 +1924,81 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8,
+                  children: ['❤️', '😂', '🔥', '👍', '😮']
+                      .map(
+                        (emoji) => InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            setState(() {
+                              if (_messageReactions[m.id] == emoji) {
+                                _messageReactions.remove(m.id);
+                              } else {
+                                _messageReactions[m.id] = emoji;
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: context.oklScaffold,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: context.oklDivider),
+                            ),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+            ),
+            if (m.kind == ChatMessageKind.image &&
+                (m.imageUrl ?? '').trim().isNotEmpty)
+              ListTile(
+                leading: const Icon(LucideIcons.download),
+                title: const Text('Enregistrer la photo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  unawaited(
+                    saveChatMediaToGallery(
+                      context,
+                      m.imageUrl!,
+                      isVideo: false,
+                      displayName: 'photo_${m.id}',
+                    ),
+                  );
+                },
+              ),
+            if (m.kind == ChatMessageKind.video &&
+                (m.videoUrl ?? '').trim().isNotEmpty)
+              ListTile(
+                leading: const Icon(LucideIcons.download),
+                title: const Text('Enregistrer la vidéo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  unawaited(
+                    saveChatMediaToGallery(
+                      context,
+                      m.videoUrl!,
+                      isVideo: true,
+                      displayName: 'video_${m.id}',
+                    ),
+                  );
+                },
+              ),
             ListTile(
               leading: const Icon(LucideIcons.reply),
               title: const Text('Répondre'),
@@ -1641,13 +2057,423 @@ class _ReadReceiptTicks extends StatelessWidget {
   }
 }
 
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes o';
+  final kb = bytes / 1024;
+  if (kb < 1024) return '${kb.toStringAsFixed(kb < 10 ? 1 : 0)} Ko';
+  final mb = kb / 1024;
+  if (mb < 1024) return '${mb.toStringAsFixed(mb < 10 ? 1 : 0)} Mo';
+  final gb = mb / 1024;
+  return '${gb.toStringAsFixed(gb < 10 ? 1 : 0)} Go';
+}
+
+String _cleanDocumentLabel(String? raw) {
+  final s = (raw ?? '').trim();
+  if (s.isEmpty) return 'Document';
+  return s.replaceFirst(RegExp(r'^📄\s*'), '').trim();
+}
+
+String _fileExt(String name) {
+  final idx = name.lastIndexOf('.');
+  if (idx < 0 || idx == name.length - 1) return '';
+  return name.substring(idx + 1).toLowerCase();
+}
+
+String _mimeFromFileName(String name) {
+  final lower = name.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.doc')) return 'application/msword';
+  if (lower.endsWith('.docx')) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+  if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
+  if (lower.endsWith('.xlsx')) {
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  }
+  if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+  if (lower.endsWith('.pptx')) {
+    return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  }
+  if (lower.endsWith('.txt')) return 'text/plain';
+  if (lower.endsWith('.zip')) return 'application/zip';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.mp4')) return 'video/mp4';
+  if (lower.endsWith('.m4a')) return 'audio/mp4';
+  return 'application/octet-stream';
+}
+
+class _DocumentMessageCard extends StatefulWidget {
+  final ChatMessage message;
+  const _DocumentMessageCard({required this.message});
+
+  @override
+  State<_DocumentMessageCard> createState() => _DocumentMessageCardState();
+}
+
+class _DocumentMessageCardState extends State<_DocumentMessageCard> {
+  Stream<FileResponse>? _downloadStream;
+  bool _downloading = false;
+  double? _progress;
+  int? _totalBytes;
+
+  String get _rawUrl => (widget.message.fileUrl ?? '').trim();
+  String get _resolvedUrl => OkliforMediaUrl.resolve(_rawUrl);
+  bool get _openable => _rawUrl.isNotEmpty;
+
+  Future<bool> _persisted() async {
+    if (!_openable || kIsWeb) return false;
+    final title = _cleanDocumentLabel(widget.message.text);
+    final f = await getOkliforLocalFileIfExists(
+      _rawUrl,
+      bucket: OklMediaBucket.documents,
+      displayName: title,
+    );
+    return f != null;
+  }
+
+  Future<void> _openCachedOrDownload() async {
+    if (!_openable || kIsWeb) {
+      if (mounted) {
+        OklFeedback.snack(context, 'Fichier indisponible');
+      }
+      return;
+    }
+    final title = _cleanDocumentLabel(widget.message.text);
+    try {
+      final local = await ensureOkliforLocalFile(
+        _rawUrl,
+        bucket: OklMediaBucket.documents,
+        displayName: title,
+      );
+      await OpenFilex.open(local.path, type: _mimeFromFileName(title));
+    } catch (_) {
+      _startDownload(openAfter: true);
+    }
+  }
+
+  Future<void> _saveToDownloads() async {
+    if (!_openable) return;
+    await saveChatFileToDownloads(
+      context,
+      _rawUrl,
+      displayName: widget.message.text,
+    );
+  }
+
+  void _startDownload({required bool openAfter}) {
+    if (!_openable || kIsWeb) return;
+    if (_downloading) return;
+    setState(() {
+      _downloading = true;
+      _progress = null;
+      _totalBytes = null;
+      _downloadStream = _chatMediaCache.getFileStream(
+        _resolvedUrl,
+        withProgress: true,
+      );
+    });
+    _downloadStream!.listen(
+      (event) async {
+        if (!mounted) return;
+        if (event is DownloadProgress) {
+          final total = event.totalSize;
+          final downloaded = event.downloaded;
+          setState(() {
+            _totalBytes = total;
+            _progress = total != null && total > 0 ? downloaded / total : null;
+          });
+        } else if (event is FileInfo) {
+          setState(() {
+            _downloading = false;
+            _progress = 1;
+          });
+          // Persist after first download so it survives app restarts,
+          // then rebuild so the "Télécharger" button disappears.
+          try {
+            await ensureOkliforLocalFile(
+              _rawUrl,
+              bucket: OklMediaBucket.documents,
+              displayName: _cleanDocumentLabel(widget.message.text),
+            );
+            if (mounted) setState(() {});
+          } catch (_) {}
+          if (openAfter) {
+            final title = _cleanDocumentLabel(widget.message.text);
+            await OpenFilex.open(event.file.path, type: _mimeFromFileName(title));
+          } else {
+            if (mounted) {
+              OklFeedback.snack(context, 'Téléchargement terminé');
+            }
+          }
+        }
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _downloading = false;
+          _downloadStream = null;
+          _progress = null;
+          _totalBytes = null;
+        });
+        OklFeedback.snack(context, 'Téléchargement impossible');
+      },
+      cancelOnError: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.message;
+    final title = _cleanDocumentLabel(m.text);
+    final ext = _fileExt(title);
+    final extLabel = (ext.isEmpty ? 'FILE' : ext.toUpperCase());
+
+    final bg = m.mine ? const Color(0xFF005C4B) : _waIncomingBubble;
+    final border = Border.all(color: Colors.white.withValues(alpha: 0.06));
+
+    return Align(
+      alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _openable ? () => unawaited(_openCachedOrDownload()) : null,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(14),
+                border: border,
+              ),
+              padding: const EdgeInsets.fromLTRB(10, 10, 8, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    m.mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.06),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          extLabel,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.90),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.95),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              FutureBuilder<bool>(
+                                future: _persisted(),
+                                builder: (ctx, snap) {
+                                  final persisted = snap.data == true;
+                                  final size = persisted
+                                      ? 'Téléchargé'
+                                      : (_totalBytes != null
+                                          ? _formatBytes(_totalBytes!)
+                                          : null);
+                                  final subtitle = size == null
+                                      ? 'Document'
+                                      : 'Document • $size';
+                                  return Text(
+                                    subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.68),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FutureBuilder<bool>(
+                        future: _persisted(),
+                        builder: (ctx, snap) {
+                          final persisted = snap.data == true;
+                          if (!_openable || kIsWeb) {
+                            return _DocActionIcon(
+                              icon: LucideIcons.alertCircle,
+                              onTap: null,
+                              tooltip: 'Indisponible',
+                            );
+                          }
+                          if (_downloading) {
+                            return _DocProgressRing(value: _progress);
+                          }
+                          if (persisted) {
+                            return _DocActionIcon(
+                              icon: LucideIcons.checkCircle2,
+                              tooltip: 'Téléchargé',
+                              onTap: () => unawaited(_openCachedOrDownload()),
+                            );
+                          }
+                          return _DocActionIcon(
+                            icon: LucideIcons.download,
+                            tooltip: 'Télécharger',
+                            onTap: () => _startDownload(openAfter: false),
+                          );
+                        },
+                      ),
+                      if (_openable) ...[
+                        const SizedBox(width: 6),
+                        _DocActionIcon(
+                          icon: LucideIcons.save,
+                          tooltip: 'Enregistrer',
+                          onTap: () => unawaited(_saveToDownloads()),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (m.mine) ...[
+                        _ReadReceiptTicks(message: m, forDarkBackground: true),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        m.time,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.60),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DocActionIcon extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final String tooltip;
+  const _DocActionIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkResponse(
+      onTap: onTap,
+      radius: 20,
+      child: Tooltip(
+        message: tooltip,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            size: 18,
+            color: Colors.white.withValues(alpha: onTap == null ? 0.45 : 0.88),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DocProgressRing extends StatelessWidget {
+  final double? value;
+  const _DocProgressRing({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: value,
+            strokeWidth: 3,
+            backgroundColor: Colors.white.withValues(alpha: 0.16),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Colors.white.withValues(alpha: 0.88),
+            ),
+          ),
+          Icon(
+            LucideIcons.arrowDownToLine,
+            size: 16,
+            color: Colors.white.withValues(alpha: 0.82),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _RichMessageBubble extends StatelessWidget {
   final ChatMessage message;
+  final String peerDisplayName;
+  final String peerAvatarUrl;
+  final String? reactionEmoji;
   final VoidCallback? onTapImage;
   final void Function(ChatMessage m)? onMessageMenu;
 
   const _RichMessageBubble({
     required this.message,
+    required this.peerDisplayName,
+    required this.peerAvatarUrl,
+    this.reactionEmoji,
     this.onTapImage,
     this.onMessageMenu,
   });
@@ -1686,10 +2512,10 @@ class _RichMessageBubble extends StatelessWidget {
           return Align(
             alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
-              width: 170,
-              height: 120,
+              width: 230,
+              height: 300,
               decoration: BoxDecoration(
-                color: context.oklSurface,
+                color: m.mine ? _waOutgoingBubble : _waIncomingBubble,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: context.oklDivider),
               ),
@@ -1717,10 +2543,10 @@ class _RichMessageBubble extends StatelessWidget {
         }
         Widget imageErrorBox() {
           return Container(
-            width: 170,
-            height: 120,
+            width: 230,
+            height: 300,
             decoration: BoxDecoration(
-              color: context.oklSurface,
+              color: m.mine ? _waOutgoingBubble : _waIncomingBubble,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: context.oklDivider),
             ),
@@ -1753,56 +2579,118 @@ class _RichMessageBubble extends StatelessWidget {
           child: CachedNetworkImage(
             imageUrl: imageUrl,
             cacheManager: _chatMediaCache,
-            width: 170,
+            width: 230,
+            height: 300,
             fit: BoxFit.cover,
-            memCacheWidth: 340,
+            memCacheWidth: 520,
             placeholder: (c, u) =>
-                Container(width: 170, height: 120, color: context.oklSurface),
+                Container(width: 230, height: 300, color: _waIncomingBubble),
             errorWidget: (c, u, e) => imageErrorBox(),
           ),
         );
         return Align(
           alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width * 0.58,
-            ),
-            child: Column(
-              crossAxisAlignment: m.mine
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onTapImage,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Hero(tag: heroTag, child: img),
+          child: Column(
+            crossAxisAlignment: m.mine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTapImage,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Hero(tag: heroTag, child: img),
+                      Container(
+                        margin: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              m.time,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (m.mine) ...[
+                              const SizedBox(width: 4),
+                              _ReadReceiptTicks(
+                                message: m,
+                                forDarkBackground: true,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (m.mine) ...[
-                      _ReadReceiptTicks(message: m),
-                      const SizedBox(width: 4),
-                    ],
-                    Text(
-                      m.time,
-                      style: TextStyle(
-                        color: context.oklOnSurfaceMuted(0.55),
-                        fontSize: 10,
-                      ),
+              ),
+              if ((m.text ?? '').trim().isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: m.mine ? _waOutgoingBubble : _waIncomingBubble,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.06),
                     ),
-                  ],
+                  ),
+                  child: Text(
+                    (m.text ?? '').trim(),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontSize: 13,
+                      height: 1.25,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-              ],
-            ),
+              if (reactionEmoji != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _waIncomingBubble,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      reactionEmoji!,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
       case ChatMessageKind.video:
-        return _VideoMessageBubble(message: m);
+        return _VideoMessageBubble(
+          message: m,
+          peerDisplayName: peerDisplayName,
+          peerAvatarUrl: peerAvatarUrl,
+          reactionEmoji: reactionEmoji,
+        );
       case ChatMessageKind.voice:
         return _WhatsAppStyleVoiceBubble(
           message: m,
@@ -1882,50 +2770,114 @@ class _RichMessageBubble extends StatelessWidget {
             ),
           ),
         );
+      case ChatMessageKind.file:
+        return _DocumentMessageCard(message: m);
       case ChatMessageKind.text:
-        final bg = m.mine
-            ? AppColors.primary.withValues(alpha: 0.26)
-            : context.oklSurface;
+        final bg = m.mine ? _waOutgoingBubble : _waIncomingBubble;
         return Align(
           alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width * 0.72,
-            ),
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: context.oklDivider),
-            ),
-            child: Column(
-              crossAxisAlignment: m.mine
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Text(
-                  m.text ?? '',
-                  style: TextStyle(color: context.oklOnSurface, fontSize: 14),
+          child: Column(
+            crossAxisAlignment: m.mine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              if (!m.mine)
+                Padding(
+                  padding: const EdgeInsets.only(left: 2, bottom: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: peerAvatarUrl,
+                          width: 18,
+                          height: 18,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 36,
+                          errorWidget: (c, u, e) => Container(
+                            width: 18,
+                            height: 18,
+                            color: context.oklSurface,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              LucideIcons.user,
+                              size: 10,
+                              color: context.oklOnSurfaceMuted(0.55),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        peerDisplayName,
+                        style: TextStyle(
+                          color: context.oklOnSurfaceMuted(0.66),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+              Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                ),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: context.oklDivider),
+                ),
+                child: Column(
+                  crossAxisAlignment: m.mine
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
                   children: [
                     Text(
-                      m.time,
-                      style: TextStyle(
-                        color: context.oklOnSurfaceMuted(0.55),
-                        fontSize: 10,
-                      ),
+                      m.text ?? '',
+                      style: const TextStyle(color: _waTextPrimary, fontSize: 14),
                     ),
-                    if (m.mine) ...[
-                      const SizedBox(width: 4),
-                      _ReadReceiptTicks(message: m),
-                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          m.time,
+                          style: TextStyle(
+                            color: _waTextSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                        if (m.mine) ...[
+                          const SizedBox(width: 4),
+                          _ReadReceiptTicks(message: m),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              if (reactionEmoji != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.oklSurface,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: context.oklDivider),
+                    ),
+                    child: Text(
+                      reactionEmoji!,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
     }
@@ -1934,7 +2886,15 @@ class _RichMessageBubble extends StatelessWidget {
 
 class _VideoMessageBubble extends StatelessWidget {
   final ChatMessage message;
-  const _VideoMessageBubble({required this.message});
+  final String peerDisplayName;
+  final String peerAvatarUrl;
+  final String? reactionEmoji;
+  const _VideoMessageBubble({
+    required this.message,
+    required this.peerDisplayName,
+    required this.peerAvatarUrl,
+    this.reactionEmoji,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1951,42 +2911,141 @@ class _VideoMessageBubble extends StatelessWidget {
     }
     return Align(
       alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.62,
-        ),
-        decoration: BoxDecoration(
-          color: context.oklSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: context.oklDivider),
-        ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            GestureDetector(
+      child: Column(
+        crossAxisAlignment: m.mine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          if (!m.mine)
+            Padding(
+              padding: const EdgeInsets.only(left: 2, bottom: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: peerAvatarUrl,
+                      width: 18,
+                      height: 18,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 36,
+                      errorWidget: (c, u, e) => Container(
+                        width: 18,
+                        height: 18,
+                        color: context.oklSurface,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          LucideIcons.user,
+                          size: 10,
+                          color: context.oklOnSurfaceMuted(0.55),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    peerDisplayName,
+                    style: TextStyle(
+                      color: context.oklOnSurfaceMuted(0.66),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width * 0.66,
+            ),
+            decoration: BoxDecoration(
+              color: m.mine ? _waOutgoingBubble : _waIncomingBubble,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: context.oklDivider),
+            ),
+            padding: const EdgeInsets.all(0),
+            child: GestureDetector(
               onTap: () {
                 Navigator.of(context, rootNavigator: true).push<void>(
                   MaterialPageRoute<void>(
-                    builder: (_) => _VideoPlayerScreen(url: videoUrl),
+                    builder: (_) => _VideoPlayerScreen(
+                      url: videoUrl,
+                      caption: (m.text ?? '').trim().isEmpty ? null : m.text,
+                    ),
                   ),
                 );
               },
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(14),
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Container(color: Colors.black87),
+                      Container(color: Colors.black),
                       Container(color: Colors.black.withValues(alpha: 0.22)),
                       const Align(
                         alignment: Alignment.center,
                         child: Icon(
                           LucideIcons.playCircle,
                           color: Colors.white,
-                          size: 42,
+                          size: 48,
+                        ),
+                      ),
+                      Positioned(
+                        left: 8,
+                        bottom: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'VIDÉO',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                m.time,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (m.mine) ...[
+                                const SizedBox(width: 4),
+                                _ReadReceiptTicks(
+                                  message: m,
+                                  forDarkBackground: true,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -1994,25 +3053,43 @@ class _VideoMessageBubble extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (m.mine) ...[
-                  _ReadReceiptTicks(message: m),
-                  const SizedBox(width: 4),
-                ],
-                Text(
-                  m.time,
-                  style: TextStyle(
-                    color: context.oklOnSurfaceMuted(0.55),
-                    fontSize: 10,
-                  ),
+          ),
+          if ((m.text ?? '').trim().isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: m.mine ? _waOutgoingBubble : _waIncomingBubble,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              ),
+              child: Text(
+                (m.text ?? '').trim(),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  fontSize: 13,
+                  height: 1.25,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
+              ),
             ),
-          ],
-        ),
+          if (reactionEmoji != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: context.oklSurface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: context.oklDivider),
+                ),
+                child: Text(
+                  reactionEmoji!,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -2033,8 +3110,17 @@ class _WhatsAppStyleVoiceBubble extends StatefulWidget {
       _WhatsAppStyleVoiceBubbleState();
 }
 
+class _GlobalVoicePlayback {
+  _GlobalVoicePlayback._();
+
+  static final _GlobalVoicePlayback instance = _GlobalVoicePlayback._();
+
+  final AudioPlayer player = AudioPlayer();
+  final ValueNotifier<String?> activeMessageId = ValueNotifier<String?>(null);
+}
+
 class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
-  late final AudioPlayer _player;
+  AudioPlayer get _player => _GlobalVoicePlayback.instance.player;
   bool _ready = false;
   bool _playing = false;
   Duration _position = Duration.zero;
@@ -2042,33 +3128,75 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
   double _speed = 1.0;
   String? _loadError;
   int _setupGeneration = 0;
+  bool _preparing = false;
+  bool _isActive = false;
+  StreamSubscription<Duration>? _posSub;
+  StreamSubscription<Duration?>? _durSub;
+  StreamSubscription<PlayerState>? _stateSub;
 
   ChatMessage get m => widget.message;
 
   @override
   void initState() {
     super.initState();
-    _player = AudioPlayer();
-    _bindStreams();
-    _setup();
+    _GlobalVoicePlayback.instance.activeMessageId.addListener(_onActiveChanged);
+    _onActiveChanged();
+    // IMPORTANT (téléphone réel):
+    // ne pas précharger automatiquement tous les vocaux visibles dans la liste,
+    // sinon MediaCodec/ExoPlayer fait des init/release en cascade -> "Loading interrupted".
   }
 
-  void _bindStreams() {
-    _player.positionStream.listen((p) {
+  void _onActiveChanged() {
+    final active = _GlobalVoicePlayback.instance.activeMessageId.value == m.id;
+    if (active == _isActive) return;
+    _isActive = active;
+    if (_isActive) {
+      _attachStreams();
+    } else {
+      _detachStreams();
+      if (mounted) {
+        setState(() {
+          _playing = false;
+          _position = Duration.zero;
+          _duration = Duration.zero;
+          _ready = false;
+          _loadError = null;
+        });
+      }
+    }
+  }
+
+  void _attachStreams() {
+    _detachStreams();
+    _posSub = _player.positionStream.listen((p) {
       if (!mounted) return;
+      if (!_isActive) return;
       setState(() => _position = p);
     });
-    _player.durationStream.listen((d) {
+    _durSub = _player.durationStream.listen((d) {
       if (!mounted || d == null) return;
+      if (!_isActive) return;
       setState(() => _duration = d);
     });
-    _player.playerStateStream.listen((s) {
+    _stateSub = _player.playerStateStream.listen((s) {
       if (!mounted) return;
+      if (!_isActive) return;
       setState(() => _playing = s.playing);
     });
   }
 
+  void _detachStreams() {
+    _posSub?.cancel();
+    _durSub?.cancel();
+    _stateSub?.cancel();
+    _posSub = null;
+    _durSub = null;
+    _stateSub = null;
+  }
+
   Future<void> _setup() async {
+    if (_preparing) return;
+    _preparing = true;
     final gen = ++_setupGeneration;
     final raw = m.audioUrl?.trim() ?? '';
     if (raw.isEmpty) {
@@ -2077,11 +3205,14 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
         _ready = false;
         _loadError = 'audio_manquant';
       });
+      _preparing = false;
       return;
     }
     final url = OkliforMediaUrl.resolve(raw);
     try {
       await _bindAudioFromUrl(url);
+      // Appliquer vitesse courante sur ce player global.
+      await _player.setSpeed(_speed);
       if (!mounted || gen != _setupGeneration) return;
       setState(() {
         _ready = true;
@@ -2090,28 +3221,25 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
       });
     } catch (e) {
       if (!mounted || gen != _setupGeneration) return;
-      try {
-        final f = await _chatMediaCache.getSingleFile(url);
-        if (!mounted || gen != _setupGeneration) return;
-        await _player.stop();
-        await _player.setAudioSource(AudioSource.file(f.path));
-        if (!mounted || gen != _setupGeneration) return;
-        setState(() {
-          _ready = true;
-          _loadError = null;
-          _duration = _player.duration ?? Duration.zero;
-        });
-      } catch (_) {
-        if (!mounted || gen != _setupGeneration) return;
-        setState(() {
-          _ready = false;
-          _loadError = e.toString();
-        });
-      }
+      setState(() {
+        _ready = false;
+        _loadError = e.toString();
+      });
+    } finally {
+      _preparing = false;
     }
   }
 
-  /// Lecture réseau plus fiable (cache progressif) hors Web ; repli sur URI direct.
+  /// Stable key for the same media file even if signature changes.
+  /// We compare only the path part of the signed URL.
+  static String _audioKey(String resolvedUrl) {
+    final uri = Uri.tryParse(resolvedUrl);
+    if (uri == null) return resolvedUrl;
+    return uri.path; // ignores query (exp/sig)
+  }
+
+  /// Hors Web : télécharger d’abord via le cache (même pile HTTP que les images) —
+  /// souvent plus fiable sur téléphone réel que le stream ExoPlayer seul.
   Future<void> _bindAudioFromUrl(String url) async {
     final uri = Uri.parse(url);
     await _player.stop();
@@ -2124,12 +3252,59 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
       return;
     }
     if (uri.scheme == 'http' || uri.scheme == 'https') {
+      Object? lastError;
       try {
+        // 1) Prefer persisted local file (Android/media/.../Oklifor/...) if present.
+        final persisted = await getOkliforLocalFileIfExists(
+          url,
+          bucket: OklMediaBucket.voiceNotes,
+          displayName: 'voice_${m.id}.m4a',
+        );
+        if (persisted != null) {
+          await _player.setAudioSource(AudioSource.file(persisted.path));
+          return;
+        }
+
+        // 2) Otherwise, try streaming source first (supports range), then fallback to full download.
         await _player.setAudioSource(LockCachingAudioSource(uri));
-      } catch (_) {
-        await _player.setAudioSource(AudioSource.uri(uri));
+        // Persist asynchronously for next time (reuses cache afterwards anyway).
+        unawaited(
+          ensureOkliforLocalFile(
+            url,
+            bucket: OklMediaBucket.voiceNotes,
+            displayName: 'voice_${m.id}.m4a',
+          ),
+        );
+        return;
+      } catch (e) {
+        lastError = e;
       }
-      return;
+      try {
+        final cached = await _chatMediaCache.getSingleFile(url);
+        final len = await cached.length();
+        if (len < 1024) {
+          throw Exception('fichier_audio_trop_petit($len)');
+        }
+        await _player.setAudioSource(AudioSource.file(cached.path));
+        unawaited(
+          persistOkliforLocalFileFromPath(
+            url,
+            bucket: OklMediaBucket.voiceNotes,
+            sourcePath: cached.path,
+            displayName: 'voice_${m.id}.m4a',
+          ),
+        );
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+      try {
+        await _player.setAudioSource(AudioSource.uri(uri));
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+      throw Exception(lastError.toString());
     }
     await _player.setAudioSource(AudioSource.uri(uri));
   }
@@ -2137,14 +3312,31 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
   @override
   void didUpdateWidget(covariant _WhatsAppStyleVoiceBubble oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.message.audioUrl != widget.message.audioUrl) {
-      _setup();
-    }
+    final prevRaw = oldWidget.message.audioUrl?.trim() ?? '';
+    final nextRaw = widget.message.audioUrl?.trim() ?? '';
+    if (prevRaw == nextRaw) return;
+
+    final prevKey = prevRaw.isEmpty ? '' : _audioKey(OkliforMediaUrl.resolve(prevRaw));
+    final nextKey = nextRaw.isEmpty ? '' : _audioKey(OkliforMediaUrl.resolve(nextRaw));
+
+    // If it's the same file (only exp/sig changed), do NOT interrupt playback/loading.
+    // But if we previously failed to load, retry with the fresh signed URL.
+    final sameFile = prevKey.isNotEmpty && prevKey == nextKey;
+    if (sameFile && _ready) return;
+
+    // Do not auto-reload in background; only refresh when user tries to play again.
+    setState(() {
+      _ready = false;
+      _loadError = null;
+      _duration = Duration.zero;
+      _position = Duration.zero;
+    });
   }
 
   @override
   void dispose() {
-    _player.dispose();
+    _GlobalVoicePlayback.instance.activeMessageId.removeListener(_onActiveChanged);
+    _detachStreams();
     super.dispose();
   }
 
@@ -2298,15 +3490,26 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
                                       minWidth: 36,
                                       minHeight: 36,
                                     ),
-                                    onPressed: !_ready
-                                        ? null
-                                        : () async {
-                                            if (_playing) {
-                                              await _player.pause();
-                                            } else {
-                                              await _player.play();
-                                            }
-                                          },
+                                    onPressed: () async {
+                                      if (_preparing) return;
+                                      // Make this bubble the active one (stops previous).
+                                      final global = _GlobalVoicePlayback.instance;
+                                      if (global.activeMessageId.value != m.id) {
+                                        try {
+                                          await _player.stop();
+                                        } catch (_) {}
+                                        global.activeMessageId.value = m.id;
+                                      }
+                                      if (!_ready) {
+                                        await _setup();
+                                      }
+                                      if (!_ready) return;
+                                      if (_playing) {
+                                        await _player.pause();
+                                      } else {
+                                        await _player.play();
+                                      }
+                                    },
                                     icon: Icon(
                                       _playing
                                           ? LucideIcons.pause
@@ -2402,7 +3605,7 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
                                 Padding(
                                   padding: const EdgeInsets.only(top: 6),
                                   child: Text(
-                                    'Lecture impossible',
+                                    'Lecture impossible: ${_loadError!.toString().split('\n').first}',
                                     style: TextStyle(
                                       color: mine
                                           ? Colors.redAccent.shade100
@@ -2485,7 +3688,8 @@ class _WhatsAppVoiceWaveformPainter extends CustomPainter {
 
 class _VideoPlayerScreen extends StatefulWidget {
   final String url;
-  const _VideoPlayerScreen({required this.url});
+  final String? caption;
+  const _VideoPlayerScreen({required this.url, this.caption});
 
   @override
   State<_VideoPlayerScreen> createState() => _VideoPlayerScreenState();
@@ -2495,6 +3699,9 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
   VideoPlayerController? _controller;
   bool _ready = false;
   Duration _position = Duration.zero;
+  bool _controlsVisible = true;
+  bool _muted = false;
+  double _speed = 1.0;
 
   @override
   void initState() {
@@ -2507,9 +3714,14 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
     final c = kIsWeb
         ? VideoPlayerController.networkUrl(Uri.parse(widget.url))
         : VideoPlayerController.file(
-            File((await _chatMediaCache.getSingleFile(widget.url)).path),
+            await ensureOkliforLocalFile(
+              widget.url,
+              bucket: OklMediaBucket.video,
+              displayName: (widget.caption ?? '').trim(),
+            ),
           );
     await c.initialize();
+    await c.setLooping(true);
     c.addListener(() {
       if (!mounted) return;
       setState(() => _position = c.value.position);
@@ -2529,74 +3741,220 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final c = _controller;
+    final caption = (widget.caption ?? '').trim();
+    final hasCaption = caption.isNotEmpty;
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-      ),
       body: _ready && c != null
-          ? Column(
-              children: [
-                Expanded(
-                  child: Center(
+          ? GestureDetector(
+              onTap: () => setState(() => _controlsVisible = !_controlsVisible),
+              child: Stack(
+                children: [
+                  Center(
                     child: AspectRatio(
-                      aspectRatio: c.value.aspectRatio > 0
-                          ? c.value.aspectRatio
-                          : 16 / 9,
+                      aspectRatio:
+                          c.value.aspectRatio > 0 ? c.value.aspectRatio : 16 / 9,
                       child: VideoPlayer(c),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
-                  child: Column(
-                    children: [
-                      Slider(
-                        value: _position.inMilliseconds.toDouble().clamp(
-                          0,
-                          (c.value.duration.inMilliseconds <= 0
-                                  ? 1
-                                  : c.value.duration.inMilliseconds)
-                              .toDouble(),
-                        ),
-                        min: 0,
-                        max:
-                            (c.value.duration.inMilliseconds <= 0
-                                    ? 1
-                                    : c.value.duration.inMilliseconds)
-                                .toDouble(),
-                        onChanged: (v) =>
-                            c.seekTo(Duration(milliseconds: v.toInt())),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _controlsVisible ? 1 : 0,
+                    child: IgnorePointer(
+                      ignoring: !_controlsVisible,
+                      child: Column(
                         children: [
-                          IconButton(
-                            onPressed: () async {
-                              if (c.value.isPlaying) {
-                                await c.pause();
-                              } else {
-                                await c.play();
-                              }
-                              setState(() {});
-                            },
-                            icon: Icon(
-                              c.value.isPlaying
-                                  ? LucideIcons.pauseCircle
-                                  : LucideIcons.playCircle,
-                              color: Colors.white,
-                              size: 42,
+                          Container(
+                            padding: EdgeInsets.only(
+                              top: MediaQuery.paddingOf(context).top,
+                              left: 8,
+                              right: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.65),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                OklAppBarIconButton(
+                                  icon: LucideIcons.arrowLeft,
+                                  onPressed: () => Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  ).pop(),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  tooltip: 'Partager',
+                                  onPressed: () => shareChatAttachmentUrl(
+                                    context,
+                                    widget.url,
+                                    displayName:
+                                        caption.isEmpty ? 'video.mp4' : caption,
+                                  ),
+                                  icon: const Icon(
+                                    LucideIcons.share2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Enregistrer',
+                                  onPressed: () => saveChatFileToDownloads(
+                                    context,
+                                    widget.url,
+                                    displayName: caption,
+                                  ),
+                                  icon: const Icon(
+                                    LucideIcons.save,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Galerie',
+                                  onPressed: () => saveChatMediaToGallery(
+                                    context,
+                                    widget.url,
+                                    displayName: caption,
+                                    isVideo: true,
+                                  ),
+                                  icon: const Icon(
+                                    LucideIcons.video,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.75),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Slider(
+                                  value: _position.inMilliseconds
+                                      .toDouble()
+                                      .clamp(
+                                        0,
+                                        (c.value.duration.inMilliseconds <= 0
+                                                ? 1
+                                                : c.value.duration.inMilliseconds)
+                                            .toDouble(),
+                                      ),
+                                  min: 0,
+                                  max: (c.value.duration.inMilliseconds <= 0
+                                          ? 1
+                                          : c.value.duration.inMilliseconds)
+                                      .toDouble(),
+                                  onChanged: (v) => c.seekTo(
+                                    Duration(milliseconds: v.toInt()),
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Vitesse',
+                                      onPressed: () async {
+                                        final next = _speed == 1.0
+                                            ? 1.5
+                                            : (_speed == 1.5 ? 2.0 : 1.0);
+                                        await c.setPlaybackSpeed(next);
+                                        if (mounted) {
+                                          setState(() => _speed = next);
+                                        }
+                                      },
+                                      icon: Text(
+                                        '${_speed}x',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: _muted ? 'Son' : 'Muet',
+                                      onPressed: () async {
+                                        final next = !_muted;
+                                        await c.setVolume(next ? 0 : 1);
+                                        if (mounted) {
+                                          setState(() => _muted = next);
+                                        }
+                                      },
+                                      icon: Icon(
+                                        _muted
+                                            ? LucideIcons.volumeX
+                                            : LucideIcons.volume2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: c.value.isPlaying ? 'Pause' : 'Lecture',
+                                      onPressed: () async {
+                                        if (c.value.isPlaying) {
+                                          await c.pause();
+                                        } else {
+                                          await c.play();
+                                        }
+                                        if (mounted) setState(() {});
+                                      },
+                                      icon: Icon(
+                                        c.value.isPlaying
+                                            ? LucideIcons.pauseCircle
+                                            : LucideIcons.playCircle,
+                                        color: Colors.white,
+                                        size: 44,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (hasCaption)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        caption,
+                                        style: TextStyle(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.92),
+                                          fontSize: 14,
+                                          height: 1.3,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             )
-          : const Center(child: CircularProgressIndicator()),
+          : const Center(
+              child: CircularProgressIndicator(color: Colors.white54),
+            ),
     );
   }
 }

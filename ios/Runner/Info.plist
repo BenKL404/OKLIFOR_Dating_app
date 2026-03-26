@@ -62,5 +62,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- iOS 14+ : accès au serveur API / médias sur IP LAN (ex. http://192.168.x.x:8100) -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Oklifor se connecte au serveur sur ton réseau Wi‑Fi pour le chat, les photos et les messages vocaux.</string>
 </dict>
 </plist>
