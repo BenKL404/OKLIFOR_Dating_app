@@ -12,11 +12,12 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
       OKLIFOR_VERIFICATION_DEMO_APPROVE: ${OKLIFOR_VERIFICATION_DEMO_APPROVE:-false}
-      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENDPOINT: "http://37.27.222.149:9000"
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-oklifor}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET_CHAT: oklifor-chat
       MINIO_BUCKET_STATUS: oklifor-status
+
     volumes:
       - oklifor_data:/app/data
     depends_on:
