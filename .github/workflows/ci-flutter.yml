@@ -1,0 +1,75 @@
+# CI Flutter — analyze, test, build APK
+# Tourne indépendamment du backend
+
+name: CI Flutter
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'lib/**'
+      - 'test/**'
+      - 'assets/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/ci-flutter.yml'
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - 'lib/**'
+      - 'test/**'
+      - 'assets/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+
+concurrency:
+  group: flutter-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter — analyze, test & APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Tests
+        run: flutter test
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Ensure assets/.env
+        run: |
+          [ -f assets/.env ] || printf 'OKLIFOR_API_BASE=http://127.0.0.1:8100\n' > assets/.env
+
+      - name: Build APK release
+        run: flutter build apk --release
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oklifor-android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
