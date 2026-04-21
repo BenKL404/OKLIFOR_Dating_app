@@ -7,10 +7,7 @@ const _kUserId = 'okl_user_id';
 /// Jetons JWT et identifiant utilisateur (UUID).
 class AuthTokenStorage {
   AuthTokenStorage({FlutterSecureStorage? storage})
-      : _s = storage ??
-            const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
-            );
+      : _s = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _s;
 

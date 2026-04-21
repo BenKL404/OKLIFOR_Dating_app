@@ -238,7 +238,7 @@ class ApiChatRepository implements ChatRepository {
           format: CompressFormat.webp,
           quality: 82,
         );
-        if (compressed != null && compressed.length < bytes.length) {
+        if (compressed.length < bytes.length) {
           uploadBytes = compressed;
           uploadFilename = filename.replaceAll(
             RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false),

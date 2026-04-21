@@ -118,7 +118,7 @@ class _DocumentComposeScreenState extends State<DocumentComposeScreen> {
                           const SizedBox(height: 6),
                           Text(
                             [
-                              if (sizeLabel != null) sizeLabel,
+                              ?sizeLabel,
                               if (kIsWeb) 'Web',
                             ].join(' • ').trim(),
                             style: TextStyle(

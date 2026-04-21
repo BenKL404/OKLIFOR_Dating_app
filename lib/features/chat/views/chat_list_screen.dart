@@ -42,7 +42,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   String? _myMediaStatusLocalPath;
   String _myMediaStatusCaption = 'Mon humeur du jour.';
   // Fix #3 — avatar chargé depuis le profil réel (fallback statique en cas d'erreur)
-  String _myAvatarUrl =
+  final String _myAvatarUrl =
       'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80&auto=format&fit=crop';
 
   bool _searchMode = false;
@@ -385,7 +385,7 @@ StatusStory _threadToStatusStory(ChatThread c) {
                     await ref.read(okliforApiClientProvider).publishTextUserStatus(
                       text: r.text,
                       backgroundColorHex: r.backgroundColor
-                          .value.toRadixString(16).padLeft(8, '0').toUpperCase(),
+                          .toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase(),
                     );
                   } catch (_) {
                     // Échec silencieux — le statut reste visible localement
@@ -499,6 +499,7 @@ StatusStory _threadToStatusStory(ChatThread c) {
         return;
       }
       if (isVideo) {
+        if (!mounted) return;
         if (!await OklPickMediaPermissions.ensureMicrophone(context)) {
           return;
         }
@@ -672,6 +673,7 @@ StatusStory _threadToStatusStory(ChatThread c) {
           r.members.map((m) => m.id).toList(),
         );
     ref.read(chatThreadsProvider.notifier).prependThread(thread);
+    if (!mounted) return;
     _openConversation(context, thread);
   }
 

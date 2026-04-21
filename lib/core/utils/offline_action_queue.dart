@@ -85,13 +85,13 @@ class OfflineActionQueue {
       'threadId': threadId,
       'localMessageId': localMessageId,
       'kind': kind,
-      if (text != null) 'text': text,
-      if (imageUrl != null) 'imageUrl': imageUrl,
-      if (videoUrl != null) 'videoUrl': videoUrl,
-      if (audioUrl != null) 'audioUrl': audioUrl,
-      if (voiceSeconds != null) 'voiceSeconds': voiceSeconds,
-      if (locationLabel != null) 'locationLabel': locationLabel,
-      if (fileUrl != null) 'fileUrl': fileUrl,
+      ?'text': text,
+      ?'imageUrl': imageUrl,
+      ?'videoUrl': videoUrl,
+      ?'audioUrl': audioUrl,
+      ?'voiceSeconds': voiceSeconds,
+      ?'locationLabel': locationLabel,
+      ?'fileUrl': fileUrl,
     };
     final list = (await _loadRaw(userId)).toList(growable: true);
     list.add(action);

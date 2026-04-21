@@ -404,7 +404,7 @@ class _ImageItemState extends State<_ImageItem> {
       widget.onZoomChanged(false);
     } else {
       // Zoom to 2.5x
-      final zoom = Matrix4.identity()..scale(2.5, 2.5);
+      final zoom = Matrix4.identity()..scaleByDouble(2.5);
       _transform.value = zoom;
       widget.onZoomChanged(true);
     }
@@ -616,7 +616,7 @@ class _VideoItemState extends State<_VideoItem> {
       widget.onZoomChanged(false);
     } else {
       // Zoom to 2.0x
-      final zoom = Matrix4.identity()..scale(2.0, 2.0);
+      final zoom = Matrix4.identity()..scaleByDouble(2.0);
       _transform.value = zoom;
       widget.onZoomChanged(true);
     }

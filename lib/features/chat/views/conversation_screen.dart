@@ -1088,6 +1088,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       ImageSource.camera,
     );
     if (!canUseCamera) return;
+    if (!mounted) return;
     final canUseMicrophone = await OklPickMediaPermissions.ensureMicrophone(
       context,
     );
@@ -1137,6 +1138,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final picked = await FilePicker.platform.pickFiles(withData: true);
     final f = picked?.files.single;
     if (f == null) return;
+    if (!mounted) return;
     final composed = await Navigator.of(context, rootNavigator: true)
         .push<DocumentComposeResult>(
           MaterialPageRoute<DocumentComposeResult>(
