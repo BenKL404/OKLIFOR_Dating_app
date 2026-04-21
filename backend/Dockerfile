@@ -10,12 +10,13 @@ COPY src ./src
 RUN mvn -B -ntp package -DskipTests -q
 
 # ── Stage 2 : runtime ─────────────────────────────────────────────────────────
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-RUN apk add --no-cache ffmpeg curl
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN addgroup -S oklifor && adduser -S oklifor -G oklifor
+RUN groupadd -r oklifor && useradd -r -g oklifor oklifor
 USER oklifor
 
 COPY --from=build /app/target/*.jar app.jar
