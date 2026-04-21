@@ -31,9 +31,12 @@ public class AuthService {
         this.props = props;
     }
 
+    private static final java.util.regex.Pattern E164 =
+            java.util.regex.Pattern.compile("^\\+[1-9]\\d{7,14}$");
+
     public void requestOtp(String rawPhone) {
         String e164 = phones.toE164(rawPhone);
-        if (e164.length() < 10) {
+        if (!E164.matcher(e164).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "numéro_invalide");
         }
         // Intégration SMS / OTP plus tard
@@ -41,7 +44,7 @@ public class AuthService {
 
     public TokenResponse verifyOtp(String rawPhone, String code) {
         String e164 = phones.toE164(rawPhone);
-        if (e164.length() < 10) {
+        if (!E164.matcher(e164).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "numéro_invalide");
         }
         validateOtp(code);

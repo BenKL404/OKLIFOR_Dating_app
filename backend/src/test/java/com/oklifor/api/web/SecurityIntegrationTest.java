@@ -58,11 +58,20 @@ class SecurityIntegrationTest {
 
     @Test
     void otpRequest_invalidPhone_returns400() throws Exception {
-        // Numéro sans préfixe E.164 — rejeté par @Pattern sur OtpRequest.phone
+        // "invalid" → normalisé en "+228invalid" → ne matche pas E.164 → 400
         mockMvc.perform(post("/api/v1/auth/otp/request")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"phone\":\"invalid\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void otpRequest_localNumber_isNormalizedAndAccepted() throws Exception {
+        // Numéro local 8 chiffres → PhoneNormalizer ajoute +228 → +22892866099 → valide
+        mockMvc.perform(post("/api/v1/auth/otp/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"92866099\"}"))
+                .andExpect(status().isAccepted());
     }
 
     @Test
