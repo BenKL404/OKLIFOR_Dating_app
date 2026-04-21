@@ -147,9 +147,13 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          debug: true
           envs: GHCR_PAT,GHCR_ACTOR,GHCR_OWNER,DEPLOY_PATH
           script: |
-            set -e
+            set -xe
+            echo "DEPLOY_PATH=$DEPLOY_PATH"
+            id
+            which docker || echo "docker not in PATH"
             mkdir -p "$DEPLOY_PATH"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
             cd "$DEPLOY_PATH"
