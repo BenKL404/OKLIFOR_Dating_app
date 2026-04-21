@@ -16,7 +16,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r oklifor && useradd -r -g oklifor oklifor
+RUN groupadd -r oklifor && useradd -r -g oklifor oklifor \
+    && mkdir -p /app/data/verification-uploads \
+                /app/data/chat-media \
+                /app/data/status-media \
+                /app/data/profile-media \
+    && chown -R oklifor:oklifor /app
+
 USER oklifor
 
 COPY --from=build /app/target/*.jar app.jar
