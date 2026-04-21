@@ -32,13 +32,13 @@ class SecurityIntegrationTest {
     @Test
     void meEndpoint_withoutToken_returns401() throws Exception {
         mockMvc.perform(get("/api/v1/me"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized());  // 401 via AuthenticationEntryPoint
     }
 
     @Test
     void chatThreads_withoutToken_returns401() throws Exception {
         mockMvc.perform(get("/api/v1/chat/threads"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized());  // 401 via AuthenticationEntryPoint
     }
 
     @Test
@@ -49,14 +49,16 @@ class SecurityIntegrationTest {
 
     @Test
     void otpRequest_isPublicAndAcceptsValidPhone() throws Exception {
+        // Le controller renvoie 202 Accepted (pas 200 OK)
         mockMvc.perform(post("/api/v1/auth/otp/request")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"phone\":\"+22890000000\"}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isAccepted());
     }
 
     @Test
     void otpRequest_invalidPhone_returns400() throws Exception {
+        // Numéro sans préfixe E.164 — rejeté par @Pattern sur OtpRequest.phone
         mockMvc.perform(post("/api/v1/auth/otp/request")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"phone\":\"invalid\"}"))

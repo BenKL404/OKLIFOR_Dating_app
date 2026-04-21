@@ -3805,6 +3805,7 @@ class _WhatsAppStyleVoiceBubbleState extends State<_WhatsAppStyleVoiceBubble> {
     if (uri.scheme == 'http' || uri.scheme == 'https') {
       Object? lastError;
       try {
+        // ignore: experimental_member_use
         await _player.setAudioSource(LockCachingAudioSource(uri));
         return;
       } catch (e) {

@@ -193,16 +193,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         .toList(growable: false);
   }
 
-  String _formatRelativeTime(DateTime dt) {
-    final d = DateTime.now().difference(dt);
-    if (d.inSeconds < 60) return "à l'instant";
-    if (d.inMinutes < 60) return 'il y a ${d.inMinutes} min';
-    if (d.inHours < 24) return 'il y a ${d.inHours} h';
-    if (d.inDays < 7) return 'il y a ${d.inDays} j';
-    return 'récemment';
-  }
-
-  StatusStory _threadToStatusStory(ChatThread c) {
+StatusStory _threadToStatusStory(ChatThread c) {
     if (c.statusKind == 'TEXT') {
       return StatusStory(
         name: c.name,
