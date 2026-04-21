@@ -150,11 +150,17 @@ jobs:
           envs: GHCR_PAT,GHCR_ACTOR,GHCR_OWNER,DEPLOY_PATH
           script: |
             set -e
+            GHCR_OWNER_LC=$(echo "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')
             mkdir -p "$DEPLOY_PATH"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
             cd "$DEPLOY_PATH"
-            grep -q '^GHCR_OWNER=' .env 2>/dev/null || echo "GHCR_OWNER=$GHCR_OWNER" >> .env
+            # Écrire/mettre à jour GHCR_OWNER en minuscules dans .env
+            if grep -q '^GHCR_OWNER=' .env 2>/dev/null; then
+              sed -i "s|^GHCR_OWNER=.*|GHCR_OWNER=$GHCR_OWNER_LC|" .env
+            else
+              echo "GHCR_OWNER=$GHCR_OWNER_LC" >> .env
+            fi
             docker compose -f docker-compose.prod.yml pull api
-            docker compose -f docker-compose.prod.yml up -d --no-deps api
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
             echo "✓ Déploiement terminé — $(date -u)"
