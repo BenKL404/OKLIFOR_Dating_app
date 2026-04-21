@@ -22,6 +22,7 @@ public class StorageService {
         this.minio = MinioClient.builder()
                 .endpoint(cfg.getEndpoint())
                 .credentials(cfg.getAccessKey(), cfg.getSecretKey())
+                .region("us-east-1")
                 .build();
     }
 

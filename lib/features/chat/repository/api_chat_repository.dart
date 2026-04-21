@@ -7,6 +7,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../../core/api/auth_token_storage.dart';
 import '../../../core/api/models/contact_api_models.dart';
 import '../../../core/api/oklifor_api_client.dart';
+import '../../../core/config/oklifor_api_config.dart';
 import '../data/chat_api_mapping.dart';
 import '../data/chat_local_cache.dart';
 import '../data/chat_websocket_client.dart';
