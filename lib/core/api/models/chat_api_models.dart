@@ -97,3 +97,23 @@ class ChatMediaUploadPayload {
     );
   }
 }
+
+class ChatPresignPayload {
+  ChatPresignPayload({
+    required this.putUrl,
+    required this.fileUrl,
+    required this.mediaKind,
+  });
+
+  final String putUrl;
+  final String fileUrl;
+  final String mediaKind;
+
+  factory ChatPresignPayload.fromJson(Map<String, dynamic> j) {
+    return ChatPresignPayload(
+      putUrl: j['putUrl'] as String? ?? '',
+      fileUrl: j['fileUrl'] as String? ?? '',
+      mediaKind: j['mediaKind'] as String? ?? 'IMAGE',
+    );
+  }
+}

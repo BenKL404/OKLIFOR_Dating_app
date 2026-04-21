@@ -47,6 +47,13 @@ oklifor:
   status-media:
     upload-dir: ${OKLIFOR_STATUS_MEDIA_UPLOAD_DIR:data/status-media}
     signed-url-ttl-seconds: ${OKLIFOR_STATUS_MEDIA_SIGNED_URL_TTL_SECONDS:3600}
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket-chat: ${MINIO_BUCKET_CHAT:oklifor-chat}
+    bucket-status: ${MINIO_BUCKET_STATUS:oklifor-status}
+    presigned-put-ttl-seconds: 900
 
 management:
   endpoints:

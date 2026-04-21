@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+
 import '../../../core/api/auth_token_storage.dart';
 import '../../../core/api/models/contact_api_models.dart';
 import '../../../core/api/oklifor_api_client.dart';
@@ -185,7 +187,35 @@ class ApiChatRepository implements ChatRepository {
 
   // ── Envoi — helpers communs ───────────────────────────────────────────────
 
-  /// Upload le média puis envoie le message via REST ; retourne le message créé.
+  String _contentTypeFor(String kind, String filename) {
+    final lower = filename.toLowerCase();
+    if (kind == 'IMAGE') {
+      if (lower.endsWith('.png')) return 'image/png';
+      if (lower.endsWith('.webp')) return 'image/webp';
+      return 'image/jpeg';
+    }
+    if (kind == 'VIDEO') {
+      if (lower.endsWith('.webm')) return 'video/webm';
+      if (lower.endsWith('.mov')) return 'video/quicktime';
+      return 'video/mp4';
+    }
+    if (kind == 'VOICE') {
+      if (lower.endsWith('.wav')) return 'audio/wav';
+      if (lower.endsWith('.ogg')) return 'audio/ogg';
+      if (lower.endsWith('.webm')) return 'audio/webm';
+      return 'audio/mp4';
+    }
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.docx')) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    if (lower.endsWith('.xlsx')) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+    return 'application/octet-stream';
+  }
+
+  /// Gets a presigned PUT URL, uploads directly to MinIO, then sends the message.
   Future<ChatMessage> _uploadAndSend({
     required String threadId,
     required String kind,
@@ -196,32 +226,55 @@ class ApiChatRepository implements ChatRepository {
   }) async {
     final myId = await _myUserId();
 
-    // 1. Upload du fichier
-    final upload = await _api.uploadChatMedia(
+    // 1. Compress images to WebP before upload
+    Uint8List uploadBytes = bytes;
+    String uploadFilename = filename;
+    if (kind == 'IMAGE') {
+      try {
+        final compressed = await FlutterImageCompress.compressWithList(
+          bytes,
+          format: CompressFormat.webp,
+          quality: 82,
+        );
+        if (compressed != null && compressed.length < bytes.length) {
+          uploadBytes = compressed;
+          uploadFilename = filename.replaceAll(
+            RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false),
+            '.webp',
+          );
+        }
+      } catch (_) {
+        // Compression failed — continue with original bytes
+      }
+    }
+
+    final ct = _contentTypeFor(kind, uploadFilename);
+
+    // 2. Presign via backend
+    final presign = await _api.presignChatMedia(
       threadId: threadId,
-      filename: filename,
-      fileBytes: bytes,
+      filename: uploadFilename,
+      contentType: ct,
     );
 
-    // 2. Envoi du message pointant vers l'URL signée
-    final String? imageUrl =
-        kind == 'IMAGE' ? upload.signedUrl : null;
-    final String? videoUrl =
-        kind == 'VIDEO' ? upload.signedUrl : null;
-    final String? audioUrl =
-        kind == 'VOICE' ? upload.signedUrl : null;
-    final String? fileUrl =
-        kind == 'FILE' ? upload.signedUrl : null;
+    // 3. Upload directly to object storage (bypasses backend)
+    await _api.uploadToPresignedUrl(
+      putUrl: presign.putUrl,
+      bytes: uploadBytes,
+      contentType: ct,
+    );
 
+    // 4. Send message with permanent public URL
+    final fileUrl = presign.fileUrl;
     final payload = await _api.sendChatMessage(
       threadId: threadId,
       kind: kind,
       text: caption,
-      imageUrl: imageUrl,
-      videoUrl: videoUrl,
-      audioUrl: audioUrl,
+      imageUrl: kind == 'IMAGE' ? fileUrl : null,
+      videoUrl: kind == 'VIDEO' ? fileUrl : null,
+      audioUrl: kind == 'VOICE' ? fileUrl : null,
       voiceSeconds: voiceSeconds,
-      fileUrl: fileUrl,
+      fileUrl: kind == 'FILE' ? fileUrl : null,
     );
 
     return chatMessageFromPayload(payload, myUserId: myId);

@@ -13,6 +13,8 @@ RUN mvn -B -ntp package -DskipTests -q
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
+RUN apk add --no-cache ffmpeg curl
+
 RUN addgroup -S oklifor && adduser -S oklifor -G oklifor
 USER oklifor
 

@@ -3,6 +3,7 @@ package com.oklifor.api.service;
 import com.oklifor.api.config.OkliforProperties;
 import com.oklifor.api.domain.ChatMessageKind;
 import com.oklifor.api.web.dto.ChatMediaUploadResponse;
+import com.oklifor.api.web.dto.PresignedUploadResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -44,12 +45,15 @@ public class ChatMediaService {
 
     private final OkliforProperties props;
     private final StringRedisTemplate redis;
+    private final StorageService storageService;
 
     public ChatMediaService(
             OkliforProperties props,
-            ObjectProvider<StringRedisTemplate> redisProvider) {
+            ObjectProvider<StringRedisTemplate> redisProvider,
+            StorageService storageService) {
         this.props = props;
         this.redis = redisProvider.getIfAvailable();
+        this.storageService = storageService;
     }
 
     public ChatMediaUploadResponse upload(String threadId, MultipartFile file) {
@@ -94,6 +98,22 @@ public class ChatMediaService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "upload_chat_media_echec");
         }
+    }
+
+    public PresignedUploadResponse presign(String threadId, String filename, String contentType) {
+        String ct = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT).trim();
+        if (ct.isEmpty() || "application/octet-stream".equals(ct)) {
+            ct = inferContentTypeFromFilename(filename);
+        }
+        ChatMessageKind kind = kindFromContentType(ct);
+        String ext = extensionFor(kind, filename);
+        String safeThreadId = threadId.replaceAll("[^a-zA-Z0-9\\-]", "");
+        String objectKey = "chat/" + safeThreadId + "/"
+                + kind.name().toLowerCase(Locale.ROOT) + "_" + Instant.now().toEpochMilli() + ext;
+        String bucket = props.getStorage().getBucketChat();
+        String putUrl = storageService.presignedPutUrl(bucket, objectKey);
+        String fileUrl = storageService.publicUrl(bucket, objectKey);
+        return new PresignedUploadResponse(putUrl, fileUrl, kind.name());
     }
 
     public Path resolveSigned(String threadId, String filename, long exp, String sig) {

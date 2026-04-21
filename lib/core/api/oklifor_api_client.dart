@@ -423,6 +423,48 @@ class OkliforApiClient {
     }
   }
 
+  Future<ChatPresignPayload> presignChatMedia({
+    required String threadId,
+    required String filename,
+    required String contentType,
+  }) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/chat/threads/$threadId/media/presign',
+        data: {'filename': filename, 'contentType': contentType},
+      );
+      return ChatPresignPayload.fromJson(res.data ?? {});
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<void> uploadToPresignedUrl({
+    required String putUrl,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final dio = Dio();
+    try {
+      await dio.put<void>(
+        putUrl,
+        data: Stream.fromIterable(bytes.map((b) => [b])),
+        options: Options(
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': bytes.length,
+          },
+          sendTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    } finally {
+      dio.close();
+    }
+  }
+
   Future<ChatThreadPayload> createDirectThread(String peerUserId) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
