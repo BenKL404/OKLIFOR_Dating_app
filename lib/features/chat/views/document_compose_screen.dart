@@ -39,7 +39,10 @@ class _DocumentComposeScreenState extends State<DocumentComposeScreen> {
     setState(() => _sending = true);
     final cap = _caption.text.trim();
     if (!mounted) return;
-    Navigator.pop(context, DocumentComposeResult(file: widget.file, caption: cap));
+    Navigator.pop(
+      context,
+      DocumentComposeResult(file: widget.file, caption: cap),
+    );
   }
 
   @override
@@ -72,7 +75,9 @@ class _DocumentComposeScreenState extends State<DocumentComposeScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF0B141A),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -136,9 +141,7 @@ class _DocumentComposeScreenState extends State<DocumentComposeScreen> {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               decoration: const BoxDecoration(
                 color: Color(0xFF0B141A),
-                border: Border(
-                  top: BorderSide(color: Color(0x22000000)),
-                ),
+                border: Border(top: BorderSide(color: Color(0x22000000))),
               ),
               child: Row(
                 children: [
@@ -210,4 +213,3 @@ String _formatBytes(int bytes) {
   final gb = mb / 1024;
   return '${gb.toStringAsFixed(gb < 10 ? 1 : 0)} Go';
 }
-

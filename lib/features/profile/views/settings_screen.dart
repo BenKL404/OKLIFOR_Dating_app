@@ -48,7 +48,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         leading: const OklAppBarBackButton(),
         automaticallyImplyLeading: false,
         title: const Text(
-          'Parametres',
+          'Paramètres',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -56,7 +56,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
         children: [
           Text(
-            'Securite',
+            'Sécurité',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurface,
               fontSize: 17,
@@ -74,7 +74,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 _SwitchSettingRow(
                   icon: LucideIcons.bookLock,
-                  title: 'Protection du repertoire',
+                  title: 'Protection du répertoire',
                   value: s.protectDirectory,
                   onChanged: (v) => persistAppSettings(
                     ref,
@@ -179,7 +179,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.badgeCheck,
-                  title: 'Verification et certificat',
+                  title: 'Vérification et certificat',
                   onTap: () => _openSubPage(const AccountVerificationScreen()),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
@@ -191,19 +191,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.shield,
-                  title: 'Confidentialite',
+                  title: 'Confidentialité',
                   onTap: () => _openSubPage(const _PrivacySettingsPage()),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.lock,
-                  title: 'Securite du compte',
+                  title: 'Sécurité du compte',
                   onTap: () => _openSubPage(const _SecuritySettingsPage()),
                 ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.slidersHorizontal,
-                  title: 'Preferences de l application',
+                  title: 'Préférences de l’application',
                   onTap: () => _openSubPage(const _AppPreferencesPage()),
                 ),
               ],
@@ -267,14 +267,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 _ActionSettingRow(
                   icon: LucideIcons.logOut,
-                  title: 'Deconnexion',
+                  title: 'Déconnexion',
                   destructive: true,
                   onTap: () {
                     OklFeedback.confirm(
                       context,
-                      title: 'Deconnexion',
-                      body: 'Tu pourras te reconnecter avec ton numero.',
-                      confirmLabel: 'Me deconnecter',
+                      title: 'Déconnexion',
+                      body: 'Tu pourras te reconnecter avec ton numéro.',
+                      confirmLabel: 'Me déconnecter',
                       onConfirm: () async {
                         await ref.read(okliforApiClientProvider).logout();
                         SettingsSession.reset();
@@ -303,13 +303,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     OklFeedback.confirm(
                       context,
                       title: 'Supprimer le compte',
-                      body: 'Cette action est irreversible.',
+                      body: 'Cette action est irréversible.',
                       confirmLabel: 'Supprimer',
                       onConfirm: () => OklFlows.pushResult(
                         context,
                         icon: LucideIcons.trash2,
                         iconColor: AppColors.togoRed,
-                        title: 'Demande enregistrée',
+                          title: 'Demande enregistrée',
                         subtitle:
                             'Notre équipe traitera la suppression sous quelques jours. Tu recevras un e-mail de confirmation.',
                         primaryLabel: 'Compris',
@@ -513,7 +513,7 @@ class _NotificationsSettingsPageState
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _SwitchSettingRow(
                       icon: LucideIcons.radio,
-                      title: 'Lives et activites',
+                      title: 'Lives et activités',
                       value: s.notifyLive,
                       onChanged: (v) => persistAppSettings(
                         ref,
@@ -577,7 +577,7 @@ class _PrivacySettingsPageState extends ConsumerState<_PrivacySettingsPage> {
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             leading: const OklAppBarBackButton(),
             automaticallyImplyLeading: false,
-            title: const Text('Confidentialite'),
+            title: const Text('Confidentialité'),
           ),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -618,7 +618,7 @@ class _PrivacySettingsPageState extends ConsumerState<_PrivacySettingsPage> {
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _SwitchSettingRow(
                       icon: LucideIcons.checkCheck,
-                      title: 'Accuses de lecture',
+                      title: 'Accusés de lecture',
                       value: s.privacyReadReceipts,
                       onChanged: (v) => persistAppSettings(
                         ref,
@@ -644,7 +644,7 @@ class _PrivacySettingsPageState extends ConsumerState<_PrivacySettingsPage> {
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _ActionSettingRow(
                       icon: LucideIcons.userX,
-                      title: 'Utilisateurs bloques',
+                      title: 'Utilisateurs bloqués',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                             builder: (_) => const BlockedUsersScreen()),
@@ -838,7 +838,7 @@ class _SecuritySettingsPageState extends ConsumerState<_SecuritySettingsPage> {
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             leading: const OklAppBarBackButton(),
             automaticallyImplyLeading: false,
-            title: const Text('Securite du compte'),
+            title: const Text('Sécurité du compte'),
           ),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -853,28 +853,28 @@ class _SecuritySettingsPageState extends ConsumerState<_SecuritySettingsPage> {
                   children: [
                     _SwitchSettingRow(
                       icon: LucideIcons.shieldCheck,
-                      title: 'Authentification a 2 facteurs',
+                      title: 'Authentification à 2 facteurs',
                       value: s.securityTwoFactor,
                       onChanged: (v) => _onTwoFactorChanged(v),
                     ),
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _SwitchSettingRow(
                       icon: LucideIcons.fingerprint,
-                      title: 'Deblocage biometrie',
+                      title: 'Déblocage biométrique',
                       value: s.securityBiometric,
                       onChanged: (v) => _onBiometricChanged(v),
                     ),
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _SwitchSettingRow(
                       icon: LucideIcons.lock,
-                      title: 'Verrouiller a l ouverture',
+                      title: 'Verrouiller à l’ouverture',
                       value: s.securityScreenLock,
                       onChanged: (v) => _onScreenLockChanged(v),
                     ),
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.shieldCheck,
-                  title: 'Verification du compte (badge)',
+                  title: 'Vérification du compte (badge)',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const AccountVerificationScreen(),
@@ -884,7 +884,7 @@ class _SecuritySettingsPageState extends ConsumerState<_SecuritySettingsPage> {
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.keyRound,
-                  title: 'Changer PIN de securite',
+                  title: 'Changer le PIN de sécurité',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(builder: (_) => const ChangePinScreen()),
                   ),
@@ -920,7 +920,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
   static String _themeLabel(ThemeMode mode) {
     return switch (mode) {
       ThemeMode.light => 'Clair',
-      ThemeMode.system => 'Systeme',
+      ThemeMode.system => 'Système',
       ThemeMode.dark => 'Sombre',
     };
   }
@@ -962,7 +962,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                 Padding(
                   padding: const EdgeInsets.only(left: 12, bottom: 4),
                   child: Text(
-                    'Theme',
+                    'Thème',
                     style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -980,7 +980,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                     title: Text(_themeLabel(mode)),
                     subtitle: mode == ThemeMode.system
                         ? Text(
-                            'Suit le reglage de l appareil',
+                            'Suit le réglage de l’appareil',
                             style: Theme.of(ctx).textTheme.bodySmall,
                           )
                         : null,
@@ -1021,7 +1021,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             leading: const OklAppBarBackButton(),
             automaticallyImplyLeading: false,
-            title: const Text('Preferences'),
+            title: const Text('Préférences'),
           ),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -1036,7 +1036,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                   children: [
                     _ActionSettingRow(
                       icon: LucideIcons.languages,
-                      title: 'Langue de l application',
+                      title: 'Langue de l’application',
                       valueSubtitle: _languageLabel(s.appLanguage),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
@@ -1046,7 +1046,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _ActionSettingRow(
                       icon: LucideIcons.palette,
-                      title: 'Theme',
+                      title: 'Thème',
                       valueSubtitle: kOklLightThemeBlocked
                           ? 'Sombre (fixe)'
                           : _themeLabel(themeMode),
@@ -1055,7 +1055,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _SwitchSettingRow(
                       icon: LucideIcons.playCircle,
-                      title: 'Lecture auto des medias',
+                      title: 'Lecture auto des médias',
                       value: s.appAutoPlayMedia,
                       onChanged: (v) => persistAppSettings(
                         ref,
@@ -1068,7 +1068,7 @@ class _AppPreferencesPageState extends ConsumerState<_AppPreferencesPage> {
                     Divider(height: 1, color: Theme.of(context).dividerColor),
                     _SwitchSettingRow(
                       icon: LucideIcons.signal,
-                      title: 'Economiseur de donnees',
+                      title: 'Économiseur de données',
                       value: s.appDataSaver,
                       onChanged: (v) => persistAppSettings(
                         ref,
@@ -1126,7 +1126,7 @@ class _HelpSupportPage extends StatelessWidget {
               children: [
                 _ActionSettingRow(
                   icon: LucideIcons.bookOpen,
-                  title: 'Centre d aide',
+                  title: 'Centre d’aide',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(builder: (_) => const HelpCenterScreen()),
                   ),
@@ -1173,16 +1173,16 @@ class _FaqSettingsPage extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           _FaqItem(
-            title: 'Comment modifier mes preferences de profil ?',
-            body: 'Ouvre Profil puis Parametres et utilise les sous-pages dediees.',
+            title: 'Comment modifier mes préférences de profil ?',
+            body: 'Ouvre Profil puis Paramètres et utilise les sous-pages dédiées.',
           ),
           _FaqItem(
             title: 'Comment masquer ma distance ?',
-            body: 'Va dans Confidentialite et desactive l option de distance.',
+            body: 'Va dans Confidentialité et désactive l’option de distance.',
           ),
           _FaqItem(
             title: 'Comment supprimer mon compte ?',
-            body: 'Dans Parametres > Session > Supprimer mon compte.',
+            body: 'Dans Paramètres > Session > Supprimer mon compte.',
           ),
         ],
       ),
@@ -1253,7 +1253,7 @@ class _LegalSettingsPage extends StatelessWidget {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: const OklAppBarBackButton(),
         automaticallyImplyLeading: false,
-        title: const Text('Conditions et confidentialite'),
+        title: const Text('Conditions et confidentialité'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -1268,7 +1268,7 @@ class _LegalSettingsPage extends StatelessWidget {
               children: [
                 _ActionSettingRow(
                   icon: LucideIcons.fileCheck,
-                  title: 'Conditions d utilisation',
+                  title: 'Conditions d’utilisation',
                   onTap: () => _openLegal(context, 'Conditions d’utilisation', [
                     'En utilisant Oklifor, tu acceptes de respecter les lois en vigueur et de fournir des informations sincères sur ton identité lorsque tu choisis de te vérifier.',
                     'L’application est fournie « en l’état » dans cette version démo ; les fonctionnalités peuvent évoluer.',
@@ -1278,7 +1278,7 @@ class _LegalSettingsPage extends StatelessWidget {
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.shield,
-                  title: 'Politique de confidentialite',
+                  title: 'Politique de confidentialité',
                   onTap: () => _openLegal(context, 'Politique de confidentialité', [
                     'Nous limitons la collecte aux données nécessaires au fonctionnement de l’app (profil, messages, médias que tu envoies).',
                     'Tu peux ajuster la visibilité (distance, statut en ligne) dans Paramètres > Confidentialité.',
@@ -1288,7 +1288,7 @@ class _LegalSettingsPage extends StatelessWidget {
                 Divider(height: 1, color: Theme.of(context).dividerColor),
                 _ActionSettingRow(
                   icon: LucideIcons.scale,
-                  title: 'Regles de la communaute',
+                  title: 'Règles de la communauté',
                   onTap: () => _openLegal(context, 'Règles de la communauté', [
                     'Respect et consentement : pas de harcèlement, pas de contenu illégal.',
                     'Signale les profils ou messages problématiques depuis le menu conversation ou le profil.',

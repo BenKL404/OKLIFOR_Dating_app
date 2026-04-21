@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/api/oklifor_api_exception.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/utils/app_local_cache.dart';
 import '../providers/auth_api_provider.dart';
 import '../utils/apply_post_login.dart';
 
@@ -18,7 +20,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 900), _bootstrap);
+    Future<void>.delayed(const Duration(milliseconds: 200), _bootstrap);
   }
 
   Future<void> _bootstrap() async {
@@ -29,10 +31,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (token != null && token.isNotEmpty) {
       try {
         final me = await client.fetchMe();
+        await AppLocalCache.saveMe(me);
         if (mounted) applyMeAndGoHome(context, me);
         return;
+      } on OkliforApiException catch (e) {
+        // Si token expiré => logout. Si hors-ligne => démarrage en cache.
+        if (e.statusCode == 401 || e.statusCode == 403) {
+          await client.logout();
+        } else {
+          final userId = await storage.readUserId();
+          final cached = userId == null ? null : await AppLocalCache.loadMe(userId);
+          if (cached != null && mounted) {
+            applyMeAndGoHome(context, cached);
+            return;
+          }
+        }
       } catch (_) {
-        await client.logout();
+        final userId = await storage.readUserId();
+        final cached = userId == null ? null : await AppLocalCache.loadMe(userId);
+        if (cached != null && mounted) {
+          applyMeAndGoHome(context, cached);
+          return;
+        }
       }
     }
     if (mounted) context.go('/login');
@@ -103,7 +123,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     letterSpacing: -1.5,
                     fontFamilyFallback: const ['Helvetica'],
                   ),
-                ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.3, end: 0),
+                ).animate().fadeIn(delay: 50.ms).slideY(begin: 0.18, end: 0),
                 const SizedBox(height: 4),
                 Text(
                   'Rencontres au Togo',
@@ -112,7 +132,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     fontSize: 14,
                     letterSpacing: 0.3,
                   ),
-                ).animate().fadeIn(delay: 500.ms),
+                ).animate().fadeIn(delay: 120.ms),
               ],
             ),
           ),
@@ -129,7 +149,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   backgroundColor: AppColors.primary.withAlpha(25),
                 ),
               ),
-            ).animate().fadeIn(delay: 1000.ms),
+            ).animate().fadeIn(delay: 180.ms),
           ),
         ],
       ),

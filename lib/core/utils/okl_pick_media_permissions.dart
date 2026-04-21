@@ -19,24 +19,58 @@ class OklPickMediaPermissions {
     return s == PermissionStatus.limited;
   }
 
-  static void _alertDenied(BuildContext context, PermissionStatus status, {required bool forCamera}) {
-    if (status.isPermanentlyDenied) {
-      OklFeedback.alert(
-        context,
-        title: 'Permission requise',
-        message: forCamera
-            ? 'L’accès caméra a été refusé. Active la permission dans les réglages du téléphone.'
-            : 'L’accès à la galerie a été refusé. Active « Photos et vidéos » ou « Stockage » dans les réglages.',
-      );
+  static Future<void> _alertDenied(
+    BuildContext context,
+    PermissionStatus status, {
+    required bool forCamera,
+    required bool forMicrophone,
+  }) async {
+    final needSettings =
+        status.isPermanentlyDenied || status.isRestricted;
+    final String message;
+    if (forMicrophone) {
+      message = needSettings
+          ? "L'accès micro est bloqué. Active le micro dans les réglages du téléphone."
+          : "Sans accès micro, impossible d'enregistrer un vocal.";
+    } else if (forCamera) {
+      message = needSettings
+          ? "L'accès caméra est bloqué. Active la caméra dans les réglages du téléphone."
+          : "Sans accès caméra, impossible de prendre une photo/vidéo.";
     } else {
+      message = needSettings
+          ? "L'accès à la galerie est bloqué. Active Photos/Vidéos dans les réglages."
+          : "Sans accès à la galerie, impossible de choisir un média.";
+    }
+
+    if (!needSettings) {
       OklFeedback.alert(
         context,
         title: 'Permission refusée',
-        message: forCamera
-            ? 'Sans accès caméra, impossible de prendre une photo.'
-            : 'Sans accès à la galerie, impossible de choisir une image.',
+        message: message,
       );
+      return;
     }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Permission requise'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await openAppSettings();
+            },
+            child: const Text('Ouvrir réglages'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Caméra : [Permission.camera]. Galerie : **aucune** sur iOS (PHPicker). Sur Android, selon la version d’OS.
@@ -47,7 +81,12 @@ class OklPickMediaPermissions {
       final s = await Permission.camera.request();
       if (s.isGranted) return true;
       if (!context.mounted) return false;
-      _alertDenied(context, s, forCamera: true);
+      await _alertDenied(
+        context,
+        s,
+        forCamera: true,
+        forMicrophone: false,
+      );
       return false;
     }
 
@@ -60,13 +99,23 @@ class OklPickMediaPermissions {
         final s = await Permission.photos.request();
         if (_mediaGranted(s)) return true;
         if (!context.mounted) return false;
-        _alertDenied(context, s, forCamera: false);
+        await _alertDenied(
+          context,
+          s,
+          forCamera: false,
+          forMicrophone: false,
+        );
         return false;
       }
       final s = await Permission.storage.request();
       if (s.isGranted) return true;
       if (!context.mounted) return false;
-      _alertDenied(context, s, forCamera: false);
+      await _alertDenied(
+        context,
+        s,
+        forCamera: false,
+        forMicrophone: false,
+      );
       return false;
     }
 
@@ -88,16 +137,40 @@ class OklPickMediaPermissions {
         final s = await perm.request();
         if (_mediaGranted(s)) return true;
         if (!context.mounted) return false;
-        _alertDenied(context, s, forCamera: false);
+        await _alertDenied(
+          context,
+          s,
+          forCamera: false,
+          forMicrophone: false,
+        );
         return false;
       }
       final s = await Permission.storage.request();
       if (s.isGranted) return true;
       if (!context.mounted) return false;
-      _alertDenied(context, s, forCamera: false);
+      await _alertDenied(
+        context,
+        s,
+        forCamera: false,
+        forMicrophone: false,
+      );
       return false;
     }
 
     return true;
+  }
+
+  static Future<bool> ensureMicrophone(BuildContext context) async {
+    if (kIsWeb) return true;
+    final s = await Permission.microphone.request();
+    if (s.isGranted) return true;
+    if (!context.mounted) return false;
+    await _alertDenied(
+      context,
+      s,
+      forCamera: false,
+      forMicrophone: true,
+    );
+    return false;
   }
 }

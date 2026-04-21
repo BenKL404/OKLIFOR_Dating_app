@@ -6,7 +6,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_chat_attachment_launch.dart';
 import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../models/chat_models.dart';
-import 'chat_image_viewer_screen.dart';
+import 'media_viewer_screen.dart';
 
 /// Écran « Médias » : photos + fichiers (PDF, etc.) avec ouverture via l’app système.
 class ConversationMediaScreen extends StatefulWidget {
@@ -225,7 +225,10 @@ class _PhotosGrid extends StatelessWidget {
               Navigator.of(context, rootNavigator: true).push<void>(
                 MaterialPageRoute<void>(
                   fullscreenDialog: true,
-                  builder: (_) => ChatImageViewerScreen(imageUrl: url, heroTag: tag),
+                  builder: (_) => MediaViewerScreen(
+                    messages: images,
+                    initialIndex: i,
+                  ),
                 ),
               );
             },

@@ -1535,122 +1535,121 @@ class _ExploreScreenState extends State<ExploreScreen> {
     required VoidCallback onTap,
   }) {
     final isDark = context.oklMeetIsDark;
-    final titleColor = isDark ? Colors.white : context.oklOnSurface;
-    final subColor =
-        isDark ? Colors.white.withValues(alpha: 0.55) : context.oklOnSurfaceMuted(0.55);
-    const thumb = 86.0;
-    const h = 90.0;
     return Material(
       color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: 252,
-          height: h,
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : context.oklSurface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.14) : context.oklDivider,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: SizedBox(
+          width: 168,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: thumb,
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 360,
-                  placeholder: (c, u) => Container(color: context.oklScaffold),
-                  errorWidget: (c, u, e) => Container(color: context.oklScaffold),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                child: SizedBox(
+                  height: 108,
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          height: 1.1,
-                          letterSpacing: -0.2,
+                      CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 336,
+                        placeholder: (c, u) => Container(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : context.oklScaffold,
+                        ),
+                        errorWidget: (c, u, e) => Container(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : context.oklScaffold,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: subColor, fontSize: 10, height: 1.15),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(LucideIcons.users, size: 11, color: AppColors.primary),
-                          const SizedBox(width: 3),
-                          Text(
-                            '$going',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 10,
-                            ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                          const SizedBox(width: 8),
-                          Icon(LucideIcons.clock, size: 11, color: subColor),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              when,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: subColor,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w600,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(LucideIcons.users, size: 10, color: Colors.white),
+                              const SizedBox(width: 3),
+                              Text(
+                                '$going',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Icon(LucideIcons.mapPin, size: 10, color: subColor),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: Text(
-                              distance,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.end,
-                              style: TextStyle(
-                                color: subColor,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.07)
+                      : context.oklSurface,
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : context.oklOnSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          LucideIcons.clock,
+                          size: 11,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.45)
+                              : context.oklOnSurfaceMuted(0.48),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            when,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.48)
+                                  : context.oklOnSurfaceMuted(0.52),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1782,26 +1781,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Événements, ambiances & lieux près de toi',
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.35,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Certifiés Oklifor, soirées, restos, bars, clubs, rassemblements — et des personnes qui cherchent des participant·e·s pour un plan concret.',
-                        style: TextStyle(
-                          color: subColor,
-                          fontSize: 13,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 4),
                       Text(
                         'Ton envie du moment',
                         style: TextStyle(
@@ -2062,15 +2042,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     letterSpacing: -0.25,
                                   ),
                                 ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  'Complète un groupe ou réponds à un plan concret (démo).',
-                                  style: TextStyle(
-                                    color: subColor,
-                                    fontSize: 11.5,
-                                    height: 1.3,
-                                  ),
-                                ),
                               ],
                             ),
                           ),
@@ -2088,17 +2059,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         )
                       else
                         SizedBox(
-                          height: 114,
+                          height: 96,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: asks.length,
-                            separatorBuilder: (context, _) => const SizedBox(width: 12),
+                            separatorBuilder: (context, _) => const SizedBox(width: 10),
                             itemBuilder: (context, i) {
                               final p = asks[i];
                               return Material(
-                                color: Colors.transparent,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.07)
+                                    : context.oklSurface,
+                                borderRadius: BorderRadius.circular(16),
+                                clipBehavior: Clip.antiAlias,
                                 child: InkWell(
-                                  borderRadius: BorderRadius.circular(18),
                                   onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
                                     MaterialPageRoute<void>(
                                       builder: (_) => NearbyProfilePreviewScreen(
@@ -2113,66 +2087,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     ),
                                   ),
                                   child: Container(
-                                    width: 236,
-                                    padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? Colors.white.withValues(alpha: 0.08)
-                                          : context.oklSurface,
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                        color: isDark
-                                            ? Colors.white.withValues(alpha: 0.14)
-                                            : context.oklDivider,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: isDark ? 0.35 : 0.08,
-                                          ),
-                                          blurRadius: isDark ? 20 : 14,
-                                          offset: Offset(0, isDark ? 10 : 6),
-                                        ),
-                                      ],
-                                    ),
+                                    width: 210,
+                                    padding: const EdgeInsets.all(12),
                                     child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
                                       children: [
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
+                                        ClipOval(
+                                          child: CachedNetworkImage(
+                                            imageUrl: p.avatarUrl,
+                                            width: 48,
+                                            height: 48,
+                                            fit: BoxFit.cover,
+                                            memCacheWidth: 96,
+                                            placeholder: (ctx, url) => Container(
+                                              width: 48,
+                                              height: 48,
                                               color: isDark
-                                                  ? Colors.white.withValues(alpha: 0.2)
-                                                  : context.oklDivider,
+                                                  ? Colors.white.withValues(alpha: 0.06)
+                                                  : context.oklScaffold,
                                             ),
-                                          ),
-                                          child: ClipOval(
-                                            child: CachedNetworkImage(
-                                              imageUrl: p.avatarUrl,
-                                              width: 40,
-                                              height: 40,
-                                              fit: BoxFit.cover,
-                                              memCacheWidth: 160,
-                                              placeholder: (ctx, url) => Container(
-                                                width: 40,
-                                                height: 40,
-                                                color: isDark
-                                                    ? Colors.white.withValues(alpha: 0.06)
-                                                    : context.oklScaffold,
-                                              ),
-                                              errorWidget: (ctx, url, error) => Container(
-                                                width: 40,
-                                                height: 40,
-                                                color: isDark
-                                                    ? Colors.white.withValues(alpha: 0.06)
-                                                    : context.oklScaffold,
-                                                child: Icon(
-                                                  LucideIcons.imageOff,
-                                                  size: 16,
-                                                  color: context.oklOnSurfaceMuted(0.4),
-                                                ),
-                                              ),
+                                            errorWidget: (ctx, url, e) => Container(
+                                              width: 48,
+                                              height: 48,
+                                              color: isDark
+                                                  ? Colors.white.withValues(alpha: 0.06)
+                                                  : context.oklScaffold,
                                             ),
                                           ),
                                         ),
@@ -2180,6 +2119,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               Row(
                                                 children: [
@@ -2189,42 +2129,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                       maxLines: 1,
                                                       overflow: TextOverflow.ellipsis,
                                                       style: TextStyle(
-                                                        color: titleColor,
-                                                        fontWeight: FontWeight.w800,
-                                                        fontSize: 13,
+                                                        color: isDark ? Colors.white : context.oklOnSurface,
+                                                        fontWeight: FontWeight.w700,
+                                                        fontSize: 13.5,
+                                                        letterSpacing: -0.2,
                                                       ),
                                                     ),
                                                   ),
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.primary.withValues(alpha: 0.12),
-                                                      borderRadius: BorderRadius.circular(999),
-                                                    ),
-                                                    child: Text(
-                                                      p.slot,
-                                                      style: TextStyle(
-                                                        color: AppColors.primary,
-                                                        fontSize: 9,
-                                                        fontWeight: FontWeight.w800,
-                                                      ),
+                                                  Text(
+                                                    p.distance,
+                                                    style: TextStyle(
+                                                      color: isDark
+                                                          ? Colors.white.withValues(alpha: 0.38)
+                                                          : context.oklOnSurfaceMuted(0.42),
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w500,
                                                     ),
                                                   ),
                                                 ],
-                                              ),
-                                              const SizedBox(height: 1),
-                                              Text(
-                                                p.area,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: isDark
-                                                      ? Colors.white.withValues(alpha: 0.55)
-                                                      : context.oklOnSurfaceMuted(0.58),
-                                                  fontSize: 10,
-                                                ),
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
@@ -2233,41 +2155,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   color: isDark
-                                                      ? Colors.white.withValues(alpha: 0.78)
-                                                      : context.oklOnSurfaceMuted(0.78),
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  height: 1.2,
+                                                      ? Colors.white.withValues(alpha: 0.62)
+                                                      : context.oklOnSurfaceMuted(0.65),
+                                                  fontSize: 11.5,
+                                                  height: 1.25,
                                                 ),
-                                              ),
-                                              const SizedBox(height: 3),
-                                              Row(
-                                                children: [
-                                                  Icon(
-                                                    LucideIcons.mapPin,
-                                                    size: 11,
-                                                    color: isDark
-                                                        ? Colors.white.withValues(alpha: 0.42)
-                                                        : context.oklOnSurfaceMuted(0.45),
-                                                  ),
-                                                  const SizedBox(width: 3),
-                                                  Text(
-                                                    p.distance,
-                                                    style: TextStyle(
-                                                      color: isDark
-                                                          ? Colors.white.withValues(alpha: 0.42)
-                                                          : context.oklOnSurfaceMuted(0.48),
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                  const Spacer(),
-                                                  Icon(
-                                                    LucideIcons.userPlus,
-                                                    size: 13,
-                                                    color: AppColors.primary,
-                                                  ),
-                                                ],
                                               ),
                                             ],
                                           ),
@@ -2307,15 +2199,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       letterSpacing: -0.25,
                                     ),
                                   ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    'Rejoins un créneau ou un covoit (démo).',
-                                    style: TextStyle(
-                                      color: subColor,
-                                      fontSize: 11.5,
-                                      height: 1.3,
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),
@@ -2325,9 +2208,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         SizedBox(
-                          height: 90,
+                          height: 168,
                           child: ListView.separated(
                             padding: const EdgeInsets.only(right: 4),
                             scrollDirection: Axis.horizontal,

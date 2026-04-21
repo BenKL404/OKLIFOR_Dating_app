@@ -1,0 +1,37 @@
+Analyzing views...                                              
+
+warning - The declaration '_formatRelativeTime' isn't referenced - lib\features\chat\views\chat_list_screen.dart:157:10 - unused_element
+   info - Don't use 'BuildContext's across async gaps - lib\features\chat\views\chat_list_screen.dart:456:61 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\chat\views\chat_list_screen.dart:629:23 - use_build_context_synchronously
+warning - The member 'state' can only be used within 'package:riverpod/src/framework.dart' or a test - lib\features\chat\views\chat_list_screen.dart:647:44 - invalid_use_of_visible_for_testing_member
+warning - The member 'state' can only be used within instance members of subclasses of '$AsyncClassModifier' - lib\features\chat\views\chat_list_screen.dart:647:44 - invalid_use_of_protected_member
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/services.dart' - lib\features\chat\views\conversation_screen.dart:3:8 - unnecessary_import
+warning - Unused import: 'package:video_player/video_player.dart' - lib\features\chat\views\conversation_screen.dart:17:8 - unused_import
+warning - The declaration '_flushOfflineQueueForThread' isn't referenced - lib\features\chat\views\conversation_screen.dart:129:16 - unused_element
+warning - The declaration '_reloadMessagesFromDiskAfterGlobalSync' isn't referenced - lib\features\chat\views\conversation_screen.dart:155:16 - unused_element
+warning - The declaration '_shouldFetchRemoteMessages' isn't referenced - lib\features\chat\views\conversation_screen.dart:157:8 - unused_element
+warning - The declaration '_messagesFingerprint' isn't referenced - lib\features\chat\views\conversation_screen.dart:159:10 - unused_element
+warning - The declaration '_hydratePeerIdentity' isn't referenced - lib\features\chat\views\conversation_screen.dart:169:16 - unused_element
+warning - The declaration '_prefetchPersistentDocuments' isn't referenced - lib\features\chat\views\conversation_screen.dart:183:8 - unused_element
+warning - The declaration '_emojiCategoryIcon' isn't referenced - lib\features\chat\views\conversation_screen.dart:233:12 - unused_element
+warning - The declaration '_connectRealtime' isn't referenced - lib\features\chat\views\conversation_screen.dart:340:16 - unused_element
+warning - The declaration '_notifyReadCur' isn't referenced - lib\features\chat\views\conversation_screen.dart:377:16 - unused_element
+warning - The declaration '_applyReadReceipt' isn't referenced - lib\features\chat\views\conversation_screen.dart:381:8 - unused_element
+warning - The declaration '_sendBackendMessage' isn't referenced - lib\features\chat\views\conversation_screen.dart:391:18 - unused_element
+warning - A value for optional parameter 'localMessageId' isn't ever given - lib\features\chat\views\conversation_screen.dart:393:13 - unused_element_parameter
+warning - A value for optional parameter 'videoUrl' isn't ever given - lib\features\chat\views\conversation_screen.dart:396:13 - unused_element_parameter
+warning - A value for optional parameter 'audioUrl' isn't ever given - lib\features\chat\views\conversation_screen.dart:397:13 - unused_element_parameter
+warning - A value for optional parameter 'voiceSeconds' isn't ever given - lib\features\chat\views\conversation_screen.dart:398:10 - unused_element_parameter
+warning - A value for optional parameter 'locationLabel' isn't ever given - lib\features\chat\views\conversation_screen.dart:399:13 - unused_element_parameter
+warning - A value for optional parameter 'fileUrl' isn't ever given - lib\features\chat\views\conversation_screen.dart:400:13 - unused_element_parameter
+warning - The declaration '_isBackendThread' isn't referenced - lib\features\chat\views\conversation_screen.dart:431:12 - unused_element
+warning - The declaration '_persistMessagesForCache' isn't referenced - lib\features\chat\views\conversation_screen.dart:453:16 - unused_element
+warning - The declaration '_schedulePersistMessages' isn't referenced - lib\features\chat\views\conversation_screen.dart:455:8 - unused_element
+   info - Don't use 'BuildContext's across async gaps - lib\features\chat\views\conversation_screen.dart:851:7 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\chat\views\conversation_screen.dart:890:41 - use_build_context_synchronously
+warning - The declaration '_editForwardDocumentCaption' isn't referenced - lib\features\chat\views\conversation_screen.dart:1642:19 - unused_element
+warning - The declaration '_editForwardMediaCaption' isn't referenced - lib\features\chat\views\conversation_screen.dart:1705:19 - unused_element
+warning - The declaration '_storageObjectId' isn't referenced - lib\features\chat\views\conversation_screen.dart:2159:15 - unused_element
+warning - Dead code - lib\features\chat\views\conversation_screen.dart:2160:15 - dead_code
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\features\chat\views\document_compose_screen.dart:121:31 - use_null_aware_elements
+

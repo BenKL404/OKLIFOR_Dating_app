@@ -4,8 +4,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
 import '../../../core/theme/theme_extensions.dart';
-import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/widgets/okl_profile_photo_viewer.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../../core/flows/okl_flows.dart';
 import '../models/user_profile.dart';
@@ -20,55 +18,87 @@ import 'profile_stat_detail_screen.dart';
 import '../../common/views/contact_qr_hub_screen.dart';
 import '../../common/views/rich_account_screens.dart';
 
+// ── Données démo ─────────────────────────────────────────────────────────────
+
+const _kFriendRequests = <({
+  String name,
+  String area,
+  String avatar,
+  int mutualFriends,
+})>[
+  (
+    name: 'Sena',
+    area: 'Tokoin',
+    avatar:
+        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&q=80&auto=format&fit=crop',
+    mutualFriends: 12,
+  ),
+  (
+    name: 'Kossi',
+    area: 'Kégué',
+    avatar:
+        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&q=80&auto=format&fit=crop',
+    mutualFriends: 5,
+  ),
+  (
+    name: 'Afi',
+    area: 'Agoè',
+    avatar:
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80&auto=format&fit=crop',
+    mutualFriends: 28,
+  ),
+  (
+    name: 'Mawuli',
+    area: 'Adidogome',
+    avatar:
+        'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&q=80&auto=format&fit=crop',
+    mutualFriends: 3,
+  ),
+];
+
+const _kRecentActivity = <({IconData icon, String title, String sub, Color color})>[
+  (
+    icon: LucideIcons.heart,
+    title: 'Nouveau match avec Fati',
+    sub: 'Il y a 10 min',
+    color: Color(0xFFE05B7A),
+  ),
+  (
+    icon: LucideIcons.messageCircle,
+    title: "Kossi t'a écrit",
+    sub: 'Répondre maintenant',
+    color: AppColors.primary,
+  ),
+  (
+    icon: LucideIcons.sparkles,
+    title: "Profil boosté aujourd'hui",
+    sub: '+12 vues de profil',
+    color: AppColors.togoGold,
+  ),
+];
+
+const _kCommunityEvents = <({IconData icon, String title, String sub})>[
+  (
+    icon: LucideIcons.partyPopper,
+    title: 'Soirée Oklifor',
+    sub: '18 utilisateurs confirment',
+  ),
+  (
+    icon: LucideIcons.trophy,
+    title: 'Tournoi foot quartier',
+    sub: 'Adidogome · samedi',
+  ),
+  (
+    icon: LucideIcons.radio,
+    title: 'Live communautaire',
+    sub: '7 utilisateurs en direct',
+  ),
+];
+
+// ── Écran principal ───────────────────────────────────────────────────────────
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
-
-  static const _friendRequests = <({
-    String name,
-    String area,
-    String avatar,
-    int mutualFriends,
-  })>[
-    (
-      name: 'Sena',
-      area: 'Tokoin',
-      avatar:
-          'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&q=80&auto=format&fit=crop',
-      mutualFriends: 12,
-    ),
-    (
-      name: 'Kossi',
-      area: 'Kegue',
-      avatar:
-          'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&q=80&auto=format&fit=crop',
-      mutualFriends: 5,
-    ),
-    (
-      name: 'Afi',
-      area: 'Agoe',
-      avatar:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80&auto=format&fit=crop',
-      mutualFriends: 28,
-    ),
-  ];
-
-  static const _communityEvents = <({String title, String subtitle, IconData icon})>[
-    (
-      title: 'Soiree Oklifor',
-      subtitle: '18 utilisateurs confirment',
-      icon: LucideIcons.partyPopper,
-    ),
-    (
-      title: 'Tournoi foot quartier',
-      subtitle: 'Adidogome - samedi',
-      icon: LucideIcons.trophy,
-    ),
-    (
-      title: 'Live communautaire',
-      subtitle: '7 utilisateurs en direct',
-      icon: LucideIcons.radio,
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -80,665 +110,366 @@ class ProfileScreen extends StatelessWidget {
       builder: (context, _) {
         final profile = ProfileSession.profile.value;
         final vip = VipSession.subscription.value;
+        final topPad = MediaQuery.of(context).padding.top;
         return Scaffold(
-      backgroundColor: context.oklScaffold,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 300,
-            pinned: true,
-            backgroundColor: context.oklScaffold,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  profile.coverUrlForDisplay.isEmpty
-                      ? Container(color: context.oklSurface)
-                      : CachedNetworkImage(
-                          imageUrl: profile.coverUrlForDisplay,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 900,
-                          placeholder: (c, u) => Container(color: c.oklSurface),
-                          errorWidget: (c, u, e) => Container(color: c.oklSurface),
-                        ),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.35),
-                          Colors.black.withValues(alpha: 0.55),
-                          context.oklScaffold,
-                        ],
-                        stops: const [0.0, 0.5, 1.0],
-                      ),
+          backgroundColor: context.oklScaffold,
+          body: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    // ── Header : cover + avatar + identité ───────────────
+                    _ProfileHeader(
+                      profile: profile,
+                      topPad: topPad,
+                      context: context,
                     ),
-                  ),
-                  Positioned(
-                    left: 20,
-                    bottom: 20,
-                    child: GestureDetector(
-                      onTap: profile.avatarUrlForDisplay.isEmpty
-                          ? null
-                          : () => OklProfilePhotoViewer.open(
-                                context,
-                                imageUrl: profile.avatarUrlForDisplay,
-                              ),
-                      child: OklStoryGaugeRing(
-                        outerSize: 94,
-                        strokeWidth: 3,
-                        child: SizedBox(
-                          width: 88,
-                          height: 88,
-                          child: CircleAvatar(
-                            radius: 44,
-                            backgroundColor: context.oklScaffold,
-                            child: CircleAvatar(
-                              radius: 41,
-                              backgroundColor: context.oklSurface,
-                              child: ClipOval(
-                                child: profile.avatarUrlForDisplay.isEmpty
-                                    ? ColoredBox(
-                                        color: context.oklSurface,
-                                        child: Icon(
-                                          LucideIcons.user,
-                                          size: 36,
-                                          color: context.oklOnSurfaceMuted(0.35),
-                                        ),
-                                      )
-                                    : Hero(
-                                        tag: OklProfilePhotoViewer.heroTag,
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: CachedNetworkImage(
-                                            imageUrl: profile.avatarUrlForDisplay,
-                                            width: 82,
-                                            height: 82,
-                                            fit: BoxFit.cover,
-                                            memCacheWidth: 164,
-                                          ),
-                                        ),
-                                      ),
+                    const SizedBox(height: 16),
+
+                    // ── Sections ─────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _ActionBar(profile: profile, context: context),
+                          const SizedBox(height: 16),
+                          _StatsCard(context: context),
+                          const SizedBox(height: 16),
+                          if (profile.bio.isNotEmpty) ...[
+                            _BioSection(bio: profile.bio),
+                            const SizedBox(height: 16),
+                          ],
+                          _InterestChips(profile: profile),
+                          const SizedBox(height: 16),
+                          _VipBanner(
+                            vip: vip,
+                            onTap: () =>
+                                Navigator.of(context, rootNavigator: true)
+                                    .push<void>(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const VipPassScreen(),
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          if (!profile.hasOkliforCertificate) ...[
+                            _VerifyCard(
+                                profile: profile, context: context),
+                            const SizedBox(height: 16),
+                          ],
+                          _SectionHeader(
+                            title: "Demandes d'amis",
+                            badge: '${_kFriendRequests.length}',
+                            onMore: () =>
+                                Navigator.of(context, rootNavigator: true)
+                                    .push<void>(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    const FriendRequestsListScreen(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _FriendRequestsCarousel(context: context),
+                          const SizedBox(height: 20),
+                          const _SectionHeader(
+                              title: 'Mes matchs récents'),
+                          const SizedBox(height: 10),
+                          _ActivityCard(
+                              items: _kRecentActivity, context: context),
+                          const SizedBox(height: 20),
+                          const _SectionHeader(
+                              title: 'Communauté Oklifor'),
+                          const SizedBox(height: 10),
+                          _CommunityCard(
+                              items: _kCommunityEvents, context: context),
+                          SizedBox(
+                            height:
+                                oklMainShellListBottomPadding(context) + 8,
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: OklAppBarIconButton(
-                  icon: LucideIcons.settings,
-                  onPressed: () => Navigator.of(context, rootNavigator: true)
-                      .push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const SettingsScreen(),
-                    ),
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          profile.displayName,
-                          style: TextStyle(
-                            color: context.oklOnSurface,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ),
-                      if (vip.isActive) ...[
-                        const SizedBox(width: 6),
-                        Icon(LucideIcons.crown, color: AppColors.togoGold, size: 22),
-                      ],
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const AccountVerificationScreen(),
-                          ),
-                        ),
-                        child: profile.hasOkliforCertificate
-                            ? Icon(
-                                LucideIcons.badgeCheck,
-                                color: AppColors.togoGold,
-                                size: 22,
-                              )
-                            : Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: context.oklSurface,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: context.oklDivider),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      LucideIcons.shield,
-                                      size: 14,
-                                      color: context.oklOnSurfaceMuted(0.62),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Vérifier',
-                                      style: TextStyle(
-                                        color: context.oklOnSurfaceMuted(0.62),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(LucideIcons.mapPin, size: 13, color: context.oklOnSurfaceMuted(0.62)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          profile.city,
-                          style: TextStyle(
-                            color: context.oklOnSurfaceMuted(0.62),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (!profile.hasOkliforCertificate) ...[
-                    const SizedBox(height: 12),
-                    Material(
-                      color: context.oklSurface,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const AccountVerificationScreen(),
-                          ),
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: context.oklDivider),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                LucideIcons.shieldCheck,
-                                size: 20,
-                                color: AppColors.primary.withValues(alpha: 0.9),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Profil à certifier (${profile.completedVerificationSteps}/3)',
-                                      style: TextStyle(
-                                        color: context.oklOnSurface,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      !profile.emailVerified && !profile.idVerified
-                                          ? 'E-mail et identité restants pour le badge Oklifor.'
-                                          : !profile.idVerified
-                                              ? 'Soumets ta pièce d’identité pour finaliser.'
-                                              : 'Termine les étapes depuis l’écran vérification.',
-                                      style: TextStyle(
-                                        color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
-                                        fontSize: 12,
-                                        height: 1.25,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                LucideIcons.chevronRight,
-                                color: context.oklOnSurfaceMuted(0.55),
-                                size: 18,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Text(
-                    profile.bio,
-                    style: TextStyle(
-                      color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.98),
-                      fontSize: 14,
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (profile.relationGoal.isNotEmpty)
-                        _ProfileChip(icon: LucideIcons.heart, label: profile.relationGoal),
-                      if (profile.languages.isNotEmpty)
-                        _ProfileChip(icon: LucideIcons.languages, label: profile.languages),
-                      if (profile.ethnicity.isNotEmpty)
-                        _ProfileChip(icon: LucideIcons.globe, label: profile.ethnicity),
-                      if (profile.lifestyle.isNotEmpty)
-                        _ProfileChip(icon: LucideIcons.sun, label: profile.lifestyle),
-                      if (profile.profession.isNotEmpty)
-                        _ProfileChip(icon: LucideIcons.briefcase, label: profile.profession),
-                      if (profile.education.isNotEmpty)
-                        _ProfileChip(icon: LucideIcons.graduationCap, label: profile.education),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  _ProfileVipBanner(
-                    vip: vip,
-                    onOpenPass: () => Navigator.of(context, rootNavigator: true).push<void>(
-                      MaterialPageRoute<void>(builder: (_) => const VipPassScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _StatItem(
-                        value: '128',
-                        label: 'Likes',
-                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const ProfileStatDetailScreen(
-                              title: 'Likes reçus',
-                              value: '128',
-                              hint:
-                                  'Personnes qui ont aimé ton profil ou répondu à tes statuts récemment.',
-                            ),
-                          ),
-                        ),
-                      ),
-                      _StatItem(
-                        value: '24',
-                        label: 'Matchs',
-                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const ProfileStatDetailScreen(
-                              title: 'Matchs',
-                              value: '24',
-                              hint:
-                                  'Conversations ouvertes après un double intérêt. Un profil complet attire davantage de matchs.',
-                            ),
-                          ),
-                        ),
-                      ),
-                      _StatItem(
-                        value: '17',
-                        label: 'Demandes',
-                        onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const FriendRequestsListScreen(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Material(
-                          color: context.oklSurface,
-                          borderRadius: BorderRadius.circular(10),
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.of(context, rootNavigator: true).push<void>(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => EditProfileScreen(initial: profile),
-                                ),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 11),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: context.oklDivider),
-                              ),
-                              child: Text(
-                                'Modifier le profil',
-                                style: TextStyle(
-                                  color: context.oklOnSurface,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Material(
-                        color: context.oklSurface,
-                        borderRadius: BorderRadius.circular(10),
-                        child: InkWell(
-                          onTap: () => Navigator.of(context, rootNavigator: true)
-                              .push<void>(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const InviteFriendsScreen(),
-                            ),
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: context.oklDivider),
-                            ),
-                            child: Icon(
-                              LucideIcons.userPlus,
-                              color: context.oklOnSurfaceMuted(0.62),
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Material(
-                        color: context.oklSurface,
-                        borderRadius: BorderRadius.circular(10),
-                        child: InkWell(
-                          onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const ContactQrHubScreen(),
-                            ),
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: context.oklDivider),
-                            ),
-                            child: Icon(
-                              LucideIcons.qrCode,
-                              color: context.oklOnSurfaceMuted(0.62),
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 26),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Demandes d'amis (${_friendRequests.length})",
-                        style: TextStyle(
-                          color: context.oklOnSurface,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context, rootNavigator: true).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const FriendRequestsListScreen(),
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text(
-                          'Voir tout',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: context.oklSurface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: context.oklDivider),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < _friendRequests.length; i++) ...[
-                          if (i > 0)
-                            Divider(height: 1, thickness: 1, color: context.oklDivider),
-                          _FriendRequestFacebookRow(user: _friendRequests[i]),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _CommunitySection(
-                    title: 'Mes matchs recents',
-                    items: const [
-                      (
-                        icon: LucideIcons.heart,
-                        title: 'Nouveau match avec Fati',
-                        subtitle: 'Il y a 10 min',
-                      ),
-                      (
-                        icon: LucideIcons.messageCircle,
-                        title: 'Kossi t a ecrit',
-                        subtitle: 'Repondre maintenant',
-                      ),
-                      (
-                        icon: LucideIcons.sparkles,
-                        title: 'Profil booste aujourd hui',
-                        subtitle: '+12 vues de profil',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  _CommunitySection(
-                    title: 'Communaute Oklifor',
-                    items: _communityEvents
-                        .map((e) => (
-                              icon: e.icon,
-                              title: e.title,
-                              subtitle: e.subtitle,
-                            ))
-                        .toList(growable: false),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.only(
-              bottom: oklMainShellListBottomPadding(context),
-            ),
-            sliver: const SliverToBoxAdapter(child: SizedBox.shrink()),
-          ),
-        ],
-      ),
-    );
+        );
       },
     );
   }
 }
 
-class _ProfileVipBanner extends StatelessWidget {
-  final VipSubscriptionState vip;
-  final VoidCallback onOpenPass;
+// ── Header : cover + avatar + identité ───────────────────────────────────────
 
-  const _ProfileVipBanner({
-    required this.vip,
-    required this.onOpenPass,
-  });
+class _ProfileHeader extends StatelessWidget {
+  final UserProfile profile;
+  final double topPad;
+  final BuildContext context;
+  const _ProfileHeader(
+      {required this.profile, required this.topPad, required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final vip = VipSession.subscription.value;
+    const coverHeight = 210.0;
+    const avatarRadius = 50.0;
+    const avatarBorder = 3.0;
+    const avatarTotal = (avatarRadius + avatarBorder) * 2; // 106px
+
+    return Column(
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Cover photo
+            SizedBox(
+              height: coverHeight,
+              width: double.infinity,
+              child: CachedNetworkImage(
+                imageUrl: profile.coverUrlForDisplay,
+                fit: BoxFit.cover,
+                memCacheWidth: 900,
+                placeholder: (c, _) => Container(color: c.oklSurface),
+                errorWidget: (c, e, w) => Container(color: c.oklSurface),
+              ),
+            ),
+            // Gradient top (barre système)
+            Positioned(
+              top: 0, left: 0, right: 0,
+              height: topPad + 56,
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xAA000000), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            // Gradient bas → fondu vers scaffold
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              height: 80,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [ctx.oklScaffold, Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            // Bouton Settings (top right, safe area)
+            Positioned(
+              top: topPad + 8,
+              right: 12,
+              child: _CircleIconBtn(
+                icon: LucideIcons.settings,
+                onTap: () =>
+                    Navigator.of(context, rootNavigator: true).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SettingsScreen(),
+                  ),
+                ),
+              ),
+            ),
+            // Avatar centré, chevauchant le bas du cover
+            Positioned(
+              bottom: -(avatarTotal / 2),
+              left: 0,
+              right: 0,
+              child: Center(
+                child: OklStoryGaugeRing(
+                  outerSize: avatarTotal,
+                  strokeWidth: 3,
+                  child: Container(
+                    width: avatarTotal - 2,
+                    height: avatarTotal - 2,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: ctx.oklScaffold, width: avatarBorder),
+                    ),
+                    child: ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: profile.avatarUrlForDisplay,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 200,
+                        placeholder: (c, _) =>
+                            Container(color: c.oklSurface),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        // Espace pour la moitié basse de l'avatar
+        const SizedBox(height: avatarTotal / 2 + 12),
+        // Nom + badges
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  profile.displayName,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ctx.oklOnSurface,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+              if (vip.isActive) ...[
+                const SizedBox(width: 6),
+                Icon(LucideIcons.crown, color: AppColors.togoGold, size: 20),
+              ],
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () =>
+                    Navigator.of(context, rootNavigator: true).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AccountVerificationScreen(),
+                  ),
+                ),
+                child: profile.hasOkliforCertificate
+                    ? Icon(LucideIcons.badgeCheck,
+                        color: AppColors.togoGold, size: 22)
+                    : Icon(LucideIcons.shieldOff,
+                        color: ctx.oklOnSurfaceMuted(0.4), size: 18),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Ville
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(LucideIcons.mapPin,
+                size: 13, color: ctx.oklOnSurfaceMuted(0.5)),
+            const SizedBox(width: 4),
+            Text(
+              profile.city,
+              style: TextStyle(
+                color: ctx.oklOnSurfaceMuted(0.55),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CircleIconBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _CircleIconBtn({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    if (vip.isActive) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onOpenPass,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.togoGold.withValues(alpha: 0.26),
-                  AppColors.togoGold.withValues(alpha: 0.11),
-                ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.35),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 18),
+      ),
+    );
+  }
+}
+
+// ── Barre d'actions (Modifier, Inviter, QR) ───────────────────────────────────
+
+class _ActionBar extends StatelessWidget {
+  final UserProfile profile;
+  final BuildContext context;
+  const _ActionBar({required this.profile, required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Row(
+      children: [
+        Expanded(
+          child: _OutlinedActionBtn(
+            label: 'Modifier le profil',
+            onTap: () =>
+                Navigator.of(context, rootNavigator: true).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => EditProfileScreen(initial: profile),
               ),
-              border: Border.all(color: AppColors.togoGold.withValues(alpha: 0.52)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(LucideIcons.crown, color: AppColors.togoGold, size: 26),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pass VIP actif',
-                        style: TextStyle(
-                          color: context.oklOnSurface,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Valable jusqu’au ${vip.expiresLabelFr} · ${vip.planLabelFr}',
-                        style: TextStyle(
-                          color: context.oklOnSurfaceMuted(0.68),
-                          fontSize: 12.5,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  LucideIcons.chevronRight,
-                  color: context.oklOnSurfaceMuted(0.5),
-                  size: 20,
-                ),
-              ],
             ),
           ),
         ),
-      );
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onOpenPass,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: AppColors.togoGold.withValues(alpha: 0.18),
-            border: Border.all(color: AppColors.togoGold.withValues(alpha: 0.5)),
+        const SizedBox(width: 8),
+        _IconActionBtn(
+          icon: LucideIcons.userPlus,
+          onTap: () =>
+              Navigator.of(context, rootNavigator: true).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const InviteFriendsScreen(),
+            ),
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(LucideIcons.crown, color: AppColors.togoGold, size: 26),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Obtenir mon Pass VIP',
-                      style: TextStyle(
-                        color: context.oklOnSurface,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Mobile Money · voir qui t’a liké, badge VIP, boost Sorties',
-                      style: TextStyle(
-                        color: context.oklOnSurfaceMuted(0.68),
-                        fontSize: 12.5,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                LucideIcons.chevronRight,
-                color: context.oklOnSurfaceMuted(0.5),
-              ),
-            ],
+        ),
+        const SizedBox(width: 8),
+        _IconActionBtn(
+          icon: LucideIcons.qrCode,
+          onTap: () =>
+              Navigator.of(context, rootNavigator: true).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const ContactQrHubScreen(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OutlinedActionBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _OutlinedActionBtn({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.oklSurface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: context.oklDivider),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: context.oklOnSurface,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -746,34 +477,269 @@ class _ProfileVipBanner extends StatelessWidget {
   }
 }
 
-class _ProfileChip extends StatelessWidget {
+class _IconActionBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _IconActionBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.oklSurface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: context.oklDivider),
+          ),
+          child: Icon(icon, size: 18, color: context.oklOnSurfaceMuted(0.65)),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+class _StatsCard extends StatelessWidget {
+  final BuildContext context;
+  const _StatsCard({required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ctx.oklSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ctx.oklDivider),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            _StatCell(
+              value: '128',
+              label: 'Likes',
+              onTap: () =>
+                  Navigator.of(context, rootNavigator: true).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ProfileStatDetailScreen(
+                    title: 'Likes reçus',
+                    value: '128',
+                    hint: 'Personnes qui ont aimé ton profil ou répondu à tes statuts cette semaine (démo).',
+                  ),
+                ),
+              ),
+            ),
+            VerticalDivider(
+                width: 1, thickness: 1, color: ctx.oklDivider),
+            _StatCell(
+              value: '24',
+              label: 'Matchs',
+              onTap: () =>
+                  Navigator.of(context, rootNavigator: true).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ProfileStatDetailScreen(
+                    title: 'Matchs',
+                    value: '24',
+                    hint: 'Conversations ouvertes après un double intérêt (démo).',
+                  ),
+                ),
+              ),
+            ),
+            VerticalDivider(
+                width: 1, thickness: 1, color: ctx.oklDivider),
+            _StatCell(
+              value: '17',
+              label: 'Demandes',
+              onTap: () =>
+                  Navigator.of(context, rootNavigator: true).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const FriendRequestsListScreen(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  final String value;
+  final String label;
+  final VoidCallback onTap;
+  const _StatCell(
+      {required this.value, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 14),
+            child: Column(
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: context.oklOnSurface,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: context.oklOnSurfaceMuted(0.55),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bio ───────────────────────────────────────────────────────────────────────
+
+class _BioSection extends StatefulWidget {
+  final String bio;
+  const _BioSection({required this.bio});
+
+  @override
+  State<_BioSection> createState() => _BioSectionState();
+}
+
+class _BioSectionState extends State<_BioSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const maxLines = 3;
+    return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Text(
+        widget.bio,
+        maxLines: _expanded ? null : maxLines,
+        overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+        style: TextStyle(
+          color: context.oklOnSurface.withValues(alpha: 0.82),
+          fontSize: 14,
+          height: 1.55,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Chips d'intérêts ──────────────────────────────────────────────────────────
+
+class _InterestChips extends StatelessWidget {
+  final UserProfile profile;
+  const _InterestChips({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <({IconData icon, String label, Color color})>[
+      if (profile.relationGoal.isNotEmpty)
+        (
+          icon: LucideIcons.heart,
+          label: profile.relationGoal,
+          color: const Color(0xFFE05B7A),
+        ),
+      if (profile.languages.isNotEmpty)
+        (
+          icon: LucideIcons.languages,
+          label: profile.languages,
+          color: AppColors.primary,
+        ),
+      if (profile.lifestyle.isNotEmpty)
+        (
+          icon: LucideIcons.sun,
+          label: profile.lifestyle,
+          color: AppColors.togoGold,
+        ),
+      if (profile.profession.isNotEmpty)
+        (
+          icon: LucideIcons.briefcase,
+          label: profile.profession,
+          color: const Color(0xFF7B68EE),
+        ),
+      if (profile.education.isNotEmpty)
+        (
+          icon: LucideIcons.graduationCap,
+          label: profile.education,
+          color: const Color(0xFF20B2AA),
+        ),
+    ];
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (int i = 0; i < chips.length; i++) ...[
+            _Chip(
+              icon: chips[i].icon,
+              label: chips[i].label,
+              color: chips[i].color,
+            ),
+            if (i < chips.length - 1) const SizedBox(width: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
   final IconData icon;
   final String label;
-
-  const _ProfileChip({required this.icon, required this.label});
+  final Color color;
+  const _Chip({required this.icon, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: context.oklSurface,
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: context.oklDivider),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: context.oklOnSurfaceMuted(0.62)),
+          Icon(icon, size: 13, color: color),
           const SizedBox(width: 6),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 260),
+            constraints: const BoxConstraints(maxWidth: 180),
             child: Text(
               label,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: context.oklOnSurface,
+                color: context.oklOnSurface.withValues(alpha: 0.9),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -785,33 +751,105 @@ class _ProfileChip extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String value, label;
+// ── Bannière VIP ──────────────────────────────────────────────────────────────
+
+class _VipBanner extends StatelessWidget {
+  final VipSubscriptionState vip;
+  final VoidCallback onTap;
+  const _VipBanner({required this.vip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (vip.isActive) {
+      return _VipTile(
+        leading: Icon(LucideIcons.crown, color: AppColors.togoGold, size: 22),
+        title: 'Pass VIP actif',
+        sub: "Valable jusqu'au ${vip.expiresLabelFr} · ${vip.planLabelFr}",
+        borderColor: AppColors.togoGold.withValues(alpha: 0.4),
+        bgColor: AppColors.togoGold.withValues(alpha: 0.1),
+        onTap: onTap,
+      );
+    }
+    return _VipTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.togoGold, Color(0xFFFFAA00)],
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(LucideIcons.crown, color: Colors.white, size: 18),
+      ),
+      title: 'Obtenir mon Pass VIP',
+      sub: "Mobile Money · voir qui t'a liké, badge, boost visibilité",
+      borderColor: AppColors.togoGold.withValues(alpha: 0.35),
+      bgColor: AppColors.togoGold.withValues(alpha: 0.08),
+      onTap: onTap,
+    );
+  }
+}
+
+class _VipTile extends StatelessWidget {
+  final Widget leading;
+  final String title, sub;
+  final Color borderColor, bgColor;
   final VoidCallback onTap;
 
-  const _StatItem({required this.value, required this.label, required this.onTap});
+  const _VipTile({
+    required this.leading,
+    required this.title,
+    required this.sub,
+    required this.borderColor,
+    required this.bgColor,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Column(
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
             children: [
-              Text(value,
-                  style: TextStyle(
-                    color: context.oklOnSurface,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  )),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(
-                      color: context.oklOnSurfaceMuted(0.62), fontSize: 12)),
+              leading,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: context.oklOnSurface,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      sub,
+                      style: TextStyle(
+                        color: context.oklOnSurfaceMuted(0.62),
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(LucideIcons.chevronRight,
+                  size: 16, color: context.oklOnSurfaceMuted(0.4)),
             ],
           ),
         ),
@@ -820,125 +858,258 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-/// Ligne de demande d’ami façon fil d’actualité Facebook : avatar large, amis en commun, deux boutons pleine largeur.
-class _FriendRequestFacebookRow extends StatelessWidget {
-  final ({String name, String area, String avatar, int mutualFriends}) user;
+// ── Carte de vérification ─────────────────────────────────────────────────────
 
-  const _FriendRequestFacebookRow({required this.user});
+class _VerifyCard extends StatelessWidget {
+  final UserProfile profile;
+  final BuildContext context;
+  const _VerifyCard({required this.profile, required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final steps = profile.completedVerificationSteps;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: () =>
+            Navigator.of(context, rootNavigator: true).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => const AccountVerificationScreen(),
+          ),
+        ),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ctx.oklSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ctx.oklDivider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.shieldCheck,
+                      size: 18,
+                      color: AppColors.primary.withValues(alpha: 0.9)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Certifie ton compte ($steps/3)',
+                      style: TextStyle(
+                        color: ctx.oklOnSurface,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  Icon(LucideIcons.chevronRight,
+                      size: 16, color: ctx.oklOnSurfaceMuted(0.4)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: steps / 3,
+                  minHeight: 5,
+                  backgroundColor: ctx.oklDivider,
+                  valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                !profile.emailVerified && !profile.idVerified
+                    ? 'E-mail et identité restants pour le badge Oklifor.'
+                    : !profile.idVerified
+                        ? "Soumets ta pièce d'identité pour finaliser."
+                        : 'Dernière étape — presque là !',
+                style: TextStyle(
+                  color: ctx.oklOnSurfaceMuted(0.6),
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── En-tête de section ────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? badge;
+  final VoidCallback? onMore;
+
+  const _SectionHeader({required this.title, this.badge, this.onMore});
 
   @override
   Widget build(BuildContext context) {
-    final mutual = user.mutualFriends;
-    final mutualLabel = mutual <= 1
-        ? '1 ami en commun'
-        : '$mutual amis en commun';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipOval(
-            child: CachedNetworkImage(
-              imageUrl: user.avatar,
-              width: 56,
-              height: 56,
-              fit: BoxFit.cover,
-              memCacheWidth: 120,
-              placeholder: (ctx, url) => Container(
-                width: 56,
-                height: 56,
-                color: ctx.oklSurface,
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: context.oklOnSurface,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (onMore != null)
+          GestureDetector(
+            onTap: onMore,
+            child: Text(
+              'Voir tout',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
+      ],
+    );
+  }
+}
+
+// ── Carrousel demandes d'amis ─────────────────────────────────────────────────
+
+class _FriendRequestsCarousel extends StatelessWidget {
+  final BuildContext context;
+  const _FriendRequestsCarousel({required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return SizedBox(
+      height: 156,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _kFriendRequests.length,
+        separatorBuilder: (_, i) => const SizedBox(width: 10),
+        itemBuilder: (ctx, i) {
+          final u = _kFriendRequests[i];
+          return _FriendRequestCard(user: u, context: context);
+        },
+      ),
+    );
+  }
+}
+
+class _FriendRequestCard extends StatelessWidget {
+  final ({String name, String area, String avatar, int mutualFriends}) user;
+  final BuildContext context;
+  const _FriendRequestCard({required this.user, required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      width: 130,
+      decoration: BoxDecoration(
+        color: ctx.oklSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ctx.oklDivider),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          // Avatar
+          SizedBox(
+            height: 72,
+            child: CachedNetworkImage(
+              imageUrl: user.avatar,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              memCacheWidth: 260,
+              placeholder: (c, _) => Container(color: c.oklScaffold),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   user.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: context.oklOnSurface,
+                    color: ctx.oklOnSurface,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$mutualLabel · ${user.area}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.oklOnSurfaceMuted(0.62),
                     fontSize: 13,
-                    height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => OklFlows.pushResult(
-                          context,
-                          icon: LucideIcons.userCheck,
-                          title: 'Demande acceptée',
-                          subtitle: '${user.name} fait partie de tes contacts Oklifor.',
-                          primaryLabel: 'Super',
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Confirmer',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
+                Text(
+                  '${user.mutualFriends} amis communs',
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: ctx.oklOnSurfaceMuted(0.55),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MiniBtn(
+                    label: 'Confirmer',
+                    primary: true,
+                    onTap: () => OklFlows.pushResult(
+                      context,
+                      icon: LucideIcons.userCheck,
+                      title: 'Demande acceptée',
+                      subtitle:
+                          '${user.name} fait partie de tes contacts Oklifor.',
+                      primaryLabel: 'Super',
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => OklFlows.pushResult(
-                          context,
-                          icon: LucideIcons.userX,
-                          title: 'Demande ignorée',
-                          subtitle:
-                              'Tu peux toujours retrouver ${user.name} dans les suggestions.',
-                          primaryLabel: 'OK',
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: context.oklScaffold,
-                          foregroundColor: context.oklOnSurface,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Ignorer',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                _DismissBtn(
+                  onTap: () => OklFlows.pushResult(
+                    context,
+                    icon: LucideIcons.userX,
+                    title: 'Demande ignorée',
+                    subtitle:
+                        'Tu peux toujours retrouver ${user.name} dans les suggestions.',
+                    primaryLabel: 'OK',
+                  ),
                 ),
               ],
             ),
@@ -949,88 +1120,141 @@ class _FriendRequestFacebookRow extends StatelessWidget {
   }
 }
 
-class _CommunitySection extends StatelessWidget {
-  final String title;
-  final List<({IconData icon, String title, String subtitle})> items;
-
-  const _CommunitySection({required this.title, required this.items});
+class _DismissBtn extends StatelessWidget {
+  final VoidCallback onTap;
+  const _DismissBtn({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: context.oklOnSurface,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
+    return Material(
+      color: context.oklScaffold,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: context.oklSurface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: context.oklDivider),
           ),
-          child: Column(
-            children: [
-              for (int i = 0; i < items.length; i++) ...[
-                _CommunityRow(
-                  item: items[i],
-                  onOpen: () => Navigator.of(context, rootNavigator: true).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => OklLegalDocumentScreen(
-                        title: items[i].title,
-                        paragraphs: [
-                          items[i].subtitle,
-                          'Bientôt : actions rapides (message, rappel, partage) depuis cet écran.',
-                          'En attendant, utilise Messages et Rencontres pour poursuivre la conversation.',
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                if (i != items.length - 1)
-                  Divider(height: 1, color: context.oklDivider),
-              ],
-            ],
+          child: Icon(
+            LucideIcons.x,
+            size: 15,
+            color: context.oklOnSurfaceMuted(0.55),
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-class _CommunityRow extends StatelessWidget {
-  final ({IconData icon, String title, String subtitle}) item;
-  final VoidCallback onOpen;
+class _MiniBtn extends StatelessWidget {
+  final String label;
+  final bool primary;
+  final VoidCallback onTap;
+  const _MiniBtn(
+      {required this.label, required this.primary, required this.onTap});
 
-  const _CommunityRow({required this.item, required this.onOpen});
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: primary
+          ? AppColors.primary
+          : context.oklScaffold,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: primary
+                ? null
+                : Border.all(color: context.oklDivider),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: primary ? Colors.white : context.oklOnSurfaceMuted(0.7),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Carte activité ────────────────────────────────────────────────────────────
+
+class _ActivityCard extends StatelessWidget {
+  final List<({IconData icon, String title, String sub, Color color})> items;
+  final BuildContext context;
+  const _ActivityCard({required this.items, required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ctx.oklSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ctx.oklDivider),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            if (i > 0) Divider(height: 1, color: ctx.oklDivider),
+            _ActivityRow(
+              item: items[i],
+              onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => OklLegalDocumentScreen(
+                    title: items[i].title,
+                    paragraphs: [
+                      items[i].sub,
+                      'Bientôt : actions rapides (message, rappel) depuis cet écran.',
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  final ({IconData icon, String title, String sub, Color color}) item;
+  final VoidCallback onTap;
+  const _ActivityRow({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onOpen,
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: Color.alphaBlend(
-                    context.oklOnSurface.withValues(alpha: 0.08),
-                    context.oklSurface,
-                  ),
+                  color: item.color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(item.icon, size: 17, color: context.oklOnSurfaceMuted(0.62)),
+                child: Icon(item.icon, size: 16, color: item.color),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1045,18 +1269,114 @@ class _CommunityRow extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
-                      item.subtitle,
+                      item.sub,
                       style: TextStyle(
-                        color: context.oklOnSurfaceMuted(0.62),
+                        color: context.oklOnSurfaceMuted(0.55),
                         fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(LucideIcons.chevronRight, color: context.oklOnSurfaceMuted(0.55), size: 16),
+              Icon(LucideIcons.chevronRight,
+                  size: 15, color: context.oklOnSurfaceMuted(0.4)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Carte communauté ──────────────────────────────────────────────────────────
+
+class _CommunityCard extends StatelessWidget {
+  final List<({IconData icon, String title, String sub})> items;
+  final BuildContext context;
+  const _CommunityCard({required this.items, required this.context});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ctx.oklSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ctx.oklDivider),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            if (i > 0) Divider(height: 1, color: ctx.oklDivider),
+            _CommunityRow(
+              item: items[i],
+              onTap: () => Navigator.of(context, rootNavigator: true).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => OklLegalDocumentScreen(
+                    title: items[i].title,
+                    paragraphs: [items[i].sub],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CommunityRow extends StatelessWidget {
+  final ({IconData icon, String title, String sub}) item;
+  final VoidCallback onTap;
+  const _CommunityRow({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: context.oklOnSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(item.icon,
+                    size: 16, color: context.oklOnSurfaceMuted(0.65)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: TextStyle(
+                        color: context.oklOnSurface,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      item.sub,
+                      style: TextStyle(
+                        color: context.oklOnSurfaceMuted(0.55),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(LucideIcons.chevronRight,
+                  size: 15, color: context.oklOnSurfaceMuted(0.4)),
             ],
           ),
         ),

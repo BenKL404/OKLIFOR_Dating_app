@@ -1,0 +1,55 @@
+services:
+  api:
+    image: ghcr.io/${GHCR_OWNER}/oklifor-api:latest
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/oklifor
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SERVER_PORT: 8100
+      JWT_SECRET: ${JWT_SECRET}
+      OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
+      OKLIFOR_VERIFICATION_DEMO_APPROVE: ${OKLIFOR_VERIFICATION_DEMO_APPROVE:-false}
+    volumes:
+      - oklifor_data:/app/data
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8100/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - oklifor_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - oklifor_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  oklifor_mongo_data:
+  oklifor_redis_data:
+  oklifor_data:

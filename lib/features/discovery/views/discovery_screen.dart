@@ -209,33 +209,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
-  void _openProfileLive(BuildContext context, _DemoProfile p) {
-    final liveFriends = _profiles
-        .where((item) => item.name != p.name)
-        .take(4)
-        .toList(growable: false);
-    Navigator.of(context, rootNavigator: true).push(
-      PageRouteBuilder<void>(
-        transitionDuration: const Duration(milliseconds: 280),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, animation, secondaryAnimation) => _LiveFriendsScreen(
-          host: p,
-          liveFriends: liveFriends,
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(-1, 0),
-              end: Offset.zero,
-            ).animate(curve),
-            child: child,
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top + 80;
@@ -302,7 +275,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                         },
                         onSuper: () {},
                         onOpenDetails: () => _openProfileQuickInfo(context, p),
-                        onOpenLives: () => _openProfileLive(context, p),
+                        onOpenProfile: () => {},
                       );
                     },
                   ),
@@ -351,54 +324,73 @@ class _ProfileDetailsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: AspectRatio(
-                aspectRatio: 4 / 5,
-                child: _buildDemoProfileImage(
-                  context,
-                  profile,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 900,
-                  placeholder: Container(color: context.oklSurface),
-                  errorWidget: Container(color: context.oklSurface),
+            Center(
+              child: Container(
+                width: 108,
+                height: 108,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.togoGold.withValues(alpha: 0.55),
+                    width: 2,
+                  ),
+                ),
+                child: ClipOval(
+                  child: _buildDemoProfileImage(
+                    context,
+                    profile,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 260,
+                    placeholder: Container(color: context.oklSurface),
+                    errorWidget: Container(color: context.oklSurface),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              '${profile.name}, ${profile.age}',
-              style: TextStyle(
-                color: context.oklOnSurface,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
+            Center(
+              child: Text(
+                '${profile.name}, ${profile.age}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: context.oklOnSurface,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(LucideIcons.mapPin, size: 16, color: context.oklOnSurfaceMuted(0.62)),
-                const SizedBox(width: 6),
-                Text(
-                  profile.location,
-                  style: TextStyle(color: context.oklOnSurfaceMuted(0.62), fontSize: 14),
-                ),
-              ],
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.mapPin, size: 16, color: context.oklOnSurfaceMuted(0.62)),
+                  const SizedBox(width: 6),
+                  Text(
+                    profile.location,
+                    style: TextStyle(color: context.oklOnSurfaceMuted(0.62), fontSize: 14),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: profile.tags
-                  .map(
-                    (t) => Chip(
-                      label: Text(t),
-                      backgroundColor: context.oklSurface,
-                      side: BorderSide(color: AppColors.togoGold.withValues(alpha: 0.45)),
-                      labelStyle: TextStyle(color: context.oklOnSurface, fontSize: 12),
-                    ),
-                  )
-                  .toList(),
+            Center(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: profile.tags
+                    .map(
+                      (t) => Chip(
+                        label: Text(t),
+                        backgroundColor: context.oklSurface,
+                        side: BorderSide(color: AppColors.togoGold.withValues(alpha: 0.45)),
+                        labelStyle: TextStyle(color: context.oklOnSurface, fontSize: 12),
+                      ),
+                    )
+                    .toList(),
+              ),
             ),
             const SizedBox(height: 18),
             Text(
@@ -471,7 +463,6 @@ class _ProfileDetailsScreen extends StatelessWidget {
                     label: const Text('Signaler'),
                   ),
                 ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: () => OklFlows.pushResult(
@@ -544,199 +535,6 @@ class _ProfileFieldTile extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LiveFriendsScreen extends StatelessWidget {
-  final _DemoProfile host;
-  final List<_DemoProfile> liveFriends;
-
-  const _LiveFriendsScreen({
-    required this.host,
-    required this.liveFriends,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.oklScaffold,
-      appBar: AppBar(
-        backgroundColor: context.oklScaffold,
-        leading: const OklAppBarBackButton(rootNavigator: true),
-        automaticallyImplyLeading: false,
-        title: const Text('Amis en live'),
-      ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.paddingOf(context).bottom + 18),
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: AspectRatio(
-              aspectRatio: 16 / 10,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _buildDemoProfileImage(
-                    context,
-                    host,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 1000,
-                    placeholder: Container(color: context.oklSurface),
-                    errorWidget: Container(color: context.oklSurface),
-                  ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0xC9000000)],
-                        stops: [0.45, 1.0],
-                      ),
-                    ),
-                  ),
-                  const Positioned(
-                    top: 12,
-                    left: 12,
-                    child: _LivePill(),
-                  ),
-                  Positioned(
-                    left: 12,
-                    right: 12,
-                    bottom: 12,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${host.name} est en live maintenant',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        FilledButton.icon(
-                          onPressed: () => OklFlows.pushLiveViewer(
-                            context,
-                            hostName: host.name,
-                            imageUrl: host.imageUrl,
-                          ),
-                          icon: const Icon(LucideIcons.play, size: 16),
-                          label: const Text('Regarder'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.togoRed,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Amis connectes en live',
-            style: TextStyle(
-              color: context.oklOnSurface,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final friend in liveFriends)
-            Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: context.oklSurface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: context.oklDivider),
-              ),
-              child: Row(
-                children: [
-                  ClipOval(
-                    child: SizedBox(
-                      width: 50,
-                      height: 50,
-                      child: _buildDemoProfileImage(
-                        context,
-                        friend,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 120,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '${friend.name}, ${friend.age}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: context.oklOnSurface,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const _LivePill(),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '${friend.location} • ${friend.relationGoal}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.oklOnSurfaceMuted(0.62),
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Ethnie: ${friend.ethnicity} • Langues: ${friend.languages}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.oklOnSurfaceMuted(0.55),
-                            fontSize: 11.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: () => OklFlows.pushResult(
-                      context,
-                      icon: LucideIcons.userPlus,
-                      title: 'Invitation envoyée',
-                      subtitle:
-                          '${friend.name} verra ta demande dans ses notifications.',
-                      primaryLabel: 'OK',
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                    child: const Text('Inviter'),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -1683,7 +1481,7 @@ class _ReelPage extends StatefulWidget {
   final VoidCallback onLike;
   final VoidCallback onSuper;
   final VoidCallback onOpenDetails;
-  final VoidCallback onOpenLives;
+  final VoidCallback onOpenProfile;
 
   const _ReelPage({
     required this.profile,
@@ -1694,7 +1492,7 @@ class _ReelPage extends StatefulWidget {
     required this.onLike,
     required this.onSuper,
     required this.onOpenDetails,
-    required this.onOpenLives,
+    required this.onOpenProfile,
   });
 
   @override
@@ -1792,7 +1590,7 @@ class _ReelPageState extends State<_ReelPage>
       onHorizontalDragUpdate: (d) => _dragX += d.delta.dx,
       onHorizontalDragEnd: (_) {
         if (_dragX < -90) widget.onOpenDetails();
-        if (_dragX > 90) widget.onOpenLives();
+        if (_dragX > 90) widget.onOpenProfile();
         _dragX = 0;
       },
       child: Stack(
@@ -2092,37 +1890,6 @@ class _MeetTagChip extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
-      ),
-    );
-  }
-}
-
-class _LivePill extends StatelessWidget {
-  const _LivePill();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(LucideIcons.radio, color: Colors.white, size: 13),
-          const SizedBox(width: 6),
-          Text(
-            'En direct',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
       ),
     );
   }

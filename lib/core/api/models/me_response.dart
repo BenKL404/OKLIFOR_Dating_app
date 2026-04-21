@@ -29,6 +29,16 @@ class MeResponse {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+      'phoneE164': phoneE164,
+      'profile': profile.toJson(),
+      'settings': settings,
+      'subscription': subscription.toJson(),
+    };
+  }
+
   UserProfile toUserProfile() {
     return UserProfile(
       userId: userId,
@@ -120,6 +130,27 @@ class MeProfileJson {
       profileOnboardingCompleted: j['profileOnboardingCompleted'] as bool? ?? true,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'displayName': displayName,
+      'city': city,
+      'bio': bio,
+      'relationGoal': relationGoal,
+      'languages': languages,
+      'ethnicity': ethnicity,
+      'lifestyle': lifestyle,
+      'profession': profession,
+      'education': education,
+      'coverUrl': coverUrl,
+      'avatarUrl': avatarUrl,
+      'phoneVerified': phoneVerified,
+      'emailVerified': emailVerified,
+      'idVerified': idVerified,
+      'idPendingReview': idPendingReview,
+      'profileOnboardingCompleted': profileOnboardingCompleted,
+    };
+  }
 }
 
 class MeSubscriptionJson {
@@ -147,6 +178,15 @@ class MeSubscriptionJson {
       planCode: j['planCode'] as String? ?? '',
       planUuid: j['planUuid'] as String?,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'active': active,
+      'validUntil': validUntil?.toIso8601String(),
+      'planCode': planCode,
+      'planUuid': planUuid,
+    };
   }
 
   void applyToVipSession() {

@@ -8,9 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 
-import '../../../core/config/oklifor_media_url.dart';
 import '../../../core/utils/okl_pick_media_permissions.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/layout_constants.dart';
@@ -21,12 +19,9 @@ import '../../../core/widgets/okl_app_bar_icon_button.dart';
 import '../../../core/widgets/okl_pill_search_bar.dart';
 import '../../../core/widgets/okl_story_gauge_ring.dart';
 import '../../auth/providers/auth_api_provider.dart';
-import '../../../core/api/models/user_status_models.dart';
-import '../../../core/api/models/chat_api_models.dart';
-import '../data/chat_api_mapping.dart';
-import '../data/chat_local_cache.dart';
-import '../data/chat_websocket_client.dart';
 import '../models/chat_models.dart';
+import '../providers/chat_providers.dart';
+import '../repository/chat_repository.dart';
 import 'conversation_screen.dart';
 import 'create_group_screen.dart';
 import 'create_text_status_screen.dart';
@@ -43,345 +38,115 @@ class ChatListScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
-  static const _mineStoryUrl =
-      'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&q=80&auto=format&fit=crop';
-  static const _mineStatusImageUrl =
-      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&q=85&auto=format&fit=crop';
-
-  late List<ChatThread> _threads;
   TextStatusPublishResult? _myTextStatus;
   String? _myMediaStatusLocalPath;
   String _myMediaStatusCaption = 'Mon humeur du jour.';
-  /// Statut synchronisé avec le backend (prioritaire pour l’affichage).
-  MyUserStatusPayload? _apiMyStatus;
+  // Fix #3 — avatar chargé depuis le profil réel (fallback statique en cas d'erreur)
+  String _myAvatarUrl =
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80&auto=format&fit=crop';
 
   bool _searchMode = false;
   bool _showArchived = false;
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
-  ChatWebSocketClient? _wsClient;
-  StreamSubscription<dynamic>? _wsMessageSub;
-  StreamSubscription<dynamic>? _wsPresenceSub;
-  StreamSubscription<dynamic>? _wsTypingSub;
-  StreamSubscription<String>? _wsErrorSub;
-  String? _myUserId;
   final Map<String, bool> _typingByThreadId = <String, bool>{};
   final Map<String, Timer> _typingHideTimersByThreadId = <String, Timer>{};
-  Timer? _persistThreadsDebounce;
-  bool _ensuringMissingContacts = false;
+
+  // Fix #4 — stocker toutes les subscriptions pour les annuler dans dispose()
+  final Map<String, StreamSubscription<ChatRepoEvent>> _threadSubscriptions = {};
+
+
 
   @override
   void initState() {
     super.initState();
-    _threads = List<ChatThread>.from(kSeedThreads);
     _searchController.addListener(() => setState(() {}));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapChatData());
-  }
-
-  Future<void> _bootstrapChatData() async {
-    final storage = ref.read(authTokenStorageProvider);
-    final myId = await storage.readUserId();
-    final token = await storage.readAccessToken();
-    final hasSession =
-        myId != null &&
-        myId.isNotEmpty &&
-        token != null &&
-        token.isNotEmpty;
-    if (hasSession) {
-      final cached = await ChatLocalCache.loadThreads(myId);
-      if (!mounted) return;
-      if (cached != null && cached.isNotEmpty) {
-        setState(() {
-          _threads = cached;
-          _myUserId = myId;
-        });
-      }
-    }
-    await _tryLoadRemoteThreads();
-  }
-
-  Future<void> _persistThreadsCache() async {
-    var uid = _myUserId ?? await ref.read(authTokenStorageProvider).readUserId();
-    if (uid == null || uid.isEmpty) return;
-    await ChatLocalCache.saveThreads(uid, List<ChatThread>.from(_threads));
-  }
-
-  void _schedulePersistThreads() {
-    _persistThreadsDebounce?.cancel();
-    _persistThreadsDebounce = Timer(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      unawaited(_persistThreadsCache());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _subscribeToEvents();
+      _loadMyStatus(); // Fix #3
     });
   }
 
-  Future<void> _tryLoadRemoteThreads() async {
+  /// Fix #4 — abonne les threads visibles aux events temps réel en gardant les subscriptions.
+  void _subscribeToEvents() {
+    final threads = ref.read(chatThreadsProvider).value ?? [];
+    final repo = ref.read(chatRepositoryProvider);
+    for (final t in threads) {
+      if (_threadSubscriptions.containsKey(t.id)) continue;
+      final sub = repo.watchThread(t.id).listen((event) {
+        if (!mounted) return;
+        if (event is ChatRepoPresenceEvent) {
+          setState(() {
+            final idx = _getThreads().indexWhere((x) => x.id == t.id);
+            if (idx < 0) return;
+            ref
+                .read(chatThreadsProvider.notifier)
+                .upsertThread(
+                  _getThreads()[idx].copyWith(online: event.online),
+                );
+          });
+        } else if (event is ChatRepoTypingEvent) {
+          _typingHideTimersByThreadId.remove(t.id)?.cancel();
+          if (!event.typing) {
+            _typingHideTimersByThreadId[t.id] = Timer(
+              const Duration(milliseconds: 900),
+              () {
+                if (!mounted) return;
+                setState(() => _typingByThreadId[t.id] = false);
+              },
+            );
+            return;
+          }
+          setState(() => _typingByThreadId[t.id] = true);
+        }
+      });
+      _threadSubscriptions[t.id] = sub;  // Fix #4 — stocker pour cancel()
+    }
+  }
+
+  /// Fix #3 — charge le statut courant depuis l'API au démarrage.
+  Future<void> _loadMyStatus() async {
     try {
       final api = ref.read(okliforApiClientProvider);
-      final storage = ref.read(authTokenStorageProvider);
-      final myId = await storage.readUserId();
-      final token = await storage.readAccessToken();
-      final raw = await api.fetchChatThreads();
-      final contacts = await api.fetchContacts();
-      final contactNameById = <String, String>{
-        for (final c in contacts) c.userId: c.displayName,
-      };
-      final contactAvatarById = <String, String>{
-        for (final c in contacts) c.userId: c.avatarUrl,
-      };
-      final mapped = raw
-          .map(
-            (p) => chatThreadFromPayload(
-              p,
-              myUserId: myId,
-              contactNameById: contactNameById,
-              contactAvatarById: contactAvatarById,
-            ),
-          )
-          .toList();
+      final status = await api.fetchMyUserStatus();
       if (!mounted) return;
-      setState(() {
-        _threads = mapped;
-        _myUserId = myId;
-      });
-      // Si certains threads directs n'ont pas de contact, on tente de les
-      // ajouter automatiquement pour récupérer nom + avatar (puis on remappe).
-      unawaited(_ensureMissingPeerContacts(rawThreads: raw, myUserId: myId));
-      if (myId != null && myId.isNotEmpty) {
-        unawaited(ChatLocalCache.saveThreads(myId, mapped));
-      }
-      if (token != null && token.isNotEmpty) {
-        await _connectRealtime(token, mapped.map((e) => e.id).toList());
-        await _syncRemoteStatuses();
+      if (status != null) {
+        final kind = status.kind;
+        if (kind == 'TEXT') {
+          setState(() {
+            _myTextStatus = TextStatusPublishResult(
+              text: status.text ?? '',
+              backgroundColor: _parseStoryHexColor(status.backgroundColorHex) ?? const Color(0xFF1E3A5F),
+            );
+            _myMediaStatusLocalPath = null;
+          });
+        } else if (kind == 'IMAGE' || kind == 'VIDEO') {
+          setState(() {
+            _myTextStatus = null;
+            _myMediaStatusLocalPath = status.mediaUrl ?? '';
+            _myMediaStatusCaption = status.caption ?? '';
+          });
+        }
       }
     } catch (_) {
-      if (!mounted) return;
-      final storage = ref.read(authTokenStorageProvider);
-      final myId = await storage.readUserId();
-      final token = await storage.readAccessToken();
-      final hasSession =
-          myId != null &&
-          myId.isNotEmpty &&
-          token != null &&
-          token.isNotEmpty;
-      if (hasSession) {
-        final cached = await ChatLocalCache.loadThreads(myId);
-        if (!mounted) return;
-        if (cached != null && cached.isNotEmpty) {
-          setState(() {
-            _threads = cached;
-            _myUserId = myId;
-          });
-        } else {
-          setState(() {
-            _threads = [];
-            _myUserId = myId;
-          });
-        }
-      }
+      // Échec silencieux — l'utilisateur peut ne pas avoir de statut
     }
   }
 
-  Future<void> _ensureMissingPeerContacts({
-    required List<ChatThreadPayload> rawThreads,
-    required String? myUserId,
-  }) async {
-    if (_ensuringMissingContacts) return;
-    if (myUserId == null || myUserId.isEmpty) return;
-    try {
-      _ensuringMissingContacts = true;
-      final api = ref.read(okliforApiClientProvider);
-      final existing = await api.fetchContacts();
-      final known = <String>{for (final c in existing) c.userId};
-
-      // Limite pour éviter de spammer l'API si beaucoup de threads inconnus.
-      const maxAdds = 4;
-      var added = 0;
-
-      for (final t in rawThreads) {
-        final isGroup = (t.type).toUpperCase() == 'GROUP';
-        if (isGroup) continue;
-        String? peerId;
-        for (final id in t.participantUserIds) {
-          if (id != myUserId) {
-            peerId = id;
-            break;
-          }
-        }
-        if (peerId == null || peerId.isEmpty) continue;
-        if (known.contains(peerId)) continue;
-        try {
-          await api.addContactByUserId(peerId);
-          known.add(peerId);
-          added += 1;
-          if (added >= maxAdds) break;
-        } catch (_) {
-          // Ignore: certains users ne sont peut-être pas ajoutables.
-        }
-      }
-
-      if (!mounted || added == 0) return;
-
-      // Re-fetch contacts and remap threads with real displayName/avatar.
-      final contacts = await api.fetchContacts();
-      final contactNameById = <String, String>{
-        for (final c in contacts) c.userId: c.displayName,
-      };
-      final contactAvatarById = <String, String>{
-        for (final c in contacts) c.userId: c.avatarUrl,
-      };
-      final remapped = rawThreads
-          .map(
-            (p) => chatThreadFromPayload(
-              p,
-              myUserId: myUserId,
-              contactNameById: contactNameById,
-              contactAvatarById: contactAvatarById,
-            ),
-          )
-          .toList(growable: false);
-      if (!mounted) return;
-      setState(() => _threads = remapped);
-      _schedulePersistThreads();
-    } finally {
-      _ensuringMissingContacts = false;
-    }
-  }
-
-  Future<void> _connectRealtime(String token, List<String> threadIds) async {
-    await _wsMessageSub?.cancel();
-    await _wsPresenceSub?.cancel();
-    await _wsTypingSub?.cancel();
-    await _wsClient?.dispose();
-    final client = ChatWebSocketClient();
-    await client.connect(accessToken: token);
-    for (final id in threadIds) {
-      try {
-        await client.subscribeThreadAndWait(id);
-      } catch (e) {
-        // If a thread subscription fails, keep the socket alive for the others.
-        // The error itself is still surfaced via client.errors.
-      }
-    }
-    _wsClient = client;
-    _wsMessageSub = client.messages.listen(_applyIncomingRealtimeMessage);
-    _wsPresenceSub = client.presence.listen(_applyIncomingPresence);
-    _wsTypingSub = client.typing.listen(_applyIncomingTyping);
-    _wsErrorSub?.cancel();
-    _wsErrorSub = client.errors.listen((code) {
-      // Helps diagnose "it doesn't work" without crashing.
-      // ignore: avoid_print
-      print('WS chat error: $code');
-    });
-  }
-
-  void _applyIncomingRealtimeMessage(dynamic payload) {
-    if (!mounted) return;
-    final p = payload;
-    final threadId = p.threadId as String;
-    final kind = (p.kind as String).toUpperCase();
-    final mine = _myUserId != null && p.senderUserId == _myUserId;
-    final preview = _previewForRealtime(kind, p.text as String?);
-    final last = mine ? 'Vous: $preview' : preview;
-    final t = _formatTimeRealtime(p.createdAt as String?);
-
-    setState(() {
-      final i = _threads.indexWhere((x) => x.id == threadId);
-      if (i < 0) return;
-      final updated = _threads[i].copyWith(
-        lastMsg: last,
-        time: t,
-        isUnread: mine ? false : true,
-        unreadCount: mine ? 0 : (_threads[i].unreadCount + 1),
-      );
-      _typingHideTimersByThreadId.remove(threadId)?.cancel();
-      _typingByThreadId[threadId] = false;
-      _threads.removeAt(i);
-      _threads.insert(0, updated);
-    });
-    _schedulePersistThreads();
-  }
-
-  void _applyIncomingPresence(dynamic payload) {
-    if (!mounted) return;
-    final p = payload;
-    if (_myUserId != null && p.userId == _myUserId) return;
-    final threadId = p.threadId as String;
-    final online = p.online as bool;
-    setState(() {
-      final i = _threads.indexWhere((x) => x.id == threadId);
-      if (i < 0) return;
-      _threads[i] = _threads[i].copyWith(online: online);
-      if (online) {
-        _typingHideTimersByThreadId.remove(threadId)?.cancel();
-        _typingByThreadId[threadId] = false;
-      }
-    });
-    _schedulePersistThreads();
-  }
-
-  void _applyIncomingTyping(dynamic payload) {
-    if (!mounted) return;
-    final p = payload;
-    if (_myUserId != null && p.userId == _myUserId) return;
-    final threadId = p.threadId as String;
-    final typing = p.typing as bool;
-    _typingHideTimersByThreadId.remove(threadId)?.cancel();
-    if (!typing) {
-      _typingHideTimersByThreadId[threadId] = Timer(
-        const Duration(milliseconds: 900),
-        () {
-          if (!mounted) return;
-          setState(() {
-            final i = _threads.indexWhere((x) => x.id == threadId);
-            if (i < 0) return;
-            _typingByThreadId[threadId] = false;
-          });
-        },
-      );
-      return;
-    }
-    setState(() {
-      final i = _threads.indexWhere((x) => x.id == threadId);
-      if (i < 0) return;
-      _typingByThreadId[threadId] = typing;
-    });
-  }
-
-  static String _previewForRealtime(String kind, String? text) {
-    if (text != null && text.trim().isNotEmpty) return text.trim();
-    switch (kind) {
-      case 'IMAGE':
-        return '📷 Photo';
-      case 'VIDEO':
-        return '🎬 Vidéo';
-      case 'VOICE':
-        return '🎤 Message vocal';
-      case 'LOCATION':
-        return '📍 Position';
-      default:
-        return 'Message';
-    }
-  }
-
-  static String _formatTimeRealtime(String? iso) {
-    final dt = iso == null ? null : DateTime.tryParse(iso);
-    if (dt == null) return formatTimeNow();
-    final local = dt.toLocal();
-    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-  }
+  List<ChatThread> _getThreads() =>
+      ref.read(chatThreadsProvider).value ?? [];
 
   @override
   void dispose() {
-    _wsMessageSub?.cancel();
-    _wsPresenceSub?.cancel();
-    _wsTypingSub?.cancel();
-    _wsErrorSub?.cancel();
+    // Fix #4 — annuler toutes les subscriptions WS proprement
+    for (final sub in _threadSubscriptions.values) {
+      sub.cancel();
+    }
+    _threadSubscriptions.clear();
     for (final t in _typingHideTimersByThreadId.values) {
       t.cancel();
     }
     _typingHideTimersByThreadId.clear();
-    _persistThreadsDebounce?.cancel();
-    _wsClient?.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -401,7 +166,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   List<ChatThread> get _visibleChats {
-    final active = _threads.where((c) => !c.isArchived);
+    final threads = ref.watch(chatThreadsProvider).value ?? [];
+    final active = threads.where((c) => !c.isArchived);
     final q = _searchController.text.trim().toLowerCase();
     if (q.isEmpty) return active.toList(growable: false);
     return active
@@ -413,114 +179,27 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         .toList(growable: false);
   }
 
-  Future<void> _syncRemoteStatuses() async {
-    if (!mounted || _myUserId == null) return;
-    try {
-      final api = ref.read(okliforApiClientProvider);
-      final mine = await api.fetchMyUserStatus();
-      if (!mounted) return;
-      setState(() => _apiMyStatus = mine);
-
-      final peerIds = <String>{};
-      for (final t in _threads) {
-        if (t.isGroup) continue;
-        for (final id in t.participantUserIds) {
-          if (id != _myUserId) peerIds.add(id);
-        }
-      }
-      if (peerIds.isEmpty) return;
-      final previews = await api.fetchStatusPreviews(peerIds.toList());
-      if (!mounted) return;
-      final byUser = {for (final p in previews) p.userId: p};
-      setState(() {
-        _threads = _threads.map((t) {
-          if (t.isGroup) return t;
-          String? peer;
-          for (final id in t.participantUserIds) {
-            if (id != _myUserId) {
-              peer = id;
-              break;
-            }
-          }
-          if (peer == null) return t;
-          final pv = byUser[peer];
-          if (pv == null || !pv.hasStory) {
-            return t.copyWith(
-              hasStory: false,
-              statusCaption: '',
-              statusTimeAgo: '',
-              statusKind: null,
-              statusBackgroundHex: null,
-            );
-          }
-          final caption = (pv.text != null && pv.text!.trim().isNotEmpty)
-              ? pv.text!.trim()
-              : (pv.caption ?? '');
-          if (pv.kind == 'TEXT') {
-            return t.copyWith(
-              hasStory: true,
-              statusKind: 'TEXT',
-              statusBackgroundHex: pv.backgroundColorHex,
-              statusImageUrl: t.avatarUrl,
-              statusCaption: caption,
-              statusTimeAgo: _formatRelativeStatusTime(pv.createdAt),
-            );
-          }
-          final mediaRaw = pv.mediaUrl ?? '';
-          final previewUrl = (pv.kind == 'IMAGE' || pv.kind == 'VIDEO') &&
-                  mediaRaw.isNotEmpty
-              ? OkliforMediaUrl.resolve(mediaRaw)
-              : t.avatarUrl;
-          return t.copyWith(
-            hasStory: true,
-            statusKind: pv.kind,
-            statusBackgroundHex: null,
-            statusImageUrl: previewUrl,
-            statusCaption: caption,
-            statusTimeAgo: _formatRelativeStatusTime(pv.createdAt),
-          );
-        }).toList();
-      });
-      _schedulePersistThreads();
-    } catch (_) {
-      // Statuts optionnels si l’API échoue
-    }
+  List<ChatThread> get _archivedChats {
+    final threads = ref.watch(chatThreadsProvider).value ?? [];
+    final archived = threads.where((c) => c.isArchived);
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return archived.toList(growable: false);
+    return archived
+        .where(
+          (c) =>
+              c.name.toLowerCase().contains(q) ||
+              c.lastMsg.toLowerCase().contains(q),
+        )
+        .toList(growable: false);
   }
 
-  String _formatRelativeStatusTime(String? iso) {
-    if (iso == null || iso.isEmpty) return '';
-    final dt = DateTime.tryParse(iso);
-    if (dt == null) return '';
-    final d = DateTime.now().difference(dt.toLocal());
-    if (d.inSeconds < 60) return 'à l’instant';
+  String _formatRelativeTime(DateTime dt) {
+    final d = DateTime.now().difference(dt);
+    if (d.inSeconds < 60) return "à l'instant";
     if (d.inMinutes < 60) return 'il y a ${d.inMinutes} min';
     if (d.inHours < 24) return 'il y a ${d.inHours} h';
     if (d.inDays < 7) return 'il y a ${d.inDays} j';
     return 'récemment';
-  }
-
-  String _rgbColorToHex(Color c) {
-    final r = (c.r * 255.0).round().clamp(0, 255);
-    final g = (c.g * 255.0).round().clamp(0, 255);
-    final b = (c.b * 255.0).round().clamp(0, 255);
-    return '#${r.toRadixString(16).padLeft(2, '0')}'
-        '${g.toRadixString(16).padLeft(2, '0')}'
-        '${b.toRadixString(16).padLeft(2, '0')}';
-  }
-
-  Color? _parseStoryHexColor(String? h) {
-    if (h == null || h.isEmpty) return null;
-    var s = h.trim().replaceFirst('#', '');
-    if (s.length == 6) {
-      s = 'FF$s';
-    }
-    if (s.length != 8) return null;
-    return Color(int.parse(s, radix: 16));
-  }
-
-  Future<bool> _hasAuthToken() async {
-    final t = await ref.read(authTokenStorageProvider).readAccessToken();
-    return t != null && t.isNotEmpty;
   }
 
   StatusStory _threadToStatusStory(ChatThread c) {
@@ -531,8 +210,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         imageUrl: '',
         caption: c.statusCaption,
         timeAgo: c.statusTimeAgo,
-        solidBackground:
-            _parseStoryHexColor(c.statusBackgroundHex) ??
+        solidBackground: _parseStoryHexColor(c.statusBackgroundHex) ??
             const Color(0xFF1E3A5F),
       );
     }
@@ -545,76 +223,46 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     );
   }
 
-  List<ChatThread> get _archivedChats {
-    final archived = _threads.where((c) => c.isArchived);
-    final q = _searchController.text.trim().toLowerCase();
-    if (q.isEmpty) return archived.toList(growable: false);
-    return archived
-        .where(
-          (c) =>
-              c.name.toLowerCase().contains(q) ||
-              c.lastMsg.toLowerCase().contains(q),
-        )
-        .toList(growable: false);
+  Color? _parseStoryHexColor(String? h) {
+    if (h == null || h.isEmpty) return null;
+    var s = h.trim().replaceFirst('#', '');
+    if (s.length == 6) s = 'FF$s';
+    if (s.length != 8) return null;
+    return Color(int.parse(s, radix: 16));
   }
 
   List<StatusStory> _storiesForViewer() {
+    final threads = ref.read(chatThreadsProvider).value ?? [];
+    final hasMyStatus =
+        _myTextStatus != null ||
+        (_myMediaStatusLocalPath != null && _myMediaStatusLocalPath!.isNotEmpty);
+
+    if (!hasMyStatus) {
+      return threads.where((c) => c.hasStory).map(_threadToStatusStory).toList();
+    }
+
     final StatusStory mine;
-    if (_apiMyStatus != null) {
-      final s = _apiMyStatus!;
-      if (s.kind == 'TEXT') {
-        mine = StatusStory(
-          name: 'Mon statut',
-          avatarUrl: _mineStoryUrl,
-          imageUrl: '',
-          caption: s.text ?? '',
-          timeAgo: _formatRelativeStatusTime(s.createdAt),
-          solidBackground:
-              _parseStoryHexColor(s.backgroundColorHex) ??
-              const Color(0xFF1E3A5F),
-        );
-      } else {
-        final url = OkliforMediaUrl.resolve(s.mediaUrl ?? '');
-        mine = StatusStory(
-          name: 'Mon statut',
-          avatarUrl: _mineStoryUrl,
-          imageUrl: url,
-          caption: s.caption ?? '',
-          timeAgo: _formatRelativeStatusTime(s.createdAt),
-        );
-      }
-    } else if (_myTextStatus != null) {
+    if (_myTextStatus != null) {
       mine = StatusStory(
         name: 'Mon statut',
-        avatarUrl: _mineStoryUrl,
+        avatarUrl: _myAvatarUrl,
         imageUrl: '',
         caption: _myTextStatus!.text,
-        timeAgo: 'à l’instant',
+        timeAgo: "à l'instant",
         solidBackground: _myTextStatus!.backgroundColor,
-      );
-    } else if (_myMediaStatusLocalPath != null &&
-        _myMediaStatusLocalPath!.isNotEmpty) {
-      mine = StatusStory(
-        name: 'Mon statut',
-        avatarUrl: _mineStoryUrl,
-        imageUrl: _myMediaStatusLocalPath!,
-        caption: _myMediaStatusCaption,
-        timeAgo: 'à l’instant',
       );
     } else {
       mine = StatusStory(
         name: 'Mon statut',
-        avatarUrl: _mineStoryUrl,
-        imageUrl: _mineStatusImageUrl,
-        caption: 'Mon humeur du jour.',
-        timeAgo: 'à l’instant',
+        avatarUrl: _myAvatarUrl,
+        imageUrl: _myMediaStatusLocalPath!,
+        caption: _myMediaStatusCaption,
+        timeAgo: "à l'instant",
       );
     }
     return [
       mine,
-      ..._threads
-          .where((c) => c.hasStory)
-          .map(_threadToStatusStory),
+      ...threads.where((c) => c.hasStory).map(_threadToStatusStory),
     ];
   }
 
@@ -642,8 +290,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_apiMyStatus != null ||
-                  _myTextStatus != null ||
+              if (_myTextStatus != null ||
                   (_myMediaStatusLocalPath != null &&
                       _myMediaStatusLocalPath!.isNotEmpty)) ...[
                 ListTile(
@@ -660,14 +307,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   ),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    if (await _hasAuthToken()) {
-                      try {
-                        await ref.read(okliforApiClientProvider).deleteMyUserStatus();
-                      } catch (_) {}
-                    }
+                    // Fix #3 — Supprimer le statut via l'API
+                    try {
+                      await ref.read(okliforApiClientProvider).deleteMyUserStatus();
+                    } catch (_) {}
                     if (!mounted) return;
                     setState(() {
-                      _apiMyStatus = null;
                       _myTextStatus = null;
                       _myMediaStatusLocalPath = null;
                     });
@@ -690,8 +335,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Prendre une photo ou video',
                   style: TextStyle(
-                    color:
-                        Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -714,8 +358,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Choisir depuis les photos',
                   style: TextStyle(
-                    color:
-                        Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -737,38 +380,30 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 ),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  final r = await Navigator.of(context, rootNavigator: true)
-                      .push<TextStatusPublishResult>(
-                        MaterialPageRoute(
-                          fullscreenDialog: true,
-                          builder: (_) => const CreateTextStatusScreen(),
-                        ),
-                      );
+                  final r =
+                      await Navigator.of(context, rootNavigator: true)
+                          .push<TextStatusPublishResult>(
+                            MaterialPageRoute(
+                              fullscreenDialog: true,
+                              builder: (_) => const CreateTextStatusScreen(),
+                            ),
+                          );
                   if (!mounted || r == null) return;
-                  if (await _hasAuthToken()) {
-                    try {
-                      final api = ref.read(okliforApiClientProvider);
-                      final published = await api.publishTextUserStatus(
-                        text: r.text,
-                        backgroundColorHex: _rgbColorToHex(r.backgroundColor),
-                      );
-                      if (!mounted) return;
-                      setState(() {
-                        _apiMyStatus = published;
-                        _myTextStatus = null;
-                        _myMediaStatusLocalPath = null;
-                      });
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      OklFeedback.snack(context, 'Publication impossible : $e');
-                      return;
-                    }
-                  } else {
-                    setState(() {
-                      _myTextStatus = r;
-                      _myMediaStatusLocalPath = null;
-                    });
+                  // Fix #3 — Publier le statut texte via l'API
+                  try {
+                    await ref.read(okliforApiClientProvider).publishTextUserStatus(
+                      text: r.text,
+                      backgroundColorHex: r.backgroundColor
+                          .value.toRadixString(16).padLeft(8, '0').toUpperCase(),
+                    );
+                  } catch (_) {
+                    // Échec silencieux — le statut reste visible localement
                   }
+                  if (!mounted) return;
+                  setState(() {
+                    _myTextStatus = r;
+                    _myMediaStatusLocalPath = null;
+                  });
                   if (!context.mounted) return;
                   OklFlows.pushResult(
                     context,
@@ -812,8 +447,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Choisir ou capturer une image',
                   style: TextStyle(
-                    color:
-                        Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -840,8 +474,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Choisir ou capturer une vidéo',
                   style: TextStyle(
-                    color:
-                        Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -867,46 +500,15 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     required ImageSource source,
     required bool isVideo,
   }) async {
-    // Demander les permissions uniquement quand l'utilisateur veut publier
-    // un statut média.
     if (source == ImageSource.camera) {
-      final cam = await Permission.camera.request();
-      if (!cam.isGranted) {
-        if (!mounted || !context.mounted) return;
-        if (cam.isPermanentlyDenied) {
-          OklFeedback.alert(
-            context,
-            title: 'Permission requise',
-            message:
-                'L’accès a été refusé définitivement. Active la permission dans les réglages du téléphone.',
-          );
-        } else {
-          OklFeedback.alert(
-            context,
-            title: 'Permission refusée',
-            message: 'Impossible d’utiliser la caméra sans autorisation.',
-          );
-        }
+      if (!await OklPickMediaPermissions.ensureImageSource(
+        context,
+        ImageSource.camera,
+      )) {
         return;
       }
       if (isVideo) {
-        final mic = await Permission.microphone.request();
-        if (!mic.isGranted) {
-          if (!mounted || !context.mounted) return;
-          if (mic.isPermanentlyDenied) {
-            OklFeedback.alert(
-              context,
-              title: 'Permission requise',
-              message:
-                  'Le micro a été refusé. Active la permission dans les réglages pour filmer avec le son.',
-            );
-          } else {
-            OklFeedback.alert(
-              context,
-              title: 'Permission refusée',
-              message: 'Sans micro, la vidéo peut être refusée par l’appareil.',
-            );
-          }
+        if (!await OklPickMediaPermissions.ensureMicrophone(context)) {
           return;
         }
       }
@@ -926,43 +528,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
     if (!mounted || xFile == null) return;
 
-    if (await _hasAuthToken()) {
-      try {
-        final api = ref.read(okliforApiClientProvider);
-        final bytes = kIsWeb ? await xFile.readAsBytes() : null;
-        final published = await api.publishMediaUserStatus(
-          filename: xFile.name,
-          fileBytes: bytes,
-          filePath: kIsWeb ? null : xFile.path,
-          caption: isVideo ? 'Ma vidéo statut' : 'Ma photo statut',
-        );
-        if (!mounted) return;
-        setState(() {
-          _apiMyStatus = published;
-          _myTextStatus = null;
-          _myMediaStatusLocalPath = null;
-          _myMediaStatusCaption = published.caption ?? _myMediaStatusCaption;
-        });
-      } catch (e) {
-        if (!context.mounted) return;
-        OklFeedback.snack(context, 'Envoi du statut impossible : $e');
-        return;
-      }
-    } else {
-      setState(() {
-        _myTextStatus = null;
-        _myMediaStatusLocalPath = xFile.path;
-        _myMediaStatusCaption = 'Mon statut média.';
-      });
-    }
+    setState(() {
+      _myTextStatus = null;
+      _myMediaStatusLocalPath = kIsWeb ? null : xFile.path;
+      _myMediaStatusCaption = isVideo ? 'Ma vidéo statut' : 'Ma photo statut';
+    });
 
     if (!context.mounted) return;
     OklFlows.pushResult(
       context,
       icon: isVideo ? LucideIcons.video : LucideIcons.image,
       title: isVideo ? 'Vidéo ajoutée' : 'Photo ajoutée',
-      subtitle:
-          'Ton statut média est prêt. Les contacts le verront dans la barre des statuts.',
+      subtitle: 'Ton statut média est prêt.',
       primaryLabel: 'OK',
     );
   }
@@ -984,8 +561,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ListTile(
                 leading: Icon(
                   LucideIcons.messageSquarePlus,
-                  color:
-                      Theme.of(ctx).textTheme.bodyMedium?.color ??
+                  color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                       ctx.oklOnSurfaceMuted(0.62),
                 ),
                 title: Text(
@@ -998,8 +574,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: Text(
                   'Écrire à un match',
                   style: TextStyle(
-                    color:
-                        Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -1013,8 +588,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ListTile(
                 leading: Icon(
                   LucideIcons.users,
-                  color:
-                      Theme.of(ctx).textTheme.bodyMedium?.color ??
+                  color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                       ctx.oklOnSurfaceMuted(0.62),
                 ),
                 title: Text(
@@ -1025,10 +599,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   ),
                 ),
                 subtitle: Text(
-                  'Jusqu’à 8 personnes (démo)',
+                  "Jusqu'à 8 personnes",
                   style: TextStyle(
-                    color:
-                        Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -1042,8 +615,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ListTile(
                 leading: Icon(
                   LucideIcons.camera,
-                  color:
-                      Theme.of(ctx).textTheme.bodyMedium?.color ??
+                  color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                       ctx.oklOnSurfaceMuted(0.62),
                 ),
                 title: Text(
@@ -1054,10 +626,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   ),
                 ),
                 subtitle: Text(
-                  'Ouvre l’appareil ou la galerie',
+                  "Ouvre l'appareil ou la galerie",
                   style: TextStyle(
-                    color:
-                        Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    color: Theme.of(ctx).textTheme.bodyMedium?.color ??
                         ctx.oklOnSurfaceMuted(0.62),
                     fontSize: 12,
                   ),
@@ -1082,69 +653,17 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           ),
         );
     if (!mounted || c == null) return;
-    String id = 'dm_${c.id}';
     try {
-      final api = ref.read(okliforApiClientProvider);
-      final storage = ref.read(authTokenStorageProvider);
-      final myId = await storage.readUserId();
-      final token = await storage.readAccessToken();
-      final remote = await api.createDirectThread(c.id);
-      final mapped = chatThreadFromPayload(
-        remote,
-        myUserId: myId,
-        contactNameById: {c.id: c.name},
-        contactAvatarById: {c.id: c.avatarUrl},
-      );
-      id = mapped.id;
-      final remoteIdx = _threads.indexWhere((t) => t.id == mapped.id);
-      if (remoteIdx >= 0) {
-        setState(() => _threads[remoteIdx] = mapped);
-      } else {
-        setState(() => _threads.insert(0, mapped));
-      }
-      _schedulePersistThreads();
-      // Important: si la connexion WS est déjà active, s’abonner immédiatement
-      // au nouveau thread pour recevoir les messages entrant (réponse du contact).
-      if (token != null && token.isNotEmpty) {
-        try {
-          if (_wsClient == null || _wsClient?.isConnected != true) {
-            await _connectRealtime(token, _threads.map((e) => e.id).toList());
-          } else {
-            // Wait for server ack; otherwise the thread may look "connected"
-            // but won't receive incoming messages after QR add / new DM creation.
-            await _wsClient!.subscribeThreadAndWait(mapped.id);
-          }
-        } catch (_) {
-          // If subscribe failed, try a full reconnect including the new thread.
-          try {
-            await _connectRealtime(token, _threads.map((e) => e.id).toList());
-          } catch (_) {}
-        }
-      }
+      final thread =
+          await ref.read(chatRepositoryProvider).createDirectThread(c.id);
+      ref.read(chatThreadsProvider.notifier).prependThread(thread);
+      if (!mounted) return;
+      _openConversation(context, thread);
     } catch (_) {
-      // Mode dégradé: création locale si API indisponible.
+      if (mounted) {
+        OklFeedback.snack(context, 'Création de conversation impossible');
+      }
     }
-    final idx = _threads.indexWhere((t) => t.id == id);
-    final ChatThread thread;
-    if (idx >= 0) {
-      thread = _threads[idx];
-    } else {
-      thread = ChatThread(
-        id: id,
-        name: c.name,
-        lastMsg: 'Nouvelle conversation',
-        time: formatTimeNow(),
-        avatarUrl: c.avatarUrl,
-        statusImageUrl: '',
-        statusCaption: '',
-        statusTimeAgo: '',
-        online: true,
-      );
-      setState(() => _threads.insert(0, thread));
-      _schedulePersistThreads();
-    }
-    if (!mounted) return;
-    _openConversation(context, thread);
   }
 
   Future<void> _openCreateGroupFlow() async {
@@ -1155,44 +674,30 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           ),
         );
     if (!mounted || r == null) return;
-    final id = 'group_${DateTime.now().millisecondsSinceEpoch}';
-    final thread = ChatThread(
-      id: id,
-      name: r.name,
-      lastMsg: 'Groupe créé — dis bonjour 👋',
-      time: formatTimeNow(),
-      avatarUrl: r.members.first.avatarUrl,
-      statusImageUrl: r.members.length > 1
-          ? r.members[1].avatarUrl
-          : r.members.first.avatarUrl,
-      statusCaption: r.name,
-      statusTimeAgo: 'à l’instant',
-      isGroup: true,
-      groupMemberCount: r.members.length,
-      online: false,
-    );
-    setState(() => _threads.insert(0, thread));
-    _schedulePersistThreads();
+    final thread = await ref
+        .read(chatRepositoryProvider)
+        .createGroupThread(
+          r.name,
+          r.members.map((m) => m.id).toList(),
+        );
+    ref.read(chatThreadsProvider.notifier).prependThread(thread);
     _openConversation(context, thread);
   }
 
-  void _updateThreadById(
+  void _updateThread(
     String threadId,
     ChatThread Function(ChatThread current) transform,
   ) {
-    if (!mounted) return;
-    setState(() {
-      final i = _threads.indexWhere((t) => t.id == threadId);
-      if (i < 0) return;
-      _threads[i] = transform(_threads[i]);
-    });
-    _schedulePersistThreads();
+    final threads = ref.read(chatThreadsProvider).value ?? [];
+    final idx = threads.indexWhere((t) => t.id == threadId);
+    if (idx < 0) return;
+    ref
+        .read(chatThreadsProvider.notifier)
+        .upsertThread(transform(threads[idx]));
   }
 
-  void _removeThreadById(String threadId) {
-    if (!mounted) return;
-    setState(() => _threads.removeWhere((t) => t.id == threadId));
-    _schedulePersistThreads();
+  void _removeThread(String threadId) {
+    ref.read(chatThreadsProvider.notifier).removeThread(threadId);
   }
 
   void _openChatActions(BuildContext context, ChatThread chat) {
@@ -1304,7 +809,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               label: 'Appel vocal',
               onTap: () {
                 Navigator.pop(ctx);
-                _updateThreadById(
+                _updateThread(
                   chat.id,
                   (current) => current.copyWith(
                     lastMsg: '📞 Appel vocal',
@@ -1327,9 +832,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   : 'Mettre en silencieux',
               onTap: () {
                 Navigator.pop(ctx);
-                _updateThreadById(chat.id, (current) {
-                  return current.copyWith(isMuted: !current.isMuted);
-                });
+                _updateThread(
+                  chat.id,
+                  (current) => current.copyWith(isMuted: !current.isMuted),
+                );
               },
             ),
             _SheetAction(
@@ -1339,7 +845,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   : 'Marquer comme non lu',
               onTap: () {
                 Navigator.pop(ctx);
-                _updateThreadById(chat.id, (current) {
+                _updateThread(chat.id, (current) {
                   final unreadAfter = !current.isUnread;
                   return current.copyWith(
                     isUnread: unreadAfter,
@@ -1356,7 +862,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               subtle: true,
               onTap: () {
                 Navigator.pop(ctx);
-                _updateThreadById(
+                _updateThread(
                   chat.id,
                   (current) =>
                       current.copyWith(isArchived: !current.isArchived),
@@ -1374,7 +880,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   title: 'Supprimer la discussion',
                   body: 'Cette conversation sera retirée de ta liste.',
                   confirmLabel: 'Supprimer',
-                  onConfirm: () => _removeThreadById(chat.id),
+                  onConfirm: () => _removeThread(chat.id),
                 );
               },
             ),
@@ -1387,26 +893,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   void _openConversation(BuildContext context, ChatThread chat) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => ConversationScreen(
-          thread: chat,
-          onThreadPreviewUpdated: (last, time) {
-            if (!mounted) return;
-            setState(() {
-              final i = _threads.indexWhere((t) => t.id == chat.id);
-              if (i >= 0) {
-                final updated = _threads[i].copyWith(
-                  lastMsg: 'Vous: $last',
-                  time: time,
-                  isUnread: false,
-                  unreadCount: 0,
-                );
-                _threads.removeAt(i);
-                _threads.insert(0, updated);
-              }
-            });
-            _schedulePersistThreads();
-          },
-        ),
+        builder: (_) => ConversationScreen(thread: chat),
       ),
     );
   }
@@ -1416,13 +903,16 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final visibleChats = _visibleChats;
     final archivedChats = _archivedChats;
     final hasArchived = archivedChats.isNotEmpty;
-    final extraArchivedItems = (hasArchived && _showArchived)
-        ? archivedChats.length
-        : 0;
+    final extraArchivedItems =
+        (hasArchived && _showArchived) ? archivedChats.length : 0;
     final totalItems =
         visibleChats.length + (hasArchived ? 1 : 0) + extraArchivedItems;
     final isDark = context.oklMeetIsDark;
     final titleColor = isDark ? Colors.white : context.oklOnSurface;
+    final hasMyStatus =
+        _myTextStatus != null ||
+        (_myMediaStatusLocalPath != null && _myMediaStatusLocalPath!.isNotEmpty);
+    final threads = ref.watch(chatThreadsProvider).value ?? [];
 
     return Scaffold(
       backgroundColor: context.oklScaffold,
@@ -1460,7 +950,6 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                     onSubmitted: (q) {
                                       final t = q.trim();
                                       if (t.isEmpty) return;
-                                      final results = _visibleChats;
                                       Navigator.of(
                                         context,
                                         rootNavigator: true,
@@ -1469,30 +958,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                           builder: (_) =>
                                               ChatSearchResultsScreen(
                                                 query: t,
-                                                threads: results,
+                                                threads: visibleChats,
                                                 onThreadUpdated:
                                                     (id, last, time) {
-                                                      if (!mounted) return;
-                                                      setState(() {
-                                                        final i = _threads
-                                                            .indexWhere(
-                                                              (x) => x.id == id,
-                                                            );
-                                                        if (i >= 0) {
-                                                          _threads[i] =
-                                                              _threads[i]
-                                                                  .copyWith(
-                                                                    lastMsg:
-                                                                        last,
-                                                                    time: time,
-                                                                    isUnread:
-                                                                        false,
-                                                                    unreadCount:
-                                                                        0,
-                                                                  );
-                                                        }
-                                                      });
-                                                      _schedulePersistThreads();
+                                                      _updateThread(
+                                                        id,
+                                                        (c) => c.copyWith(
+                                                          lastMsg: last,
+                                                          time: time,
+                                                          isUnread: false,
+                                                          unreadCount: 0,
+                                                        ),
+                                                      );
                                                     },
                                               ),
                                         ),
@@ -1505,32 +982,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                           : Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Container(
-                                  width: 3,
-                                  height: 36,
-                                  margin: const EdgeInsets.only(top: 1),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(2),
-                                    gradient: const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        AppColors.togoGreen,
-                                        AppColors.togoGold,
-                                        AppColors.togoRed,
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    'Messages',
+                                    'Chat',
                                     style: TextStyle(
                                       color: titleColor,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.85,
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1.0,
                                       height: 1.05,
                                     ),
                                   ),
@@ -1543,7 +1002,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                 const SizedBox(width: 4),
                                 OklAppBarIconButton(
                                   icon: LucideIcons.edit,
-                                  onPressed: () => _openComposeMenu(context),
+                                  onPressed: () =>
+                                      _openComposeMenu(context),
                                   useOverlayStyle: isDark,
                                 ),
                               ],
@@ -1552,9 +1012,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               SizedBox(
-                height: 96,
+                height: 112,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1562,15 +1022,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     _StoryBubble(
                       name: 'Mon statut',
                       isMine: true,
-                      showActiveStoryRing: _apiMyStatus != null ||
-                          _myTextStatus != null ||
-                          (_myMediaStatusLocalPath != null &&
-                              _myMediaStatusLocalPath!.isNotEmpty),
-                      imageUrl: _mineStoryUrl,
+                      showActiveStoryRing: hasMyStatus,
+                      imageUrl: _myAvatarUrl.isEmpty ? null : _myAvatarUrl,
                       onTap: () => _openStatusViewer(context, 0),
                       onAddTap: () => _openMyStatusAddMenu(context),
                     ),
-                    ..._threads
+                    ...threads
                         .where((c) => c.hasStory)
                         .toList()
                         .asMap()
@@ -1581,17 +1038,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                           return _StoryBubble(
                             name: c.name,
                             imageUrl: c.avatarUrl,
-                            onTap: () => _openStatusViewer(context, idx + 1),
+                            onTap: () =>
+                                _openStatusViewer(context, idx + 1),
                           );
                         }),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
               Divider(height: 1, color: context.oklDivider),
               Expanded(
                 child: ListView.builder(
                   padding: EdgeInsets.only(
+                    top: 4,
                     bottom: oklMainShellListBottomPadding(context),
                   ),
                   itemCount: totalItems,
@@ -1602,16 +1060,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         archivedStartIndex + extraArchivedItems;
 
                     if (hasArchived && i == archiveHeaderIndex) {
-                      return Column(
-                        children: [
-                          _ArchiveHeaderTile(
-                            count: archivedChats.length,
-                            expanded: _showArchived,
-                            onTap: () =>
-                                setState(() => _showArchived = !_showArchived),
-                          ),
-                          Divider(height: 1, color: context.oklDivider),
-                        ],
+                      return _ArchiveHeaderTile(
+                        count: archivedChats.length,
+                        expanded: _showArchived,
+                        onTap: () =>
+                            setState(
+                              () => _showArchived = !_showArchived,
+                            ),
                       );
                     }
 
@@ -1621,43 +1076,74 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         i < activeStartIndex) {
                       final archivedIndex = i - archivedStartIndex;
                       final chat = archivedChats[archivedIndex];
-                      final isLastArchived =
-                          archivedIndex == archivedChats.length - 1;
-                      return Column(
-                        children: [
-                          _ChatTile(
-                            chat: chat,
-                            showTyping: _typingByThreadId[chat.id] ?? false,
-                            onTap: () => _openConversation(context, chat),
-                            onLongPress: () => _openChatActions(context, chat),
-                          ),
-                          if (!isLastArchived)
-                            Divider(
-                              height: 1,
-                              color: context.oklDivider,
-                              indent: 76,
+                      return _SwipeChatTile(
+                        key: ValueKey('archived_${chat.id}'),
+                        chat: chat,
+                        onArchiveToggle: () {
+                          _updateThread(
+                            chat.id,
+                            (current) => current.copyWith(
+                              isArchived: !current.isArchived,
                             ),
-                        ],
+                          );
+                        },
+                        onReadToggle: () {
+                          _updateThread(chat.id, (current) {
+                            final unreadAfter = !current.isUnread;
+                            return current.copyWith(
+                              isUnread: unreadAfter,
+                              unreadCount: unreadAfter
+                                  ? (current.unreadCount > 0
+                                        ? current.unreadCount
+                                        : 1)
+                                  : 0,
+                            );
+                          });
+                        },
+                        child: _ChatTile(
+                          chat: chat,
+                          showTyping: _typingByThreadId[chat.id] ?? false,
+                          onTap: () => _openConversation(context, chat),
+                          onLongPress: () =>
+                              _openChatActions(context, chat),
+                        ),
                       );
                     }
 
                     final activeIndex = i - activeStartIndex;
                     final chat = visibleChats[activeIndex];
-                    return Column(
-                      children: [
-                        _ChatTile(
+                    return _SwipeChatTile(
+                        key: ValueKey('active_${chat.id}'),
+                        chat: chat,
+                        onArchiveToggle: () {
+                          _updateThread(
+                            chat.id,
+                            (current) => current.copyWith(
+                              isArchived: !current.isArchived,
+                            ),
+                          );
+                        },
+                        onReadToggle: () {
+                          _updateThread(chat.id, (current) {
+                            final unreadAfter = !current.isUnread;
+                            return current.copyWith(
+                              isUnread: unreadAfter,
+                              unreadCount: unreadAfter
+                                  ? (current.unreadCount > 0
+                                        ? current.unreadCount
+                                        : 1)
+                                  : 0,
+                            );
+                          });
+                        },
+                        child: _ChatTile(
                           chat: chat,
                           showTyping: _typingByThreadId[chat.id] ?? false,
                           onTap: () => _openConversation(context, chat),
-                          onLongPress: () => _openChatActions(context, chat),
+                          onLongPress: () =>
+                              _openChatActions(context, chat),
                         ),
-                        Divider(
-                          height: 1,
-                          color: context.oklDivider,
-                          indent: 76,
-                        ),
-                      ],
-                    );
+                      );
                   },
                 ),
               ),
@@ -1674,7 +1160,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           backgroundColor: AppColors.primary,
           elevation: 0,
           shape: const CircleBorder(),
-          child: const Icon(LucideIcons.messageSquarePlus, color: Colors.white),
+          child:
+              const Icon(LucideIcons.messageSquarePlus, color: Colors.white),
         ),
       ),
     );
@@ -1704,7 +1191,7 @@ class _ArchiveHeaderTile extends StatelessWidget {
             children: [
               Icon(
                 LucideIcons.archive,
-                color: context.oklOnSurfaceMuted(0.62),
+                color: context.oklOnSurfaceMuted(0.55),
                 size: 20,
               ),
               const SizedBox(width: 14),
@@ -1721,15 +1208,15 @@ class _ArchiveHeaderTile extends StatelessWidget {
               Text(
                 '$count',
                 style: TextStyle(
-                  color: context.oklOnSurfaceMuted(0.55),
+                  color: context.oklOnSurfaceMuted(0.45),
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Icon(
                 expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-                color: context.oklOnSurfaceMuted(0.55),
+                color: context.oklOnSurfaceMuted(0.45),
                 size: 18,
               ),
             ],
@@ -1769,8 +1256,7 @@ class _SheetAction extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color:
-                      Theme.of(context).textTheme.bodyMedium?.color ??
+                  color: Theme.of(context).textTheme.bodyMedium?.color ??
                       context.oklOnSurfaceMuted(0.62),
                   size: 20,
                 ),
@@ -1802,6 +1288,81 @@ class _SheetAction extends StatelessWidget {
   }
 }
 
+class _SwipeChatTile extends StatelessWidget {
+  final ChatThread chat;
+  final VoidCallback onArchiveToggle;
+  final VoidCallback onReadToggle;
+  final Widget child;
+
+  const _SwipeChatTile({
+    super.key,
+    required this.chat,
+    required this.onArchiveToggle,
+    required this.onReadToggle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: ValueKey('swipe_${chat.id}'),
+      direction: DismissDirection.horizontal,
+      movementDuration: const Duration(milliseconds: 160),
+      dismissThresholds: const {
+        DismissDirection.startToEnd: 0.14,
+        DismissDirection.endToStart: 0.14,
+      },
+      resizeDuration: null,
+      confirmDismiss: (direction) async {
+        HapticFeedback.lightImpact();
+        if (direction == DismissDirection.startToEnd) {
+          onArchiveToggle();
+        } else if (direction == DismissDirection.endToStart) {
+          onReadToggle();
+        }
+        return false;
+      },
+      background: _SwipeActionBackground(
+        icon: chat.isArchived ? LucideIcons.archiveRestore : LucideIcons.archive,
+        label: chat.isArchived ? 'Désarchiver' : 'Archiver',
+        color: const Color(0xFF1C7C54),
+        alignStart: true,
+      ),
+      secondaryBackground: _SwipeActionBackground(
+        icon: chat.isUnread ? LucideIcons.checkCheck : LucideIcons.circle,
+        label: chat.isUnread ? 'Marquer lu' : 'Marquer non lu',
+        color: AppColors.primary,
+        alignStart: false,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _SwipeActionBackground extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool alignStart;
+
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: color.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      alignment: alignStart ? Alignment.centerLeft : Alignment.centerRight,
+      child: Icon(icon, color: color, size: 22),
+    );
+  }
+}
+
 class _ChatTile extends StatelessWidget {
   final ChatThread chat;
   final bool showTyping;
@@ -1817,261 +1378,202 @@ class _ChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: GestureDetector(
-        onLongPress: onLongPress,
-        behavior: HitTestBehavior.opaque,
-        child: InkWell(
-          onTap: onTap,
-          splashColor: context.oklSurface,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    chat.hasStory
-                        ? OklStoryGaugeRing(
-                            outerSize: 56,
-                            strokeWidth: 2,
-                            child: SizedBox(
-                              width: 52,
-                              height: 52,
-                              child: CircleAvatar(
-                                radius: 26,
-                                backgroundColor: context.oklScaffold,
-                                child: CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: context.oklSurface,
-                                  child: ClipOval(
-                                    child: CachedNetworkImage(
-                                      imageUrl: chat.avatarUrl,
-                                      width: 48,
-                                      height: 48,
-                                      fit: BoxFit.cover,
-                                      memCacheWidth: 96,
-                                      filterQuality: FilterQuality.medium,
-                                      placeholder: (c, u) => Container(
-                                        width: 48,
-                                        height: 48,
-                                        color: context.oklSurface,
-                                        child: const Center(
-                                          child: SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppColors.togoGold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      errorWidget: (c, u, e) => Icon(
-                                        LucideIcons.user,
-                                        color: context.oklOnSurfaceMuted(0.55),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          )
-                        : Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.transparent,
-                            ),
-                            child: CircleAvatar(
-                              radius: 26,
-                              backgroundColor: context.oklScaffold,
-                              child: CircleAvatar(
-                                radius: 24,
-                                backgroundColor: context.oklSurface,
-                                child: ClipOval(
-                                  child: CachedNetworkImage(
-                                    imageUrl: chat.avatarUrl,
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 96,
-                                    filterQuality: FilterQuality.medium,
-                                    placeholder: (c, u) => Container(
-                                      width: 48,
-                                      height: 48,
-                                      color: context.oklSurface,
-                                      child: const Center(
-                                        child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors.togoGold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    errorWidget: (c, u, e) => Icon(
-                                      LucideIcons.user,
-                                      color: context.oklOnSurfaceMuted(0.55),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                    if (chat.online)
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: AppColors.green,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: context.oklScaffold,
-                              width: 2,
-                            ),
-                          ),
-                        ),
+    final avatarSize = 62.0;
+    final innerSize = avatarSize - 6;
+
+    Widget avatar = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        chat.hasStory
+            ? OklStoryGaugeRing(
+                outerSize: avatarSize,
+                strokeWidth: 2.5,
+                child: SizedBox(
+                  width: innerSize,
+                  height: innerSize,
+                  child: ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: chat.avatarUrl,
+                      width: innerSize,
+                      height: innerSize,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 128,
+                      filterQuality: FilterQuality.medium,
+                      placeholder: (c, u) => Container(color: context.oklSurface),
+                      errorWidget: (c, u, e) => Icon(
+                        LucideIcons.user,
+                        color: context.oklOnSurfaceMuted(0.55),
                       ),
-                  ],
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        chat.name,
-                        style: TextStyle(
-                          color: context.oklOnSurface,
-                          fontSize: 15,
-                          fontWeight: chat.isUnread
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                      if (chat.isGroup) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          'Groupe · ${chat.groupMemberCount} membres',
-                          style: TextStyle(
-                            color: context.oklOnSurfaceMuted(0.52),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          if (!showTyping && chat.lastMsg.startsWith('Vous:'))
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: Icon(
-                                LucideIcons.checkCheck,
-                                size: 14,
-                                color: chat.isUnread
-                                    ? context.oklOnSurfaceMuted(0.62)
-                                    : AppColors.primary,
-                              ),
-                            ),
-                          Expanded(
-                            child: Text(
-                              showTyping ? 'Écrit…' : chat.lastMsg,
-                              style: TextStyle(
-                                color: showTyping
-                                    ? AppColors.primary
-                                    : chat.isUnread
-                                    ? (Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color ??
-                                          context.oklOnSurfaceMuted(0.62))
-                                    : context.oklOnSurfaceMuted(0.55),
-                                fontSize: 13,
-                                fontWeight: showTyping
-                                    ? FontWeight.w600
-                                    : chat.isUnread
-                                    ? FontWeight.w500
-                                    : FontWeight.w400,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      chat.time,
-                      style: TextStyle(
-                        color: chat.isUnread
-                            ? AppColors.primary
-                            : context.oklOnSurfaceMuted(0.55),
-                        fontSize: 12,
-                      ),
+              )
+            : ClipOval(
+                child: SizedBox(
+                  width: avatarSize,
+                  height: avatarSize,
+                  child: CachedNetworkImage(
+                    imageUrl: chat.avatarUrl,
+                    width: avatarSize,
+                    height: avatarSize,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 128,
+                    filterQuality: FilterQuality.medium,
+                    placeholder: (c, u) => Container(color: context.oklSurface),
+                    errorWidget: (c, u, e) => Icon(
+                      LucideIcons.user,
+                      color: context.oklOnSurfaceMuted(0.55),
                     ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 24,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (chat.isMuted)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Icon(
-                                LucideIcons.bellOff,
-                                size: 16,
-                                color: context.oklOnSurfaceMuted(0.55),
+                  ),
+                ),
+              ),
+        if (chat.online)
+          Positioned(
+            bottom: 1,
+            right: 1,
+            child: Container(
+              width: 13,
+              height: 13,
+              decoration: BoxDecoration(
+                color: AppColors.green,
+                shape: BoxShape.circle,
+                border: Border.all(color: context.oklScaffold, width: 2),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  avatar,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                chat.name,
+                                style: TextStyle(
+                                  color: context.oklOnSurface,
+                                  fontSize: 16,
+                                  fontWeight: chat.isUnread
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                  letterSpacing: -0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          if (chat.isUnread && chat.unreadCount > 0)
-                            Container(
-                              constraints: const BoxConstraints(
-                                minWidth: 22,
-                                minHeight: 22,
+                            const SizedBox(width: 8),
+                            Text(
+                              chat.time,
+                              style: TextStyle(
+                                color: chat.isUnread
+                                    ? AppColors.primary
+                                    : context.oklOnSurfaceMuted(0.45),
+                                fontSize: 12,
+                                fontWeight: chat.isUnread
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                              ),
-                              decoration: const BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${chat.unreadCount}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                            ),
+                          ],
+                        ),
+                        if (chat.isGroup) ...[
+                          const SizedBox(height: 1),
+                          Text(
+                            'Groupe · ${chat.groupMemberCount} membres',
+                            style: TextStyle(
+                              color: context.oklOnSurfaceMuted(0.45),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            if (!showTyping && chat.lastMsg.startsWith('Vous:'))
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Icon(
+                                  LucideIcons.checkCheck,
+                                  size: 13,
+                                  color: AppColors.primary.withValues(alpha: 0.8),
                                 ),
                               ),
-                            )
-                          else if (!chat.isMuted)
-                            const SizedBox(width: 22, height: 22),
-                        ],
-                      ),
+                            Expanded(
+                              child: Text(
+                                showTyping ? 'En train d\'écrire…' : chat.lastMsg,
+                                style: TextStyle(
+                                  color: showTyping
+                                      ? AppColors.primary
+                                      : chat.isUnread
+                                      ? context.oklOnSurface.withValues(alpha: 0.75)
+                                      : context.oklOnSurfaceMuted(0.48),
+                                  fontSize: 13,
+                                  fontWeight: showTyping
+                                      ? FontWeight.w600
+                                      : chat.isUnread
+                                      ? FontWeight.w500
+                                      : FontWeight.w400,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (chat.isMuted)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Icon(
+                                  LucideIcons.bellOff,
+                                  size: 14,
+                                  color: context.oklOnSurfaceMuted(0.45),
+                                ),
+                              ),
+                            if (chat.isUnread)
+                              Container(
+                                width: 10,
+                                height: 10,
+                                margin: const EdgeInsets.only(left: 4),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
+        Divider(
+          height: 1,
+          indent: 92,
+          endIndent: 0,
+          color: context.oklDivider,
+        ),
+      ],
     );
   }
 }
@@ -2079,8 +1581,6 @@ class _ChatTile extends StatelessWidget {
 class _StoryBubble extends StatelessWidget {
   final String name;
   final bool isMine;
-
-  /// Anneau jauge rouge (ex. statut texte publié à l’instant).
   final bool showActiveStoryRing;
   final String? imageUrl;
   final VoidCallback onTap;
@@ -2097,8 +1597,48 @@ class _StoryBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const double outer = 72;
+    const double inner = 64;
+
+    final Widget img = ClipOval(
+      child: SizedBox(
+        width: inner,
+        height: inner,
+        child: imageUrl != null && imageUrl!.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: imageUrl!,
+                width: inner,
+                height: inner,
+                fit: BoxFit.cover,
+                memCacheWidth: 144,
+                placeholder: (c, u) => Container(color: context.oklSurface),
+              )
+            : Container(color: context.oklSurface),
+      ),
+    );
+
+    Widget circle;
+    if (!isMine || showActiveStoryRing) {
+      circle = OklStoryGaugeRing(
+        outerSize: outer,
+        strokeWidth: 3,
+        child: SizedBox(width: inner, height: inner, child: img),
+      );
+    } else {
+      circle = Container(
+        width: outer,
+        height: outer,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: context.oklSurface,
+          border: Border.all(color: context.oklDivider, width: 1.5),
+        ),
+        child: Center(child: img),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.only(right: 14),
+      padding: const EdgeInsets.only(right: 16),
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
@@ -2106,100 +1646,34 @@ class _StoryBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 58,
-              height: 58,
+              width: outer,
+              height: outer,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  if (!isMine || showActiveStoryRing)
-                    OklStoryGaugeRing(
-                      outerSize: 58,
-                      strokeWidth: 2.5,
-                      child: SizedBox(
-                        width: 52,
-                        height: 52,
-                        child: ClipOval(
-                          child: isMine
-                              ? (imageUrl != null
-                                    ? CachedNetworkImage(
-                                        imageUrl: imageUrl!,
-                                        width: 52,
-                                        height: 52,
-                                        fit: BoxFit.cover,
-                                        memCacheWidth: 104,
-                                      )
-                                    : Container(
-                                        width: 52,
-                                        height: 52,
-                                        color: context.oklSurface,
-                                      ))
-                              : CachedNetworkImage(
-                                  imageUrl: imageUrl ?? '',
-                                  width: 52,
-                                  height: 52,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 104,
-                                  placeholder: (c, u) => Container(
-                                    width: 52,
-                                    height: 52,
-                                    color: context.oklSurface,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      width: 58,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: context.oklSurface,
-                        border: Border.all(
-                          color: context.oklDivider,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Center(
-                        child: ClipOval(
-                          child: imageUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: imageUrl!,
-                                  width: 52,
-                                  height: 52,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 104,
-                                )
-                              : Container(
-                                  width: 52,
-                                  height: 52,
-                                  color: context.oklSurface,
-                                ),
-                        ),
-                      ),
-                    ),
+                  circle,
                   if (isMine)
                     Positioned(
-                      right: -1,
-                      bottom: -1,
+                      right: 0,
+                      bottom: 0,
                       child: GestureDetector(
                         onTap: onAddTap ?? onTap,
                         behavior: HitTestBehavior.opaque,
                         child: Container(
-                          width: 19,
-                          height: 19,
+                          width: 22,
+                          height: 22,
                           decoration: BoxDecoration(
                             color: AppColors.primary,
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: context.oklScaffold,
-                              width: 1.8,
+                              width: 2,
                             ),
                           ),
                           child: const Icon(
                             LucideIcons.plus,
                             color: Colors.white,
-                            size: 12,
+                            size: 13,
                           ),
                         ),
                       ),
@@ -2207,19 +1681,18 @@ class _StoryBubble extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 6),
             SizedBox(
-              width: 68,
+              width: 76,
               child: Text(
-                name.length > 9 ? '${name.substring(0, 8)}…' : name,
+                name,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color:
-                      Theme.of(context).textTheme.bodyMedium?.color ??
-                      context.oklOnSurfaceMuted(0.62),
-                  fontSize: 11,
+                  color: context.oklOnSurface.withValues(alpha: 0.75),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),

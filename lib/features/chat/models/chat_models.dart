@@ -404,11 +404,19 @@ List<ChatMessage> seedMessagesForThread(String threadId) {
           time: t(now.hour, 5),
         ),
         ChatMessage(
+          id: 'v1',
+          kind: ChatMessageKind.video,
+          text: 'Regarde cette vidéo ! 🐝',
+          videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+          mine: false,
+          time: t(now.hour, 8),
+        ),
+        ChatMessage(
           id: 'd',
           kind: ChatMessageKind.voice,
           voiceSeconds: 12,
           mine: false,
-          time: t(now.hour, 8),
+          time: t(now.hour, 10),
         ),
       ];
   }

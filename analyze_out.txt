@@ -1,0 +1,34 @@
+Analyzing media_viewer_screen.dart, conversation_screen.dart, conversation_media_screen.dart...
+
+warning - lib\features\chat\views\conversation_screen.dart:17:8 - Unused import: 'package:video_player/video_player.dart'. Try removing the import directive. - unused_import
+warning - lib\features\chat\views\conversation_screen.dart:129:16 - The declaration '_flushOfflineQueueForThread' isn't referenced. Try removing the declaration of '_flushOfflineQueueForThread'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:155:16 - The declaration '_reloadMessagesFromDiskAfterGlobalSync' isn't referenced. Try removing the declaration of '_reloadMessagesFromDiskAfterGlobalSync'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:157:8 - The declaration '_shouldFetchRemoteMessages' isn't referenced. Try removing the declaration of '_shouldFetchRemoteMessages'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:159:10 - The declaration '_messagesFingerprint' isn't referenced. Try removing the declaration of '_messagesFingerprint'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:169:16 - The declaration '_hydratePeerIdentity' isn't referenced. Try removing the declaration of '_hydratePeerIdentity'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:183:8 - The declaration '_prefetchPersistentDocuments' isn't referenced. Try removing the declaration of '_prefetchPersistentDocuments'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:233:12 - The declaration '_emojiCategoryIcon' isn't referenced. Try removing the declaration of '_emojiCategoryIcon'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:340:16 - The declaration '_connectRealtime' isn't referenced. Try removing the declaration of '_connectRealtime'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:377:16 - The declaration '_notifyReadCur' isn't referenced. Try removing the declaration of '_notifyReadCur'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:381:8 - The declaration '_applyReadReceipt' isn't referenced. Try removing the declaration of '_applyReadReceipt'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:391:18 - The declaration '_sendBackendMessage' isn't referenced. Try removing the declaration of '_sendBackendMessage'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:393:13 - A value for optional parameter 'localMessageId' isn't ever given. Try removing the unused parameter. - unused_element_parameter
+warning - lib\features\chat\views\conversation_screen.dart:396:13 - A value for optional parameter 'videoUrl' isn't ever given. Try removing the unused parameter. - unused_element_parameter
+warning - lib\features\chat\views\conversation_screen.dart:397:13 - A value for optional parameter 'audioUrl' isn't ever given. Try removing the unused parameter. - unused_element_parameter
+warning - lib\features\chat\views\conversation_screen.dart:398:10 - A value for optional parameter 'voiceSeconds' isn't ever given. Try removing the unused parameter. - unused_element_parameter
+warning - lib\features\chat\views\conversation_screen.dart:399:13 - A value for optional parameter 'locationLabel' isn't ever given. Try removing the unused parameter. - unused_element_parameter
+warning - lib\features\chat\views\conversation_screen.dart:400:13 - A value for optional parameter 'fileUrl' isn't ever given. Try removing the unused parameter. - unused_element_parameter
+warning - lib\features\chat\views\conversation_screen.dart:431:12 - The declaration '_isBackendThread' isn't referenced. Try removing the declaration of '_isBackendThread'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:453:16 - The declaration '_persistMessagesForCache' isn't referenced. Try removing the declaration of '_persistMessagesForCache'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:455:8 - The declaration '_schedulePersistMessages' isn't referenced. Try removing the declaration of '_schedulePersistMessages'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:1642:19 - The declaration '_editForwardDocumentCaption' isn't referenced. Try removing the declaration of '_editForwardDocumentCaption'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:1705:19 - The declaration '_editForwardMediaCaption' isn't referenced. Try removing the declaration of '_editForwardMediaCaption'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:2159:15 - The declaration '_storageObjectId' isn't referenced. Try removing the declaration of '_storageObjectId'. - unused_element
+warning - lib\features\chat\views\conversation_screen.dart:2160:15 - Dead code. Try removing the code, or fixing the code before it so that it can be reached. - dead_code
+warning - lib\features\chat\views\media_viewer_screen.dart:179:11 - The value of the local variable 'botPad' isn't used. Try removing the variable or using it. - unused_local_variable
+warning - lib\features\chat\views\media_viewer_screen.dart:320:7 - The declaration '_TgBottomAction' isn't referenced. Try removing the declaration of '_TgBottomAction'. - unused_element
+   info - lib\features\chat\views\conversation_screen.dart:3:8 - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/services.dart'. Try removing the import directive. - unnecessary_import
+   info - lib\features\chat\views\conversation_screen.dart:851:7 - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check. - use_build_context_synchronously
+   info - lib\features\chat\views\conversation_screen.dart:890:41 - Don't use 'BuildContext's across async gaps. Try rewriting the code to not use the 'BuildContext', or guard the use with a 'mounted' check. - use_build_context_synchronously
+
+30 issues found.

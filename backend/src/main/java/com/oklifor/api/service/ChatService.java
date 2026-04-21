@@ -38,7 +38,7 @@ public class ChatService {
 
     public List<ChatThreadResponse> listThreads(String userId) {
         return threads.findByParticipantUserIdsContainingOrderByLastMessageAtDesc(userId).stream()
-                .map(ChatThreadResponse::from)
+                .map(t -> ChatThreadResponse.from(t, userId))
                 .toList();
     }
 
@@ -57,13 +57,13 @@ public class ChatService {
                                     n.setParticipantUserIds(new ArrayList<>(List.of(u1, u2)));
                                     return threads.save(n);
                                 });
-        return ChatThreadResponse.from(t);
+        return ChatThreadResponse.from(t, meUserId);
     }
 
-    public List<ChatMessageResponse> listMessages(String userId, String threadId, int size) {
+    public List<ChatMessageResponse> listMessages(String userId, String threadId, int size, int page) {
         ChatThread t = ensureParticipant(userId, threadId);
-        var page = PageRequest.of(0, Math.min(size, 100));
-        return messages.findByThreadIdOrderByCreatedAtDesc(threadId, page).stream()
+        var pageable = PageRequest.of(page, Math.min(size, 100));
+        return messages.findByThreadIdOrderByCreatedAtDesc(threadId, pageable).stream()
                 .map(m -> toMessageResponse(m, userId, t))
                 .toList();
     }

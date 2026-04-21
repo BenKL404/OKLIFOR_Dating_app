@@ -6,8 +6,11 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/api/oklifor_api_exception.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/utils/app_local_cache.dart';
+import '../../../core/utils/offline_action_queue.dart';
 import '../../../core/utils/okl_feedback.dart';
 import '../../auth/providers/auth_api_provider.dart';
+import '../models/user_profile.dart';
 
 /// Premier lancement après inscription : informations minimales avant l’accueil.
 class ProfileOnboardingScreen extends ConsumerStatefulWidget {
@@ -77,14 +80,44 @@ class _ProfileOnboardingScreenState extends ConsumerState<ProfileOnboardingScree
             profileOnboardingCompleted: true,
           );
       me.applyToLocalSessions();
+      await AppLocalCache.saveMe(me);
       if (mounted) context.go('/discovery');
-    } on OkliforApiException catch (e) {
+    } on OkliforApiException catch (_) {
+      // Offline-first: on applique localement et on synchronise plus tard.
+      final patch = <String, dynamic>{
+        'displayName': name,
+        'city': city,
+        'bio': _bio.text.trim(),
+        'relationGoal': _goal,
+        'languages': _languages.text.trim(),
+        'profileOnboardingCompleted': true,
+      };
+      ProfileSession.update(
+        (p) => p.copyWith(
+          displayName: name,
+          city: city,
+          bio: _bio.text.trim(),
+          relationGoal: _goal,
+          languages: _languages.text.trim(),
+          profileOnboardingCompleted: true,
+        ),
+      );
+      final userId = await ref.read(authTokenStorageProvider).readUserId() ?? '';
+      if (userId.isNotEmpty) {
+        await OfflineActionQueue.enqueuePatchMyProfile(userId: userId, patch: patch);
+        final cached = await AppLocalCache.loadMe(userId);
+        if (cached != null) {
+          await AppLocalCache.saveMe(cached);
+        }
+      }
       if (mounted) {
-        OklFeedback.alert(context, title: 'Enregistrement impossible', message: e.message);
+        OklFeedback.snack(context, 'Hors ligne: profil enregistré localement');
+        context.go('/discovery');
       }
     } catch (e) {
       if (mounted) {
-        OklFeedback.alert(context, title: 'Erreur', message: '$e');
+        OklFeedback.snack(context, 'Hors ligne: profil enregistré localement');
+        context.go('/discovery');
       }
     } finally {
       if (mounted) setState(() => _saving = false);

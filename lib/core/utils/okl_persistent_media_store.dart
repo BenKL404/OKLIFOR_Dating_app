@@ -56,7 +56,94 @@ String _basenameFromHintOrUrl(Uri uri, String? displayName) {
   return 'file_${DateTime.now().millisecondsSinceEpoch}.bin';
 }
 
-String _stableKey(String url) => md5.convert(utf8.encode(url)).toString();
+/// URL sans query / fragment — les liens signés changent à chaque appel API ;
+/// la clé de stockage doit rester stable pour retrouver le même fichier local.
+String _normalizedUrlForStorageKey(String resolved) {
+  final u = Uri.tryParse(resolved);
+  if (u == null) return resolved;
+  if (u.scheme != 'http' && u.scheme != 'https') return resolved;
+  try {
+    final path = u.path.isEmpty ? '/' : u.path;
+    return '${u.origin}$path';
+  } catch (_) {
+    return resolved;
+  }
+}
+
+/// Clé stable pour nommer les fichiers (préfixe MD5).
+String _stableKeyForUrl(String resolved) =>
+    md5.convert(utf8.encode(_normalizedUrlForStorageKey(resolved))).toString();
+
+/// Ancienne clé (MD5 de l’URL complète avec query) — rétrocompatibilité.
+String _legacyStableKeyFullUrl(String resolved) =>
+    md5.convert(utf8.encode(resolved)).toString();
+
+String? _extensionFromUriPath(Uri uri) {
+  if (uri.pathSegments.isEmpty) return null;
+  final seg = uri.pathSegments.last;
+  final dot = seg.lastIndexOf('.');
+  if (dot > 0 && dot < seg.length - 1) {
+    final ext = seg.substring(dot).toLowerCase();
+    if (ext.length <= 12 && RegExp(r'^\.[a-z0-9]+$').hasMatch(ext)) {
+      return ext;
+    }
+  }
+  return null;
+}
+
+String _extensionForStorage(Uri uri, String? displayName) {
+  final fromPath = _extensionFromUriPath(uri);
+  if (fromPath != null) return fromPath;
+  final hint = (displayName ?? '').trim();
+  if (hint.isNotEmpty) {
+    final base = hint.replaceFirst(RegExp(r'^📄\s*'), '').trim();
+    final dot = base.lastIndexOf('.');
+    if (dot > 0 && dot < base.length - 1) {
+      final ext = base.substring(dot).toLowerCase();
+      if (ext.length <= 12 && RegExp(r'^\.[a-z0-9]+$').hasMatch(ext)) {
+        return ext;
+      }
+    }
+  }
+  return '.bin';
+}
+
+bool _isStableBackendMessageId(String? messageId) {
+  final t = messageId?.trim() ?? '';
+  return t.isNotEmpty && !t.startsWith('local_');
+}
+
+/// Clé dérivée de l’ID message (backend) — stable même si l’URL signée change.
+String _stableKeyFromMessageId(String messageId) =>
+    md5.convert(utf8.encode('okl|msgmedia|v1|$messageId')).toString();
+
+/// Nom de fichier persistant : préfère l’ID message si fourni, sinon URL normalisée.
+String _stableStorageFileName(
+  String resolved,
+  Uri uri,
+  String? displayName, {
+  String? storageObjectId,
+}) {
+  final ext = _extensionForStorage(uri, displayName);
+  final key = _isStableBackendMessageId(storageObjectId)
+      ? _stableKeyFromMessageId(storageObjectId!)
+      : _stableKeyForUrl(resolved);
+  return '$key$ext';
+}
+
+/// `true` si [messageId] peut servir de clé de stockage (pas un id local temporaire).
+bool oklCanUseMessageIdForStorage(String? messageId) =>
+    _isStableBackendMessageId(messageId);
+
+Future<File?> _findFileStartingWithPrefix(Directory dir, String keyPrefix) async {
+  if (!await dir.exists()) return null;
+  await for (final entity in dir.list(followLinks: false)) {
+    if (entity is! File) continue;
+    final name = p.basename(entity.path);
+    if (name.startsWith(keyPrefix)) return entity;
+  }
+  return null;
+}
 
 Future<Directory> _baseDir() async {
   if (Platform.isAndroid) {
@@ -92,21 +179,58 @@ Future<Directory> _bucketDir(OklMediaBucket bucket) async {
 }
 
 /// Renvoie un fichier persistant s’il existe déjà (sinon `null`).
+///
+/// [storageObjectId] : id message backend (UUID) — préféré à l’URL (tokens signés).
+/// Ce n’est pas une variable `.env` (globale), mais un identifiant par message.
 Future<File?> getOkliforLocalFileIfExists(
   String rawUrl, {
   required OklMediaBucket bucket,
   String? displayName,
+  String? storageObjectId,
 }) async {
   final resolved = OkliforMediaUrl.resolve(rawUrl.trim());
   final uri = Uri.tryParse(resolved);
   if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) return null;
 
   final dir = await _bucketDir(bucket);
+  final ext = _extensionForStorage(uri, displayName);
+
+  // 0) Clé par ID message (stable même si l’URL signée change)
+  if (_isStableBackendMessageId(storageObjectId)) {
+    final keyMsg = _stableKeyFromMessageId(storageObjectId!);
+    final byMsg = File(p.join(dir.path, '$keyMsg$ext'));
+    if (await byMsg.exists()) return byMsg;
+    final byMsgPrefix = await _findFileStartingWithPrefix(dir, keyMsg);
+    if (byMsgPrefix != null) return byMsgPrefix;
+  }
+
+  final keyNew = _stableKeyForUrl(resolved);
+  final keyOld = _legacyStableKeyFullUrl(resolved);
+
+  // 1) Schéma URL : {md5(urlSansQuery)}{.ext}
+  final stableName = _stableStorageFileName(
+    resolved,
+    uri,
+    displayName,
+    storageObjectId: null,
+  );
+  final preferred = File(p.join(dir.path, stableName));
+  if (await preferred.exists()) return preferred;
+
+  // 2) Ancien schéma : {md5(urlComplète)}_{nomAffiché|segment}
   final baseName = _basenameFromHintOrUrl(uri, displayName);
-  final key = _stableKey(resolved);
-  final path = p.join(dir.path, '${key}_$baseName');
-  final f = File(path);
-  return await f.exists() ? f : null;
+  final legacyNewKey = File(p.join(dir.path, '${keyNew}_$baseName'));
+  if (await legacyNewKey.exists()) return legacyNewKey;
+  final legacyOldKey = File(p.join(dir.path, '${keyOld}_$baseName'));
+  if (await legacyOldKey.exists()) return legacyOldKey;
+
+  // 3) Toute variante de nom commençant par la clé URL
+  final byNew = await _findFileStartingWithPrefix(dir, keyNew);
+  if (byNew != null) return byNew;
+  final byOld = await _findFileStartingWithPrefix(dir, keyOld);
+  if (byOld != null) return byOld;
+
+  return null;
 }
 
 /// Assure la présence d’une copie locale persistante.
@@ -117,6 +241,7 @@ Future<File> ensureOkliforLocalFile(
   String rawUrl, {
   required OklMediaBucket bucket,
   String? displayName,
+  String? storageObjectId,
 }) async {
   final resolved = OkliforMediaUrl.resolve(rawUrl.trim());
   final uri = Uri.tryParse(resolved);
@@ -128,13 +253,18 @@ Future<File> ensureOkliforLocalFile(
     resolved,
     bucket: bucket,
     displayName: displayName,
+    storageObjectId: storageObjectId,
   );
   if (existing != null) return existing;
 
   final dir = await _bucketDir(bucket);
-  final baseName = _basenameFromHintOrUrl(uri, displayName);
-  final key = _stableKey(resolved);
-  final dest = File(p.join(dir.path, '${key}_$baseName'));
+  final stableName = _stableStorageFileName(
+    resolved,
+    uri,
+    displayName,
+    storageObjectId: storageObjectId,
+  );
+  final dest = File(p.join(dir.path, stableName));
 
   final cached = await oklChatMediaCache.getSingleFile(resolved);
   if (await dest.exists()) return dest;
@@ -149,6 +279,7 @@ Future<File> persistOkliforLocalFileFromPath(
   required OklMediaBucket bucket,
   required String sourcePath,
   String? displayName,
+  String? storageObjectId,
 }) async {
   final resolved = OkliforMediaUrl.resolve(rawUrl.trim());
   final uri = Uri.tryParse(resolved);
@@ -164,13 +295,18 @@ Future<File> persistOkliforLocalFileFromPath(
     resolved,
     bucket: bucket,
     displayName: displayName,
+    storageObjectId: storageObjectId,
   );
   if (existing != null) return existing;
 
   final dir = await _bucketDir(bucket);
-  final baseName = _basenameFromHintOrUrl(uri, displayName);
-  final key = _stableKey(resolved);
-  final dest = File(p.join(dir.path, '${key}_$baseName'));
+  final stableName = _stableStorageFileName(
+    resolved,
+    uri,
+    displayName,
+    storageObjectId: storageObjectId,
+  );
+  final dest = File(p.join(dir.path, stableName));
   if (await dest.exists()) return dest;
   await src.copy(dest.path);
   return dest;

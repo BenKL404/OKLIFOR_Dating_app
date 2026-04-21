@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:photo_manager/photo_manager.dart';
 
-import '../../../core/theme/theme_extensions.dart';
 import '../../../core/utils/okl_feedback.dart';
 import 'media_compose_screen.dart';
 
@@ -61,22 +60,48 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
     final perm = await PhotoManager.requestPermissionExtend();
     if (!mounted) return;
     if (!perm.isAuth) {
-      OklFeedback.snack(context, 'Autorisation galerie refusée');
-      Navigator.pop(context);
+      final openSettings = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Permission galerie'),
+          content: const Text(
+            "L'accès à la galerie est nécessaire pour choisir une photo/vidéo.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Ouvrir réglages'),
+            ),
+          ],
+        ),
+      );
+      if (openSettings == true) {
+        await PhotoManager.openSetting();
+      }
+      if (mounted) {
+        Navigator.pop(context);
+      }
       return;
     }
 
     final paths = await PhotoManager.getAssetPathList(
       type: RequestType.common,
       hasAll: true,
-      onlyAll: true,
     );
     if (!mounted) return;
     if (paths.isEmpty) {
       setState(() => _loading = false);
       return;
     }
-    _path = paths.first;
+    // Priorité à l'album "Tous les médias" (images + vidéos)
+    _path = paths.firstWhere(
+      (p) => p.isAll,
+      orElse: () => paths.first,
+    );
     await _loadMore(reset: true);
   }
 
@@ -192,8 +217,30 @@ class _GalleryTile extends StatelessWidget {
             future: entity.thumbnailDataWithSize(const ThumbnailSize(320, 320)),
             builder: (ctx, snap) {
               final data = snap.data;
+              if (snap.connectionState == ConnectionState.waiting) {
+                return Container(
+                  color: const Color(0xFF1A1A1A),
+                  child: isVideo
+                      ? const Center(
+                          child: Icon(LucideIcons.video,
+                              color: Colors.white24, size: 22),
+                        )
+                      : null,
+                );
+              }
               if (data == null) {
-                return Container(color: context.oklSurface);
+                return Container(
+                  color: const Color(0xFF222222),
+                  child: isVideo
+                      ? const Center(
+                          child: Icon(LucideIcons.video,
+                              color: Colors.white38, size: 22),
+                        )
+                      : const Center(
+                          child: Icon(LucideIcons.image,
+                              color: Colors.white24, size: 22),
+                        ),
+                );
               }
               return Image.memory(
                 data,

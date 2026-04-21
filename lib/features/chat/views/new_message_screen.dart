@@ -9,7 +9,7 @@ import '../../../core/widgets/okl_pill_search_bar.dart';
 import '../../common/views/contact_qr_hub_screen.dart';
 import '../models/chat_models.dart';
 
-/// Choisir un contact pour démarrer une conversation (démo).
+/// Choisir un contact pour démarrer une conversation.
 class NewMessageScreen extends ConsumerStatefulWidget {
   const NewMessageScreen({super.key});
 
@@ -20,7 +20,7 @@ class NewMessageScreen extends ConsumerStatefulWidget {
 class _NewMessageScreenState extends ConsumerState<NewMessageScreen> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
-  List<ChatContact> _contacts = List<ChatContact>.from(kDemoContacts);
+  List<ChatContact> _contacts = <ChatContact>[];
   bool _loading = true;
 
   void _onSearchChanged() => setState(() {});
@@ -61,7 +61,7 @@ class _NewMessageScreenState extends ConsumerState<NewMessageScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _contacts = List<ChatContact>.from(kDemoContacts);
+        _contacts = <ChatContact>[];
         _loading = false;
       });
     }

@@ -1,0 +1,33 @@
+# Overrides pour les tests — se superpose à application.yml via @ActiveProfiles("test")
+spring:
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/oklifor_test}
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+oklifor:
+  jwt:
+    secret: test-secret-at-least-32-characters-long!!
+    access-token-minutes: 5
+    refresh-token-days: 1
+  auth:
+    otp-dev-mode: true
+  firebase:
+    enabled: false
+  verification:
+    demo-approve-enabled: false
+  chat-media:
+    upload-dir: ${java.io.tmpdir}/oklifor-test/chat-media
+    signed-url-ttl-seconds: 60
+  status-media:
+    upload-dir: ${java.io.tmpdir}/oklifor-test/status-media
+    signed-url-ttl-seconds: 60
+  profile-media:
+    upload-dir: ${java.io.tmpdir}/oklifor-test/profile-media
+
+logging:
+  level:
+    com.oklifor: WARN
+    org.springframework.security: WARN

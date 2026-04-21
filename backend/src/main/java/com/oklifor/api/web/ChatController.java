@@ -42,8 +42,9 @@ public class ChatController {
     public List<ChatMessageResponse> messages(
             Authentication auth,
             @PathVariable String threadId,
-            @RequestParam(defaultValue = "50") int size) {
-        return chatService.listMessages(auth.getName(), threadId, size);
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(defaultValue = "0") int page) {
+        return chatService.listMessages(auth.getName(), threadId, size, page);
     }
 
     @PostMapping("/threads/{threadId}/messages")
