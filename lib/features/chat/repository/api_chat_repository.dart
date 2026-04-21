@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'dart:typed_data';
 
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -224,6 +225,7 @@ class ApiChatRepository implements ChatRepository {
     String? caption,
     int? voiceSeconds,
   }) async {
+    debugPrint('[OKL_SEND] START kind=$kind filename=$filename bytes=${bytes.length}');
     final myId = await _myUserId();
 
     // 1. Compress images to WebP before upload
@@ -243,29 +245,35 @@ class ApiChatRepository implements ChatRepository {
             '.webp',
           );
         }
-      } catch (_) {
-        // Compression failed — continue with original bytes
+      } catch (e) {
+        debugPrint('[OKL_SEND] compress error: $e');
       }
     }
 
     final ct = _contentTypeFor(kind, uploadFilename);
+    debugPrint('[OKL_SEND] contentType=$ct uploadBytes=${uploadBytes.length}');
 
     // 2. Presign via backend
+    debugPrint('[OKL_SEND] calling presign...');
     final presign = await _api.presignChatMedia(
       threadId: threadId,
       filename: uploadFilename,
       contentType: ct,
     );
+    debugPrint('[OKL_SEND] presign ok putUrl=${presign.putUrl} fileUrl=${presign.fileUrl}');
 
     // 3. Upload directly to object storage (bypasses backend)
+    debugPrint('[OKL_SEND] uploading to presigned url...');
     await _api.uploadToPresignedUrl(
       putUrl: presign.putUrl,
       bytes: uploadBytes,
       contentType: ct,
     );
+    debugPrint('[OKL_SEND] upload ok');
 
     // 4. Send message with permanent public URL
     final fileUrl = presign.fileUrl;
+    debugPrint('[OKL_SEND] sending chat message fileUrl=$fileUrl');
     final payload = await _api.sendChatMessage(
       threadId: threadId,
       kind: kind,
@@ -276,6 +284,7 @@ class ApiChatRepository implements ChatRepository {
       voiceSeconds: voiceSeconds,
       fileUrl: kind == 'FILE' ? fileUrl : null,
     );
+    debugPrint('[OKL_SEND] message sent id=${payload.id}');
 
     return chatMessageFromPayload(payload, myUserId: myId);
   }

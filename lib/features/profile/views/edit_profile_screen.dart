@@ -1,29 +1,44 @@
+import 'dart:typed_data';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/api/oklifor_api_exception.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
-import '../../../core/widgets/okl_app_bar_icon_button.dart';
-import '../../../core/flows/okl_flows.dart';
 import '../../../core/utils/okl_feedback.dart';
+import '../../../core/utils/okl_image_crop.dart';
+import '../../../core/utils/okl_pick_media_permissions.dart';
+import '../../../core/widgets/okl_app_bar_icon_button.dart';
+import '../../auth/providers/auth_api_provider.dart';
 import '../models/user_profile.dart';
 
-/// Édition riche du profil (démo) : visuels, texte, intention, langues.
-class EditProfileScreen extends StatefulWidget {
+/// Édition riche du profil : visuels, texte, intention, langues.
+class EditProfileScreen extends ConsumerStatefulWidget {
   final UserProfile initial;
 
   const EditProfileScreen({super.key, required this.initial});
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  ConsumerState<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _name;
   late final TextEditingController _city;
   late final TextEditingController _bio;
   late final TextEditingController _languages;
   late String _goal;
+
+  // Picked images (local preview)
+  Uint8List? _avatarBytes;
+  String _avatarFilename = 'avatar.jpg';
+  Uint8List? _coverBytes;
+  String _coverFilename = 'cover.jpg';
+
+  bool _saving = false;
 
   static const _goals = [
     'Relation sérieuse',
@@ -52,7 +67,90 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  void _save() {
+  // ──────────────────────────────────────────
+  // Image picking
+  // ──────────────────────────────────────────
+
+  Future<ImageSource?> _pickImageSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: context.oklSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(LucideIcons.camera, color: ctx.oklOnSurface),
+              title: Text('Prendre une photo', style: TextStyle(color: ctx.oklOnSurface)),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: Icon(LucideIcons.image, color: ctx.oklOnSurface),
+              title: Text('Galerie', style: TextStyle(color: ctx.oklOnSurface)),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAvatar() async {
+    final source = await _pickImageSource();
+    if (source == null || !mounted) return;
+    if (!await OklPickMediaPermissions.ensureImageSource(context, source)) return;
+
+    final x = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 1200,
+      imageQuality: 90,
+    );
+    if (x == null || !mounted) return;
+
+    final bytes = await cropPickedImageIfPossible(
+      context: context,
+      xFile: x,
+      kind: OklImageCropKind.profileAvatar,
+    );
+    if (bytes == null || !mounted) return;
+    setState(() {
+      _avatarBytes = bytes;
+      _avatarFilename = 'avatar.jpg';
+    });
+  }
+
+  Future<void> _pickCover() async {
+    final source = await _pickImageSource();
+    if (source == null || !mounted) return;
+    if (!await OklPickMediaPermissions.ensureImageSource(context, source)) return;
+
+    final x = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 2400,
+      imageQuality: 88,
+    );
+    if (x == null || !mounted) return;
+
+    final bytes = await cropPickedImageIfPossible(
+      context: context,
+      xFile: x,
+      kind: OklImageCropKind.profileCover,
+    );
+    if (bytes == null || !mounted) return;
+    setState(() {
+      _coverBytes = bytes;
+      _coverFilename = 'cover.jpg';
+    });
+  }
+
+  // ──────────────────────────────────────────
+  // Save
+  // ──────────────────────────────────────────
+
+  Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) {
       OklFeedback.alert(
@@ -62,16 +160,45 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       return;
     }
-    final updated = widget.initial.copyWith(
-      displayName: name,
-      city: _city.text.trim().isEmpty ? widget.initial.city : _city.text.trim(),
-      bio: _bio.text.trim(),
-      relationGoal: _goal,
-      languages: _languages.text.trim(),
-    );
-    ProfileSession.set(updated);
-    Navigator.pop(context, updated);
+
+    setState(() => _saving = true);
+    try {
+      final p = widget.initial;
+      final me = await ref.read(okliforApiClientProvider).uploadMyProfileFull(
+            displayName: name,
+            city: _city.text.trim().isEmpty ? p.city : _city.text.trim(),
+            bio: _bio.text.trim(),
+            relationGoal: _goal,
+            languages: _languages.text.trim(),
+            ethnicity: p.ethnicity,
+            lifestyle: p.lifestyle,
+            profession: p.profession,
+            education: p.education,
+            avatarBytes: _avatarBytes,
+            avatarFilename: _avatarBytes != null ? _avatarFilename : null,
+            coverBytes: _coverBytes,
+            coverFilename: _coverBytes != null ? _coverFilename : null,
+          );
+
+      if (!mounted) return;
+      me.applyToLocalSessions(); // rafraîchit ProfileSession
+      Navigator.pop(context, ProfileSession.profile.value);
+    } on OkliforApiException catch (e) {
+      if (mounted) {
+        OklFeedback.alert(context, title: 'Envoi impossible', message: e.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        OklFeedback.alert(context, title: 'Envoi impossible', message: '$e');
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
+
+  // ──────────────────────────────────────────
+  // Build
+  // ──────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -84,15 +211,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         automaticallyImplyLeading: false,
         title: const Text('Modifier le profil'),
         actions: [
-          TextButton(
-            onPressed: _save,
-            child: const Text(
-              'Enregistrer',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _saving
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  )
+                : TextButton(
+                    onPressed: _save,
+                    child: const Text(
+                      'Enregistrer',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -102,33 +244,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Stack(
             clipBehavior: Clip.none,
             children: [
+              // ── Invisible spacer to ensure hit testing on overlapping avatar ──
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const AspectRatio(aspectRatio: 16 / 9, child: SizedBox.shrink()),
+                  const SizedBox(height: 36),
+                ],
+              ),
+              // ── Cover ──
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
-                  child: CachedNetworkImage(
-                    imageUrl: p.coverUrl,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 900,
-                    placeholder: (c, u) => Container(color: c.oklSurface),
-                  ),
+                  child: _coverBytes != null
+                      ? Image.memory(
+                          _coverBytes!,
+                          fit: BoxFit.cover,
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: p.coverUrlForDisplay,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 900,
+                          placeholder: (c, u) => Container(color: c.oklSurface),
+                        ),
                 ),
               ),
+              // ── Cover button ──
               Positioned(
                 right: 10,
-                bottom: 10,
+                bottom: 10 + 36, // relative to new Stack bottom
                 child: Material(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(10),
                   child: InkWell(
-                    onTap: () => OklFlows.pushResult(
-                      context,
-                      icon: LucideIcons.image,
-                      title: 'Photo de couverture',
-                      subtitle:
-                          'Depuis la version complète, tu pourras choisir une image dans ta galerie ou Unsplash. Ici c’est une démo visuelle.',
-                      primaryLabel: 'OK',
-                    ),
+                    onTap: _saving ? null : _pickCover,
                     borderRadius: BorderRadius.circular(10),
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -151,9 +301,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
               ),
+              // ── Avatar ──
               Positioned(
                 left: 16,
-                bottom: -36,
+                bottom: 0, // correctly aligned with the new Stack bottom
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -168,16 +319,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         radius: 48,
                         backgroundColor: context.oklSurface,
                         child: ClipOval(
-                          child: CachedNetworkImage(
-                            imageUrl: p.avatarUrl,
-                            width: 96,
-                            height: 96,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 192,
-                          ),
+                          child: _avatarBytes != null
+                              ? Image.memory(
+                                  _avatarBytes!,
+                                  width: 96,
+                                  height: 96,
+                                  fit: BoxFit.cover,
+                                )
+                              : CachedNetworkImage(
+                                  imageUrl: p.avatarUrlForDisplay,
+                                  width: 96,
+                                  height: 96,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 192,
+                                ),
                         ),
                       ),
                     ),
+                    // ── Avatar button ──
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -185,14 +344,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         color: AppColors.primary,
                         shape: const CircleBorder(),
                         child: InkWell(
-                          onTap: () => OklFlows.pushResult(
-                            context,
-                            icon: LucideIcons.user,
-                            title: 'Photo de profil',
-                            subtitle:
-                                'Tu pourras recadrer et valider une photo nette du visage. Simulation pour l’instant.',
-                            primaryLabel: 'Compris',
-                          ),
+                          onTap: _saving ? null : _pickAvatar,
                           customBorder: const CircleBorder(),
                           child: const Padding(
                             padding: EdgeInsets.all(8),
@@ -210,7 +362,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 52),
+          const SizedBox(height: 16), // Sized down because Stack carries 36px overlap now
           _sectionLabel(context, 'Identité affichée'),
           const SizedBox(height: 8),
           _field(
@@ -235,7 +387,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             maxLength: 500,
             style: TextStyle(color: context.oklOnSurface, height: 1.4),
             decoration: InputDecoration(
-              hintText: 'Bio, centres d’intérêt, ce que tu cherches…',
+              hintText: 'Bio, centres d\u2019intérêt, ce que tu cherches…',
               hintStyle: TextStyle(
                 color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.85),
               ),
@@ -295,32 +447,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             icon: LucideIcons.languages,
           ),
           const SizedBox(height: 28),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: context.oklSurface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: context.oklDivider),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(LucideIcons.info, size: 18, color: context.oklOnSurfaceMuted(0.62)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Les modifications sont enregistrées sur cet appareil (démo). '
-                    'La vérification du compte se fait depuis Paramètres → Vérification et certificat.',
-                    style: TextStyle(
-                      color: context.oklOnSurfaceMuted(0.62).withValues(alpha: 0.95),
-                      fontSize: 12,
-                      height: 1.4,
+          // Info row: upload notice
+          if (_avatarBytes != null || _coverBytes != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.uploadCloud, size: 18, color: AppColors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Nouvelles images prêtes. Appuie sur Enregistrer pour les envoyer.',
+                      style: TextStyle(
+                        color: AppColors.primary.withValues(alpha: 0.9),
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
