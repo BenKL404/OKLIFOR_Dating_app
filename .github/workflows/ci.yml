@@ -150,7 +150,7 @@ jobs:
           envs: GHCR_PAT,GHCR_ACTOR,GHCR_OWNER,DEPLOY_PATH
           script: |
             set -e
-            mkdir -p "$DEPLOY_PATH" 2>/dev/null || sudo mkdir -p "$DEPLOY_PATH" && sudo chown "$USER":"$USER" "$DEPLOY_PATH"
+            mkdir -p "$DEPLOY_PATH"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
             cd "$DEPLOY_PATH"
             grep -q '^GHCR_OWNER=' .env 2>/dev/null || echo "GHCR_OWNER=$GHCR_OWNER" >> .env
