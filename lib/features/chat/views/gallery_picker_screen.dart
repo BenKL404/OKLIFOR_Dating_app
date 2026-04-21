@@ -59,7 +59,7 @@ class _GalleryPickerScreenState extends State<GalleryPickerScreen> {
 
     final perm = await PhotoManager.requestPermissionExtend();
     if (!mounted) return;
-    if (!perm.isAuth) {
+    if (!perm.hasAccess) {
       final openSettings = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(

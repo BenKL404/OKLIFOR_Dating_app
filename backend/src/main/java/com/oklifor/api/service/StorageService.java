@@ -39,6 +39,7 @@ public class StorageService {
                             .expiry((int) props.getStorage().getPresignedPutTtlSeconds(), TimeUnit.SECONDS)
                             .build());
         } catch (Exception e) {
+            e.printStackTrace();
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "presign_failed");
         }
     }

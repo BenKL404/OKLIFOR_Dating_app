@@ -871,20 +871,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         );
     if (!mounted || composed == null) return;
 
-    // Fix #1+6 — Lire les bytes depuis le fichier sur toutes les plateformes
-    final Uint8List bytes;
-    if (composed.bytes != null && composed.bytes!.isNotEmpty) {
-      bytes = Uint8List.fromList(composed.bytes!);
-    } else if (!kIsWeb && composed.filePath != null && composed.filePath!.isNotEmpty) {
-      bytes = await File(composed.filePath!).readAsBytes();
-    } else {
-      bytes = Uint8List(0);
+    // Bytes are always populated by MediaComposeScreen now
+    final bytes = composed.bytes != null && composed.bytes!.isNotEmpty
+        ? Uint8List.fromList(composed.bytes!)
+        : Uint8List(0);
+
+    if (bytes.isEmpty) {
+      OklFeedback.snack(context, 'Impossible de lire le fichier sélectionné');
+      return;
     }
 
     final caption = composed.caption.trim();
 
     if (composed.isVideo) {
-      // Optimistic bubble
       final localId = _appendLocalMineMessage(
         kind: ChatMessageKind.video,
         text: caption.isEmpty ? null : caption,
@@ -896,8 +895,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           caption: caption.isEmpty ? null : caption,
         );
         if (mounted) _replaceLocalMessage(localId, msg);
-      } catch (_) {
-        if (mounted) _markMessageFailed(localId);
+      } catch (e, st) {
+        if (mounted) {
+          _markMessageFailed(localId);
+          OklFeedback.snack(context, 'Erreur envoi vidéo: $e');
+          debugPrint('Send Video Error: $e\n$st');
+        }
       }
     } else {
       final localId = _appendLocalMineMessage(
@@ -911,11 +914,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           caption: caption.isEmpty ? null : caption,
         );
         if (mounted) _replaceLocalMessage(localId, msg);
-      } catch (_) {
-        if (mounted) _markMessageFailed(localId);
+      } catch (e, st) {
+        if (mounted) {
+          _markMessageFailed(localId);
+          OklFeedback.snack(context, 'Erreur envoi image: $e');
+          debugPrint('Send Image Error: $e\n$st');
+        }
       }
     }
   }
+
 
   Future<void> _pickAndSendImageFromCamera() async {
     final canUse = await OklPickMediaPermissions.ensureImageSource(
@@ -1080,6 +1088,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       ImageSource.camera,
     );
     if (!canUseCamera) return;
+    if (!mounted) return;
     final canUseMicrophone = await OklPickMediaPermissions.ensureMicrophone(
       context,
     );
@@ -1129,6 +1138,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final picked = await FilePicker.platform.pickFiles(withData: true);
     final f = picked?.files.single;
     if (f == null) return;
+    if (!mounted) return;
     final composed = await Navigator.of(context, rootNavigator: true)
         .push<DocumentComposeResult>(
           MaterialPageRoute<DocumentComposeResult>(

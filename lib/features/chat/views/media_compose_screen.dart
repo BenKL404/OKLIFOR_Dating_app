@@ -99,30 +99,52 @@ class _MediaComposeScreenState extends State<MediaComposeScreen> {
         : 'media_${DateTime.now().millisecondsSinceEpoch}';
     final caption = _caption.text.trim();
 
-    if (_isVideo) {
+    try {
+      if (_isVideo) {
+        // Read video bytes directly — avoids content:// URI issues on Android
+        final bytes = await f.readAsBytes();
+        if (!mounted) return;
+        Navigator.pop(
+          context,
+          OklComposedMedia(
+            isVideo: true,
+            filename: filename,
+            bytes: bytes,
+            caption: caption,
+          ),
+        );
+        return;
+      }
+
+      // Image — prefer cropped bytes, otherwise load from entity origin
+      final Uint8List? imageBytes;
+      if (_croppedBytes != null) {
+        imageBytes = _croppedBytes;
+      } else {
+        imageBytes = await widget.entity.originBytes;
+      }
+
+      if (!mounted) return;
+      if (imageBytes == null || imageBytes.isEmpty) {
+        OklFeedback.snack(context, 'Impossible de lire ce fichier image');
+        setState(() => _sending = false);
+        return;
+      }
+
       Navigator.pop(
         context,
         OklComposedMedia(
-          isVideo: true,
+          isVideo: false,
           filename: filename,
-          filePath: f.path,
+          bytes: imageBytes,
           caption: caption,
         ),
       );
-      return;
+    } catch (e) {
+      if (!mounted) return;
+      OklFeedback.snack(context, 'Erreur lecture média : $e');
+      setState(() => _sending = false);
     }
-
-    // Image
-    Navigator.pop(
-      context,
-      OklComposedMedia(
-        isVideo: false,
-        filename: filename,
-        filePath: _croppedBytes == null ? f.path : null,
-        bytes: _croppedBytes,
-        caption: caption,
-      ),
-    );
   }
 
   @override

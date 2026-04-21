@@ -142,17 +142,19 @@ class ProfileScreen extends StatelessWidget {
                           ],
                           _InterestChips(profile: profile),
                           const SizedBox(height: 16),
-                          _VipBanner(
-                            vip: vip,
-                            onTap: () =>
-                                Navigator.of(context, rootNavigator: true)
-                                    .push<void>(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const VipPassScreen(),
+                          if (!vip.isActive) ...[
+                            _VipBanner(
+                              vip: vip,
+                              onTap: () =>
+                                  Navigator.of(context, rootNavigator: true)
+                                      .push<void>(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const VipPassScreen(),
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
+                            const SizedBox(height: 16),
+                          ],
                           if (!profile.hasOkliforCertificate) ...[
                             _VerifyCard(
                                 profile: profile, context: context),
