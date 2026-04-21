@@ -7,6 +7,7 @@ import com.oklifor.api.repository.SubscriptionPlanRepository;
 import com.oklifor.api.repository.UserSubscriptionRepository;
 import com.oklifor.api.web.dto.SubscriptionPlanResponse;
 import com.oklifor.api.web.dto.SubscriptionStateResponse;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,7 +17,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class SubscriptionService {
@@ -30,10 +30,10 @@ public class SubscriptionService {
     public SubscriptionService(
             SubscriptionPlanRepository plans,
             UserSubscriptionRepository subscriptions,
-            StringRedisTemplate redis) {
+            ObjectProvider<StringRedisTemplate> redisProvider) {
         this.plans = plans;
         this.subscriptions = subscriptions;
-        this.redis = redis;
+        this.redis = redisProvider.getIfAvailable();
     }
 
     public List<SubscriptionPlanResponse> listActivePlans() {
@@ -44,17 +44,20 @@ public class SubscriptionService {
 
     public SubscriptionStateResponse currentStateForUser(String userId) {
         String cacheKey = CACHE_PREFIX + userId;
-        String cached = redis.opsForValue().get(cacheKey);
-        if (cached != null && !cached.isBlank()) {
-            return parseCached(cached);
+        if (redis != null) {
+            try {
+                String cached = redis.opsForValue().get(cacheKey);
+                if (cached != null && !cached.isBlank()) {
+                    return parseCached(cached);
+                }
+            } catch (Exception ignored) {}
         }
         SubscriptionStateResponse computed = computeFromDb(userId);
-        redis.opsForValue()
-                .set(
-                        cacheKey,
-                        serialize(computed),
-                        Duration.ofSeconds(45).toMillis(),
-                        TimeUnit.MILLISECONDS);
+        if (redis != null) {
+            try {
+                redis.opsForValue().set(cacheKey, serialize(computed), Duration.ofSeconds(45));
+            } catch (Exception ignored) {}
+        }
         return computed;
     }
 
@@ -79,7 +82,9 @@ public class SubscriptionService {
         sub.setPaymentProvider(paymentProvider != null ? paymentProvider : "demo");
         sub.setExternalPaymentReference(externalRef);
         UserSubscription saved = subscriptions.save(sub);
-        redis.delete(CACHE_PREFIX + userId);
+        if (redis != null) {
+            try { redis.delete(CACHE_PREFIX + userId); } catch (Exception ignored) {}
+        }
         return saved;
     }
 
