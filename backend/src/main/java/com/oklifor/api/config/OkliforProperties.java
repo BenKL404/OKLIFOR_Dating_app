@@ -18,6 +18,7 @@ public class OkliforProperties {
     private final ProfileMedia profileMedia = new ProfileMedia();
     private final ChatMedia chatMedia = new ChatMedia();
     private final StatusMedia statusMedia = new StatusMedia();
+    private final Storage storage = new Storage();
 
     @Getter
     @Setter
@@ -79,5 +80,17 @@ public class OkliforProperties {
     public static class StatusMedia {
         private String uploadDir = "data/status-media";
         private long signedUrlTtlSeconds = 3600;
+    }
+
+    @Getter
+    @Setter
+    public static class Storage {
+        private String endpoint = "http://localhost:9000";
+        private String accessKey = "minioadmin";
+        private String secretKey = "minioadmin";
+        private String bucketChat = "oklifor-chat";
+        private String bucketStatus = "oklifor-status";
+        /** TTL for presigned PUT URLs in seconds (default 15 min). */
+        private long presignedPutTtlSeconds = 900;
     }
 }
