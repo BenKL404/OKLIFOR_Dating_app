@@ -693,6 +693,24 @@ StatusStory _threadToStatusStory(ChatThread c) {
     ref.read(chatThreadsProvider.notifier).removeThread(threadId);
   }
 
+  Future<void> _deleteThread(String threadId) async {
+    final threads = ref.read(chatThreadsProvider).value ?? [];
+    final idx = threads.indexWhere((t) => t.id == threadId);
+    final ChatThread? existing = idx >= 0 ? threads[idx] : null;
+    _removeThread(threadId);
+    try {
+      await ref.read(chatRepositoryProvider).deleteThread(threadId);
+      if (!mounted) return;
+      OklFeedback.snack(context, 'Discussion supprimée');
+    } catch (_) {
+      if (existing != null) {
+        ref.read(chatThreadsProvider.notifier).upsertThread(existing);
+      }
+      if (!mounted) return;
+      OklFeedback.snack(context, 'Suppression impossible');
+    }
+  }
+
   void _openChatActions(BuildContext context, ChatThread chat) {
     HapticFeedback.mediumImpact();
     showModalBottomSheet<void>(
@@ -873,7 +891,7 @@ StatusStory _threadToStatusStory(ChatThread c) {
                   title: 'Supprimer la discussion',
                   body: 'Cette conversation sera retirée de ta liste.',
                   confirmLabel: 'Supprimer',
-                  onConfirm: () => _removeThread(chat.id),
+                  onConfirm: () => _deleteThread(chat.id),
                 );
               },
             ),

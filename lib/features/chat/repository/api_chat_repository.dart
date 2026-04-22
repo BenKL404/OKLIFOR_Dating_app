@@ -389,6 +389,20 @@ class ApiChatRepository implements ChatRepository {
   // ── Création de fils ──────────────────────────────────────────────────────
 
   @override
+  Future<void> deleteMessage(String threadId, String messageId) async {
+    await _api.deleteChatMessage(threadId, messageId);
+    // OPTIONAL: Delete from cache if needed
+    // _cache.deleteMessage(...)
+  }
+
+  @override
+  Future<void> deleteThread(String threadId) async {
+    await _api.deleteChatThread(threadId);
+    // OPTIONAL: Delete from cache if needed
+    // _cache.deleteThread(...)
+  }
+
+  @override
   Future<ChatThread> createDirectThread(String contactId) async {
     final myId = await _myUserId();
     final payload = await _api.createDirectThread(contactId);

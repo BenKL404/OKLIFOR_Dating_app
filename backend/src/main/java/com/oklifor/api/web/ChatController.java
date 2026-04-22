@@ -7,6 +7,7 @@ import com.oklifor.api.web.dto.CreateDirectThreadRequest;
 import com.oklifor.api.web.dto.SendMessageRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,6 +39,11 @@ public class ChatController {
         return chatService.getOrCreateDirect(auth.getName(), body.peerUserId());
     }
 
+    @DeleteMapping("/threads/{threadId}")
+    public void deleteThread(Authentication auth, @PathVariable String threadId) {
+        chatService.deleteThread(auth.getName(), threadId);
+    }
+
     @GetMapping("/threads/{threadId}/messages")
     public List<ChatMessageResponse> messages(
             Authentication auth,
@@ -53,6 +59,14 @@ public class ChatController {
             @PathVariable String threadId,
             @Valid @RequestBody SendMessageRequest body) {
         return chatService.sendMessage(auth.getName(), threadId, body);
+    }
+
+    @DeleteMapping("/threads/{threadId}/messages/{messageId}")
+    public void deleteMessage(
+            Authentication auth,
+            @PathVariable String threadId,
+            @PathVariable String messageId) {
+        chatService.deleteMessage(auth.getName(), threadId, messageId);
     }
 
     @PostMapping("/threads/{threadId}/read")

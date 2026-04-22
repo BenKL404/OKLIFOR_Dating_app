@@ -47,6 +47,12 @@ abstract class ChatRepository {
   /// Marque un fil comme lu.
   Future<void> markRead(String threadId);
 
+  /// Supprime un message du fil.
+  Future<void> deleteMessage(String threadId, String messageId);
+
+  /// Supprime complètement le fil de discussion.
+  Future<void> deleteThread(String threadId);
+
   /// Crée un fil direct avec un contact.
   Future<ChatThread> createDirectThread(String contactId);
 

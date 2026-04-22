@@ -477,6 +477,22 @@ class OkliforApiClient {
     }
   }
 
+  Future<void> deleteChatThread(String threadId) async {
+    try {
+      await _dio.delete<void>('/api/v1/chat/threads/$threadId');
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
+  Future<void> deleteChatMessage(String threadId, String messageId) async {
+    try {
+      await _dio.delete<void>('/api/v1/chat/threads/$threadId/messages/$messageId');
+    } on DioException catch (e) {
+      throw OkliforApiException.fromDio(e);
+    }
+  }
+
   Future<List<ContactPayload>> fetchContacts() async {
     try {
       final res = await _dio.get<List<dynamic>>('/api/v1/contacts');
