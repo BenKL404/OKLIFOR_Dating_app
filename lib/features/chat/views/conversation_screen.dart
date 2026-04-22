@@ -13,6 +13,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:video_player/video_player.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../core/flows/okl_flows.dart';
@@ -1052,6 +1053,28 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   String _absoluteMediaUrl(String raw) => raw;
 
+  Future<Uint8List> _readPlatformFileBytes(PlatformFile f) async {
+    final b = f.bytes;
+    if (b != null && b.isNotEmpty) return b;
+    final p = f.path;
+    if (p != null && p.isNotEmpty) {
+      final file = File(p);
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) return bytes;
+      }
+    }
+    final stream = f.readStream;
+    if (stream != null) {
+      final chunks = <int>[];
+      await for (final chunk in stream) {
+        chunks.addAll(chunk);
+      }
+      if (chunks.isNotEmpty) return Uint8List.fromList(chunks);
+    }
+    return Uint8List(0);
+  }
+
   String _appendLocalMineMessage({
     required ChatMessageKind kind,
     String? text,
@@ -1119,8 +1142,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
     final f = picked?.files.single;
     if (f == null) return;
-    // Fix #1+6 — lire depuis bytes ou chemin fichier
-    final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : Uint8List(0));
+    final bytes = await _readPlatformFileBytes(f);
+    if (bytes.isEmpty) {
+      if (!mounted) return;
+      OklFeedback.snack(context, 'Fichier audio illisible');
+      return;
+    }
     final localId = _appendLocalMineMessage(kind: ChatMessageKind.voice);
     _pendingLocalIds.add(localId);
     try {
@@ -1134,8 +1161,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Future<void> _pickAndSendDocumentFile() async {
-    // Fix #1 — toujours charger les bytes
-    final picked = await FilePicker.platform.pickFiles(withData: true);
+    // Document mode: accepter tout type, y compris gros fichiers (stream/path/bytes).
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: false,
+      withReadStream: true,
+    );
     final f = picked?.files.single;
     if (f == null) return;
     if (!mounted) return;
@@ -1146,8 +1177,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           ),
         );
     if (!mounted || composed == null) return;
-    // Fix #1+6 — lire depuis bytes ou chemin fichier
-    final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : Uint8List(0));
+    final bytes = await _readPlatformFileBytes(f);
+    if (bytes.isEmpty) {
+      if (!mounted) return;
+      OklFeedback.snack(context, 'Fichier document illisible');
+      return;
+    }
     final caption = composed.caption.trim();
     final localId = _appendLocalMineMessage(
       kind: ChatMessageKind.file,
@@ -2507,7 +2542,13 @@ class _DocumentMessageCardState extends State<_DocumentMessageCard> {
   }
 
   Future<bool> _persisted() async {
-    return false; // mock mode: no local file cache
+    if (!_openable) return false;
+    try {
+      final info = await _chatMediaCache.getFileFromCache(_resolvedUrl);
+      return info != null;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _openCachedOrDownload() async {
@@ -3677,14 +3718,10 @@ class _VideoMessageBubble extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (m.imageUrl != null && m.imageUrl!.isNotEmpty)
-                          CachedNetworkImage(
-                            imageUrl: m.imageUrl!,
-                            cacheManager: _chatMediaCache,
-                            fit: BoxFit.cover,
-                          )
-                        else
-                          Container(color: Colors.black),
+                        _VideoCoverFrame(
+                          videoUrl: videoUrl,
+                          fallbackImageUrl: m.imageUrl,
+                        ),
                         Container(color: Colors.black.withValues(alpha: 0.22)),
                         const Align(
                           alignment: Alignment.center,
@@ -3696,27 +3733,6 @@ class _VideoMessageBubble extends StatelessWidget {
                         ),
                         // Time/Receipts on top ONLY if NO text
                         if ((m.text ?? '').isEmpty) ...[
-                          Positioned(
-                            left: 8,
-                            bottom: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                borderRadius:
-                                    BorderRadius.circular(_chatPillRadius),
-                              ),
-                              child: const Text(
-                                'VIDÉO',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
                           Positioned(
                             right: 8,
                             bottom: 8,
@@ -3750,28 +3766,7 @@ class _VideoMessageBubble extends StatelessWidget {
                               ),
                             ),
                           ),
-                        ] else
-                          Positioned(
-                            left: 8,
-                            bottom: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                borderRadius:
-                                    BorderRadius.circular(_chatPillRadius),
-                              ),
-                              child: const Text(
-                                'VIDÉO',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -3836,6 +3831,154 @@ class _VideoMessageBubble extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _VideoCoverFrame extends StatefulWidget {
+  final String videoUrl;
+  final String? fallbackImageUrl;
+
+  const _VideoCoverFrame({
+    required this.videoUrl,
+    required this.fallbackImageUrl,
+  });
+
+  @override
+  State<_VideoCoverFrame> createState() => _VideoCoverFrameState();
+}
+
+class _VideoCoverFrameState extends State<_VideoCoverFrame> {
+  VideoPlayerController? _controller;
+  bool _loadFailed = false;
+  Duration? _videoDuration;
+
+  bool get _hasFallbackImage =>
+      (widget.fallbackImageUrl ?? '').trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_hasFallbackImage) {
+      unawaited(_initVideoFrame());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoCoverFrame oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videoUrl != widget.videoUrl ||
+        oldWidget.fallbackImageUrl != widget.fallbackImageUrl) {
+      _disposeController();
+      _loadFailed = false;
+      if (!_hasFallbackImage) {
+        unawaited(_initVideoFrame());
+      }
+    }
+  }
+
+  Future<void> _initVideoFrame() async {
+    try {
+      final ctrl = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      _controller = ctrl;
+      await ctrl.initialize();
+      _videoDuration = ctrl.value.duration;
+      await ctrl.pause();
+      if (mounted) setState(() {});
+    } catch (_) {
+      _loadFailed = true;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _disposeController() {
+    final c = _controller;
+    _controller = null;
+    c?.dispose();
+  }
+
+  @override
+  void dispose() {
+    _disposeController();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasFallbackImage) {
+      return CachedNetworkImage(
+        imageUrl: widget.fallbackImageUrl!,
+        cacheManager: _chatMediaCache,
+        fit: BoxFit.cover,
+        placeholder: (c, u) => Container(color: context.oklSurface),
+        errorWidget: (c, u, e) => _videoFallback(context),
+      );
+    }
+
+    final c = _controller;
+    if (c != null && c.value.isInitialized && !_loadFailed) {
+      final size = c.value.size;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: size.width,
+              height: size.height,
+              child: VideoPlayer(c),
+            ),
+          ),
+          if (_videoDuration != null && _videoDuration!.inMilliseconds > 0)
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(_chatPillRadius),
+                ),
+                child: Text(
+                  _formatDurationLabel(_videoDuration!),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    return _videoFallback(context);
+  }
+
+  String _formatDurationLabel(Duration d) {
+    final total = d.inSeconds;
+    final h = total ~/ 3600;
+    final m = (total % 3600) ~/ 60;
+    final s = total % 60;
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  Widget _videoFallback(BuildContext context) {
+    return Container(
+      color: Color.alphaBlend(
+        context.oklOnSurface.withValues(alpha: 0.08),
+        context.oklSurface,
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        LucideIcons.video,
+        color: context.oklOnSurfaceMuted(0.52),
+        size: 30,
       ),
     );
   }
