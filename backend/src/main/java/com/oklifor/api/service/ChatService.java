@@ -173,6 +173,25 @@ public class ChatService {
         return !peerRead.isBefore(messageCreatedAt);
     }
 
+    public void deleteMessage(String userId, String threadId, String messageId) {
+        ensureParticipant(userId, threadId);
+        ChatMessage m = messages.findById(messageId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "message_introuvable"));
+        if (!m.getThreadId().equals(threadId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalide");
+        }
+        if (!m.getSenderUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "seul_lexpediteur_peut_supprimer");
+        }
+        messages.delete(m);
+    }
+
+    public void deleteThread(String userId, String threadId) {
+        ChatThread t = ensureParticipant(userId, threadId);
+        messages.deleteByThreadId(threadId);
+        threads.delete(t);
+    }
+
     public void assertParticipant(String userId, String threadId) {
         ensureParticipant(userId, threadId);
     }

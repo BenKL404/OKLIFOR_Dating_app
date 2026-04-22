@@ -119,7 +119,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   Timer? _loadingOverlayDebounceTimer;
   bool _isUploadingMedia = false;
   String? _uploadError;
-  Future<void> Function()? _retryUploadAction;
   bool _peerOnline = false;
   bool _peerTyping = false;
   int? _peerLastSeenEpoch;
@@ -799,8 +798,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     setState(() {
       _pendingLocalIds.remove(localId);
       _failedLocalIds.add(localId);
+      _messages.removeWhere((m) => m.id == localId);
     });
-    OklFeedback.snack(context, 'Envoi échoué — appuie pour réessayer');
+    OklFeedback.snack(context, 'Envoi échoué');
   }
 
   void _openGalleryMediaChoice() {
@@ -1184,7 +1184,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     setState(() {
       _isUploadingMedia = true;
       _uploadError = null;
-      _retryUploadAction = action;
     });
     try {
       await action();
@@ -1192,7 +1191,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       setState(() {
         _isUploadingMedia = false;
         _uploadError = null;
-        _retryUploadAction = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -1229,6 +1227,46 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _clearConversation() async {
+    final snapshot = List<ChatMessage>.from(_messages);
+    setState(() {
+      _messages.clear();
+      _replyingTo = null;
+    });
+    try {
+      final deletable = snapshot.where((m) => m.mine).toList(growable: false);
+      for (final m in deletable) {
+        await ref.read(chatRepositoryProvider).deleteMessage(widget.thread.id, m.id);
+      }
+      if (!mounted) return;
+      OklFeedback.snack(context, 'Conversation vidée');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _messages = snapshot);
+      OklFeedback.snack(context, 'Vidage impossible');
+    }
+  }
+
+  Future<void> _deleteConversation() async {
+    final threads = ref.read(chatThreadsProvider).value ?? [];
+    final idx = threads.indexWhere((t) => t.id == widget.thread.id);
+    final ChatThread? existing = idx >= 0 ? threads[idx] : null;
+    ref.read(chatThreadsProvider.notifier).removeThread(widget.thread.id);
+    try {
+      await ref.read(chatRepositoryProvider).deleteThread(widget.thread.id);
+      if (!mounted) return;
+      unawaited(ref.read(chatThreadsProvider.notifier).refresh());
+      OklFeedback.snack(context, 'Discussion supprimée');
+      _popConversationRoot();
+    } catch (_) {
+      if (!mounted) return;
+      if (existing != null) {
+        ref.read(chatThreadsProvider.notifier).upsertThread(existing);
+      }
+      OklFeedback.snack(context, 'Suppression impossible');
+    }
   }
 
   void _openConversationMenu() {
@@ -1306,6 +1344,48 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     builder: (_) =>
                         ConversationMuteScreen(threadName: widget.thread.name),
                   ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                LucideIcons.eraser,
+                color:
+                    Theme.of(ctx).textTheme.bodyMedium?.color ??
+                    ctx.oklOnSurfaceMuted(0.62),
+              ),
+              title: Text(
+                'Vider la conversation',
+                style: TextStyle(color: ctx.oklOnSurface),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                OklFeedback.confirm(
+                  context,
+                  title: 'Vider la conversation ?',
+                  body: 'Les messages affichés seront supprimés.',
+                  confirmLabel: 'Vider',
+                  onConfirm: () => _clearConversation(),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                LucideIcons.trash2,
+                color: AppColors.togoRed,
+              ),
+              title: Text(
+                'Supprimer la discussion',
+                style: TextStyle(color: AppColors.togoRed),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                OklFeedback.confirm(
+                  context,
+                  title: 'Supprimer la discussion ?',
+                  body: 'La conversation entière sera supprimée.',
+                  confirmLabel: 'Supprimer',
+                  onConfirm: () => _deleteConversation(),
                 );
               },
             ),
@@ -1554,6 +1634,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                   peerDisplayName: widget.thread.name,
                                   peerAvatarUrl: widget.thread.avatarUrl,
                                   reactionEmoji: _messageReactions[msg.id],
+                                isPending: _pendingLocalIds.contains(msg.id),
                                   onTapMedia: msg.kind == ChatMessageKind.image || msg.kind == ChatMessageKind.video
                                       ? () => _openMediaViewer(msg)
                                       : null,
@@ -1651,53 +1732,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                               ),
                             ),
                           ),
-                        if (_isUploadingMedia)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: LinearProgressIndicator(
-                              minHeight: 4,
-                              borderRadius: BorderRadius.circular(_chatPillRadius),
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        if (_uploadError != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: context.oklSurface,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: context.oklDivider),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _uploadError!,
-                                      style: TextStyle(
-                                        color: context.oklOnSurfaceMuted(0.72),
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: _retryUploadAction == null
-                                        ? null
-                                        : () => _runMediaUpload(
-                                            _retryUploadAction!,
-                                            onError:
-                                                'Nouvelle tentative échouée',
-                                          ),
-                                    child: const Text('Réessayer'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                        const SizedBox.shrink(),
               
                         Row(
                           children: [
@@ -2023,6 +2058,31 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return result;
   }
 
+  Future<void> _deleteMessage(ChatMessage message) async {
+    final index = _messages.indexWhere((x) => x.id == message.id);
+    if (index < 0) return;
+    setState(() {
+      _messages.removeAt(index);
+      if (_replyingTo?.id == message.id) {
+        _replyingTo = null;
+      }
+    });
+    try {
+      await ref.read(chatRepositoryProvider).deleteMessage(
+            widget.thread.id,
+            message.id,
+          );
+      if (!mounted) return;
+      OklFeedback.snack(context, 'Message supprimé');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _messages.insert(index.clamp(0, _messages.length), message);
+      });
+      OklFeedback.snack(context, 'Suppression impossible');
+    }
+  }
+
   void _openMessageActions(ChatMessage m) {
     showModalBottomSheet<void>(
       context: context,
@@ -2130,7 +2190,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               title: const Text('Effacer'),
               onTap: () {
                 Navigator.pop(ctx);
-                setState(() => _messages.removeWhere((x) => x.id == m.id));
+                unawaited(_deleteMessage(m));
               },
             ),
           ],
@@ -2879,6 +2939,7 @@ class _RichMessageBubble extends StatelessWidget {
   final String peerDisplayName;
   final String peerAvatarUrl;
   final String? reactionEmoji;
+  final bool isPending;
   final VoidCallback? onTapMedia;
   final void Function(ChatMessage m)? onMessageMenu;
 
@@ -2887,6 +2948,7 @@ class _RichMessageBubble extends StatelessWidget {
     required this.peerDisplayName,
     required this.peerAvatarUrl,
     this.reactionEmoji,
+    this.isPending = false,
     this.onTapMedia,
     this.onMessageMenu,
   });
@@ -2922,6 +2984,54 @@ class _RichMessageBubble extends StatelessWidget {
         final heroTag = 'chat_img_${m.id}';
         final imageUrl = (m.imageUrl ?? '').trim();
         if (imageUrl.isEmpty) {
+          if (m.mine && isPending) {
+            return Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                width: MediaQuery.sizeOf(context).width * 0.72,
+                height: 260,
+                decoration: BoxDecoration(
+                  color: _chatOutgoingBubble(context),
+                  borderRadius: BorderRadius.circular(_chatBubbleRadius),
+                  border: Border.all(color: context.oklDivider),
+                ),
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Icon(
+                        LucideIcons.image,
+                        size: 36,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    Positioned(
+                      right: 6,
+                      bottom: 6,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.52),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                          LucideIcons.clock3,
+                          size: 10,
+                          color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           return Align(
             alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
@@ -3047,6 +3157,30 @@ class _RichMessageBubble extends StatelessWidget {
                             alignment: Alignment.bottomRight,
                             children: [
                               Hero(tag: heroTag, child: img),
+                              if (m.mine && isPending)
+                                Positioned(
+                                  right: 6,
+                                  top: 6,
+                                  child: Container(
+                                    width: 18,
+                                    height: 18,
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.52),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.22),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        LucideIcons.clock3,
+                                        size: 10,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               if ((m.text ?? '').isEmpty)
                                 Container(
                                   margin: const EdgeInsets.all(8),
@@ -3145,6 +3279,54 @@ class _RichMessageBubble extends StatelessWidget {
           ),
         );
       case ChatMessageKind.video:
+        if (m.mine && isPending && (m.videoUrl ?? '').trim().isEmpty) {
+          return Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              width: MediaQuery.sizeOf(context).width * 0.72,
+              height: 220,
+              decoration: BoxDecoration(
+                color: _chatOutgoingBubble(context),
+                borderRadius: BorderRadius.circular(_chatBubbleRadius),
+                border: Border.all(color: context.oklDivider),
+              ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Icon(
+                      LucideIcons.video,
+                      size: 34,
+                      color: Colors.white.withValues(alpha: 0.82),
+                    ),
+                  ),
+                  Positioned(
+                    right: 6,
+                    bottom: 6,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.52),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          LucideIcons.clock3,
+                          size: 10,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         return _VideoMessageBubble(
           message: m,
           peerDisplayName: peerDisplayName,

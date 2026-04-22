@@ -543,6 +543,25 @@ class MockChatRepository implements ChatRepository {
   }
 
   @override
+  Future<void> deleteMessage(String threadId, String messageId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final threadMsgs = _messages[threadId];
+    if (threadMsgs != null) {
+      final index = threadMsgs.indexWhere((m) => m.id == messageId);
+      if (index != -1) {
+        threadMsgs.removeAt(index);
+      }
+    }
+  }
+
+  @override
+  Future<void> deleteThread(String threadId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    _threads.removeWhere((t) => t.id == threadId);
+    _messages.remove(threadId);
+  }
+
+  @override
   Future<ChatThread> createDirectThread(String contactId) async {
     await Future.delayed(const Duration(milliseconds: 200));
     final existing = _threads.firstWhere(
