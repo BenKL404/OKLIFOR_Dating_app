@@ -64,6 +64,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         JsonNode root = objectMapper.readTree(message.getPayload());
         String action = root.path("action").asText("");
         switch (action) {
+            case "ping" -> session.sendMessage(new TextMessage("{\"type\":\"pong\"}"));
             case "subscribe" -> handleSubscribe(session, userId, root);
             case "send" -> handleSend(session, userId, root);
             case "typing" -> handleTyping(session, userId, root);

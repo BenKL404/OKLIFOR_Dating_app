@@ -7,7 +7,6 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../../core/api/auth_token_storage.dart';
 import '../../../core/api/models/contact_api_models.dart';
 import '../../../core/api/oklifor_api_client.dart';
-import '../../../core/config/oklifor_api_config.dart';
 import '../data/chat_api_mapping.dart';
 import '../data/chat_local_cache.dart';
 import '../data/chat_websocket_client.dart';
@@ -36,6 +35,7 @@ class ApiChatRepository implements ChatRepository {
   StreamSubscription<dynamic>? _wsPresenceSub;
   StreamSubscription<dynamic>? _wsTypingSub;
   StreamSubscription<dynamic>? _wsReadSub;
+  StreamSubscription<dynamic>? _wsStateSub;
   bool _wsListening = false;
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -52,6 +52,23 @@ class ApiChatRepository implements ChatRepository {
     if (token == null || token.isEmpty) return;
     await _ws.connect(accessToken: token);
     _startWsListeners();
+    _startConnectionMonitor();
+  }
+
+  void _startConnectionMonitor() {
+    _wsStateSub?.cancel();
+    _wsStateSub = _ws.connectionState.listen((connected) {
+      if (connected) {
+        debugPrint('[OKL_WS] RECONNECTED - Re-subscribing to threads: ${_eventControllers.keys}');
+        for (final threadId in _eventControllers.keys) {
+          _ws.subscribeThread(threadId).catchError((e) {
+            debugPrint('[OKL_WS] Re-subscribe failed for $threadId: $e');
+          });
+        }
+      } else {
+        debugPrint('[OKL_WS] DISCONNECTED');
+      }
+    });
   }
 
   void _startWsListeners() {
@@ -207,13 +224,46 @@ class ApiChatRepository implements ChatRepository {
       if (lower.endsWith('.webm')) return 'audio/webm';
       return 'audio/mp4';
     }
+    // FILE mode: accepter un large éventail de formats (docs, images, vidéos, audio, texte, archives…)
     if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.doc')) return 'application/msword';
     if (lower.endsWith('.docx')) {
       return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
+    if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
     if (lower.endsWith('.xlsx')) {
       return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     }
+    if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+    if (lower.endsWith('.pptx')) {
+      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    }
+    if (lower.endsWith('.csv')) return 'text/csv';
+    if (lower.endsWith('.txt') || lower.endsWith('.log')) return 'text/plain';
+    if (lower.endsWith('.md')) return 'text/markdown';
+    if (lower.endsWith('.json')) return 'application/json';
+    if (lower.endsWith('.xml')) return 'application/xml';
+    if (lower.endsWith('.zip')) return 'application/zip';
+    if (lower.endsWith('.rar')) return 'application/vnd.rar';
+    if (lower.endsWith('.7z')) return 'application/x-7z-compressed';
+    if (lower.endsWith('.tar')) return 'application/x-tar';
+    if (lower.endsWith('.gz')) return 'application/gzip';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.mp4')) return 'video/mp4';
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.mkv')) return 'video/x-matroska';
+    if (lower.endsWith('.avi')) return 'video/x-msvideo';
+    if (lower.endsWith('.3gp')) return 'video/3gpp';
+    if (lower.endsWith('.webm')) return 'video/webm';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.m4a')) return 'audio/mp4';
+    if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    if (lower.endsWith('.flac')) return 'audio/flac';
     return 'application/octet-stream';
   }
 
@@ -487,6 +537,7 @@ class ApiChatRepository implements ChatRepository {
     _wsPresenceSub?.cancel();
     _wsTypingSub?.cancel();
     _wsReadSub?.cancel();
+    _wsStateSub?.cancel();
     _ws.dispose();
     for (final c in _eventControllers.values) {
       c.close();

@@ -215,8 +215,12 @@ Future<void> launchChatAttachmentUrl(
 
   try {
     final name = _fileNameFromHint(uri!, displayName);
-    final path = await _downloadAttachmentToTemp(resolved, name);
-    final result = await OpenFilex.open(path, type: _mimeFromFileName(name));
+    // Utilise le cache média pour éviter de retélécharger à chaque ouverture.
+    final cachedFile = await oklChatMediaCache.getSingleFile(resolved);
+    final result = await OpenFilex.open(
+      cachedFile.path,
+      type: _mimeFromFileName(name),
+    );
     if (result.type != ResultType.done && context.mounted) {
       OklFeedback.snack(
         context,
