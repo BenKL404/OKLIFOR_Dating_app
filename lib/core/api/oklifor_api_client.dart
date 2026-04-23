@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:oklifor_dating_app/features/chat/data/chat_local_cache.dart';
 
 import '../config/oklifor_api_config.dart';
@@ -383,13 +384,13 @@ class OkliforApiClient {
         '/api/v1/chat/threads/$threadId/messages',
         data: {
           'kind': kind,
-          'text': ?text,
-          'imageUrl': ?imageUrl,
-          'videoUrl': ?videoUrl,
-          'audioUrl': ?audioUrl,
-          'voiceSeconds': ?voiceSeconds,
-          'locationLabel': ?locationLabel,
-          'fileUrl': ?fileUrl,
+          if (text case final value?) 'text': value,
+          if (imageUrl case final value?) 'imageUrl': value,
+          if (videoUrl case final value?) 'videoUrl': value,
+          if (audioUrl case final value?) 'audioUrl': value,
+          if (voiceSeconds case final value?) 'voiceSeconds': value,
+          if (locationLabel case final value?) 'locationLabel': value,
+          if (fileUrl case final value?) 'fileUrl': value,
         },
       );
       return ChatMessagePayload.fromJson(res.data ?? {});
@@ -444,22 +445,68 @@ class OkliforApiClient {
     required Uint8List bytes,
     required String contentType,
   }) async {
-    final dio = Dio();
+    Uri? _rewriteForAndroidEmulator(Uri input) {
+      if (kIsWeb) return input;
+      if (defaultTargetPlatform != TargetPlatform.android) return input;
+      final host = input.host.toLowerCase();
+      if (host == 'localhost' || host == '127.0.0.1') {
+        return input.replace(host: '10.0.2.2');
+      }
+      return input;
+    }
+
+    final originalUri = Uri.tryParse(putUrl);
+    final effectiveUri = originalUri == null
+        ? null
+        : _rewriteForAndroidEmulator(originalUri);
+    final effectivePutUrl = effectiveUri?.toString() ?? putUrl;
+
+    final safeUrl = effectiveUri == null
+        ? putUrl
+        : '${effectiveUri.scheme}://${effectiveUri.host}${effectiveUri.hasPort ? ':${effectiveUri.port}' : ''}${effectiveUri.path}';
+    final queryLength = effectiveUri?.query.length ?? 0;
+
+    debugPrint('[OKL_UPLOAD] START PUT to $safeUrl');
+    debugPrint('[OKL_UPLOAD] Presigned query length: $queryLength');
+    if (originalUri != null &&
+        effectiveUri != null &&
+        originalUri.host != effectiveUri.host) {
+      debugPrint(
+        '[OKL_UPLOAD] Rewrote presigned URL host ${originalUri.host} -> ${effectiveUri.host} (Android emulator localhost fix)',
+      );
+    }
+    debugPrint('[OKL_UPLOAD] Header Content-Type: $contentType');
+    debugPrint('[OKL_UPLOAD] Bytes length: ${bytes.length}');
+
+    final dio = Dio(BaseOptions(baseUrl: ''));
     try {
-      await dio.put<void>(
-        putUrl,
-        data: Stream.fromIterable(bytes.map((b) => [b])),
+      final res = await dio.requestUri<void>(
+        Uri.parse(effectivePutUrl),
+        data: bytes,
         options: Options(
-          headers: {
-            'Content-Type': contentType,
-            'Content-Length': bytes.length,
-          },
+          method: 'PUT',
+          headers: {'Content-Type': contentType},
           sendTimeout: const Duration(minutes: 5),
           receiveTimeout: const Duration(seconds: 30),
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 300,
         ),
       );
+      debugPrint('[OKL_UPLOAD] SUCCESS status=${res.statusCode}');
     } on DioException catch (e) {
+      debugPrint('[OKL_UPLOAD] ERROR: ${e.type} - ${e.message}');
+      if (e.response != null) {
+        debugPrint('[OKL_UPLOAD] Response status: ${e.response?.statusCode}');
+        debugPrint('[OKL_UPLOAD] Response data: ${e.response?.data}');
+      } else {
+        debugPrint(
+          '[OKL_UPLOAD] No response received. Possible CORS or network failure.',
+        );
+      }
       throw OkliforApiException.fromDio(e);
+    } catch (e) {
+      debugPrint('[OKL_UPLOAD] UNEXPECTED ERROR: $e');
+      rethrow;
     } finally {
       dio.close();
     }
@@ -487,7 +534,9 @@ class OkliforApiClient {
 
   Future<void> deleteChatMessage(String threadId, String messageId) async {
     try {
-      await _dio.delete<void>('/api/v1/chat/threads/$threadId/messages/$messageId');
+      await _dio.delete<void>(
+        '/api/v1/chat/threads/$threadId/messages/$messageId',
+      );
     } on DioException catch (e) {
       throw OkliforApiException.fromDio(e);
     }
@@ -608,7 +657,9 @@ class OkliforApiClient {
       final list = res.data ?? [];
       return list
           .whereType<Map>()
-          .map((m) => StatusPreviewPayload.fromJson(Map<String, dynamic>.from(m)))
+          .map(
+            (m) => StatusPreviewPayload.fromJson(Map<String, dynamic>.from(m)),
+          )
           .toList(growable: false);
     } on DioException catch (e) {
       throw OkliforApiException.fromDio(e);
