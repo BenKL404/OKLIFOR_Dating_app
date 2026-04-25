@@ -69,7 +69,7 @@ services:
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-oklifor}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-OkliforMinio2026!}
     volumes:
       - oklifor_minio_data:/data
     healthcheck:
