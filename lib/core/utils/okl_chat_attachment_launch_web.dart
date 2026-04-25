@@ -92,3 +92,13 @@ Future<void> shareChatAttachmentUrl(
     }
   }
 }
+
+Future<void> saveChatMediaToGallery(
+  BuildContext context,
+  String raw, {
+  String? displayName,
+  required bool isVideo,
+}) async {
+  // Web: we use the same download logic as for files.
+  await saveChatFileToDownloads(context, raw, displayName: displayName);
+}

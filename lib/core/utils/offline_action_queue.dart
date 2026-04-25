@@ -85,13 +85,13 @@ class OfflineActionQueue {
       'threadId': threadId,
       'localMessageId': localMessageId,
       'kind': kind,
-      ?'text': text,
-      ?'imageUrl': imageUrl,
-      ?'videoUrl': videoUrl,
-      ?'audioUrl': audioUrl,
-      ?'voiceSeconds': voiceSeconds,
-      ?'locationLabel': locationLabel,
-      ?'fileUrl': fileUrl,
+      if (text != null) 'text': text,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (videoUrl != null) 'videoUrl': videoUrl,
+      if (audioUrl != null) 'audioUrl': audioUrl,
+      if (voiceSeconds != null) 'voiceSeconds': voiceSeconds,
+      if (locationLabel != null) 'locationLabel': locationLabel,
+      if (fileUrl != null) 'fileUrl': fileUrl,
     };
     final list = (await _loadRaw(userId)).toList(growable: true);
     list.add(action);
@@ -115,7 +115,9 @@ class OfflineActionQueue {
   }) async {
     if (ids.isEmpty) return;
     final all = await _loadRaw(userId);
-    final kept = all.where((a) => !ids.contains(a['id']?.toString() ?? '')).toList();
+    final kept = all
+        .where((a) => !ids.contains(a['id']?.toString() ?? ''))
+        .toList();
     await _saveRaw(userId, kept);
   }
 
@@ -173,4 +175,3 @@ class OfflineActionQueue {
     return (chat: chat, profile: profile);
   }
 }
-

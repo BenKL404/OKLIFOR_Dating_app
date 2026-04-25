@@ -29,6 +29,23 @@ Variables utiles :
 | `OTP_DEV_MODE` | `true` | Tout code OTP à 6 chiffres est accepté |
 | `FIREBASE_ENABLED` | `false` | `true` + JSON compte de service → vérif. jetons Phone Auth |
 | `GOOGLE_APPLICATION_CREDENTIALS` | — | Chemin du JSON compte de service Firebase Admin |
+| `MINIO_ENDPOINT` | `http://localhost:9000` | Endpoint objet storage utilisé pour signer les URLs |
+
+### Important — Vrai téléphone Android/iOS (upload média chat)
+
+Pour un téléphone physique, **ne pas** laisser `MINIO_ENDPOINT` à `localhost`.  
+Le backend signerait des URLs inaccessibles depuis le téléphone.
+
+Utiliser une IP LAN ou un domaine accessible, par ex. :
+
+- `MINIO_ENDPOINT=http://10.94.43.169:9000`
+
+Vérifier aussi :
+- téléphone et machine Docker sur le même réseau,
+- port `9000` autorisé (firewall),
+- bucket MinIO existant et permissions conformes.
+
+`10.0.2.2` est un alias **émulateur Android uniquement**.
 
 ## Auth (démo OTP)
 
@@ -75,3 +92,43 @@ Nécessite `FIREBASE_ENABLED=true` et un fichier JSON compte de service (`GOOGLE
 - Webhooks Mobile Money + idempotence  
 - Refresh token dédié + révocation  
 - Stories 24h (TTL Redis + métadonnées Mongo)
+
+## 🚀 CI/CD GitHub Actions (nouveau !)
+
+### Workflows créés :
+- `backend-ci-cd.yml` : Maven test → Docker build/push ghcr.io → Deploy VPS
+- `flutter-ci.yml` : Flutter test/analyze/build web
+
+### Déploiement automatique :
+1. **Push sur `main`** → test → build image `ghcr.io/OWNER/oklifor-api:latest` → **deploy VPS 37.27.222.149**
+2. **PR** → tests only
+
+### Configuration requise (GitHub Repo Settings → Secrets) :
+```
+VPS_SSH_USER          # ex: deploy
+VPS_SSH_KEY           # Clé SSH privée VPS (-----BEGIN OPENSSH PRIVATE KEY-----)
+JWT_SECRET            # Secret JWT ≥32 chars
+MINIO_ROOT_USER       # oklifor
+MINIO_ROOT_PASSWORD   # Mot de passe MinIO
+```
+
+### Sur VPS (37.27.222.149) :
+```
+sudo mkdir -p /opt/oklifor  # Ajustez chemin dans workflow
+sudo chown $USER:$USER /opt/oklifor
+git clone VOTRE_REPO /opt/oklifor
+cd /opt/oklifor
+# Copier .env depuis .env.example avec vraies valeurs
+docker compose -f docker-compose.prod.yml up -d  # Test manuel
+```
+
+**Image API :** `ghcr.io/OWNER/oklifor-api:latest` (auto-pull).
+
+**Frontend Flutter web :** Servi par Spring Boot (nginx → api:8100). Build web baked dans JAR.
+
+### Test local workflow :
+```bash
+# act (outil CLI GitHub Actions local)
+brew install act  # macOS
+act -j test       # Test backend
+```

@@ -1,4 +1,28 @@
 services:
+  api:
+    image: oklifor-api:test
+    ports:
+      - "8100:8100"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/oklifor
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SERVER_PORT: 8100
+      JWT_SECRET: oklifor-dev-secret-please-change-32chars!!
+      OTP_DEV_MODE: true
+      MINIO_ENDPOINT: http://10.94.43.169:9000
+      MINIO_ACCESS_KEY: oklifor
+      MINIO_SECRET_KEY: oklifor-minio-secret
+      MINIO_BUCKET_CHAT: oklifor-chat
+      MINIO_BUCKET_STATUS: oklifor-status
+    depends_on:
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+
   mongodb:
     image: mongo:7
     ports:

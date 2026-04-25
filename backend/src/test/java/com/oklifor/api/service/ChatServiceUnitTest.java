@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -30,12 +31,13 @@ class ChatServiceUnitTest {
     @Mock ChatThreadRepository threadRepo;
     @Mock ChatMessageRepository messageRepo;
     @Mock ChatMediaService chatMediaService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     ChatService chatService;
 
     @BeforeEach
     void setUp() {
-        chatService = new ChatService(threadRepo, messageRepo, chatMediaService);
+        chatService = new ChatService(threadRepo, messageRepo, chatMediaService, eventPublisher);
     }
 
     // ── getOrCreateDirect ──────────────────────────────────────────────────────
