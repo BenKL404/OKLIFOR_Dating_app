@@ -50,16 +50,12 @@ services:
         condition: service_completed_successfully
 
   cert-init:
-    image: alpine
+    image: alpine/openssl:latest
     command: >
-      sh -c "
-        apk add --no-cache openssl &&
-        mkdir -p /shared &&
-        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-          -keyout /shared/server.key \
-          -out /shared/server.crt \
-          -subj '/CN=37.27.222.149'
-      "
+      req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /shared/server.key
+      -out /shared/server.crt
+      -subj /CN=37.27.222.149
     volumes:
       - nginx_certs:/shared
     restart: "no"
