@@ -116,8 +116,9 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 37.27.222.149
-          username: ${{ secrets.VPS_SSH_USER }}  # À créer dans GitHub secrets
-          key: ${{ secrets.VPS_SSH_KEY }}       # Clé privée SSH
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           script: |
             cd /opt/oklifor
             git pull origin main
