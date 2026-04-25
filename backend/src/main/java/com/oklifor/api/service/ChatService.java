@@ -9,6 +9,9 @@ import com.oklifor.api.repository.ChatThreadRepository;
 import com.oklifor.api.web.dto.ChatMessageResponse;
 import com.oklifor.api.web.dto.ChatThreadResponse;
 import com.oklifor.api.web.dto.SendMessageRequest;
+import com.oklifor.api.websocket.event.ChatReadReceiptEvent;
+import com.oklifor.api.websocket.event.NewChatMessageEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,14 +29,17 @@ public class ChatService {
     private final ChatThreadRepository threads;
     private final ChatMessageRepository messages;
     private final ChatMediaService chatMediaService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ChatService(
             ChatThreadRepository threads,
             ChatMessageRepository messages,
-            ChatMediaService chatMediaService) {
+            ChatMediaService chatMediaService,
+            ApplicationEventPublisher eventPublisher) {
         this.threads = threads;
         this.messages = messages;
         this.chatMediaService = chatMediaService;
+        this.eventPublisher = eventPublisher;
     }
 
     public List<ChatThreadResponse> listThreads(String userId) {
@@ -87,7 +93,9 @@ public class ChatService {
         t.setLastMessagePreview(preview(req));
         t.setLastMessageAt(m.getCreatedAt() != null ? m.getCreatedAt() : Instant.now());
         threads.save(t);
-        return toMessageResponse(m, userId, t);
+        ChatMessageResponse response = toMessageResponse(m, userId, t);
+        eventPublisher.publishEvent(new NewChatMessageEvent(this, response));
+        return response;
     }
 
     /**
@@ -107,7 +115,9 @@ public class ChatService {
         if (prev == null || now.isAfter(prev)) {
             map.put(userId, now);
             threads.save(t);
-            return now.getEpochSecond();
+            long epoch = now.getEpochSecond();
+            eventPublisher.publishEvent(new ChatReadReceiptEvent(this, threadId, userId, epoch));
+            return epoch;
         }
         return prev.getEpochSecond();
     }

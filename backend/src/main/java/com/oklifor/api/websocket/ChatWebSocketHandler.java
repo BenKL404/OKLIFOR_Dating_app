@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oklifor.api.domain.ChatMessageKind;
 import com.oklifor.api.service.ChatPresenceService;
 import com.oklifor.api.service.ChatService;
-import com.oklifor.api.web.dto.ChatMessageResponse;
 import com.oklifor.api.web.dto.SendMessageRequest;
+import com.oklifor.api.websocket.event.ChatReadReceiptEvent;
+import com.oklifor.api.websocket.event.NewChatMessageEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -138,16 +140,30 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                             root.path("voiceSeconds").isNumber() ? root.path("voiceSeconds").asInt() : null,
                             nullableText(root, "locationLabel"),
                             nullableText(root, "fileUrl"));
-            ChatMessageResponse saved = chatService.sendMessage(userId, threadId, req);
-            String payload =
-                    objectMapper.writeValueAsString(
-                            Map.of("type", "message", "message", saved));
-            broadcastToThread(threadId, payload);
+            chatService.sendMessage(userId, threadId, req);
         } catch (IllegalArgumentException e) {
             sendError(session, "kind_invalide");
         } catch (Exception e) {
             sendError(session, "envoi_impossible");
         }
+    }
+
+    @EventListener
+    public void handleNewMessageEvent(NewChatMessageEvent event) throws IOException {
+        String payload = objectMapper.writeValueAsString(
+                Map.of("type", "message", "message", event.getMessage()));
+        broadcastToThread(event.getMessage().threadId(), payload);
+    }
+
+    @EventListener
+    public void handleReadReceiptEvent(ChatReadReceiptEvent event) throws IOException {
+        String payload = objectMapper.writeValueAsString(
+                Map.of(
+                        "type", "read_receipt",
+                        "threadId", event.getThreadId(),
+                        "userId", event.getUserId(),
+                        "readAtEpoch", event.getReadAtEpoch()));
+        broadcastToThread(event.getThreadId(), payload);
     }
 
     private void handleMarkRead(WebSocketSession session, String userId, JsonNode root) throws IOException {
@@ -157,15 +173,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         try {
-            long readAtEpoch = chatService.markThreadRead(userId, threadId);
-            String payload =
-                    objectMapper.writeValueAsString(
-                            Map.of(
-                                    "type", "read_receipt",
-                                    "threadId", threadId,
-                                    "userId", userId,
-                                    "readAtEpoch", readAtEpoch));
-            broadcastToThread(threadId, payload);
+            chatService.markThreadRead(userId, threadId);
+            // On ne broadcast plus ici, c'est fait via ChatReadReceiptEvent
         } catch (Exception e) {
             sendError(session, "lecture_impossible");
         }

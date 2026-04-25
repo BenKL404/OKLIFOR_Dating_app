@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +13,17 @@ import 'core/routing/app_router.dart';
 import 'core/widgets/app_lock_overlay.dart';
 import 'firebase_options.dart';
 
+// Workaround: certificat auto-signé sur le VPS — à retirer quand un vrai domaine + Let's Encrypt sera en place.
+class _SelfSignedCertOverride extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (cert, host, port) => true;
+  }
+}
+
 Future<void> main() async {
+  if (!kIsWeb) HttpOverrides.global = _SelfSignedCertOverride();
   WidgetsFlutterBinding.ensureInitialized();
   await AppDotEnv.load();
   SystemChrome.setPreferredOrientations([

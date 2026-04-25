@@ -65,20 +65,24 @@ class ChatMessagePayload {
   factory ChatMessagePayload.fromJson(Map<String, dynamic> j) {
     final vs = j['voiceSeconds'];
     final rb = j['readByRecipient'];
-    final readByRecipient = rb is bool ? rb : false;
+    final readByRecipient = rb is bool ? rb : (rb == 'true' || rb == 1);
+    
+    // Helper to safely get a string
+    String s(dynamic v) => v?.toString() ?? '';
+
     return ChatMessagePayload(
-      id: j['id'] as String? ?? '',
-      threadId: j['threadId'] as String? ?? '',
-      senderUserId: j['senderUserId'] as String? ?? '',
-      kind: j['kind'] as String? ?? 'TEXT',
-      text: j['text'] as String?,
-      imageUrl: j['imageUrl'] as String?,
-      videoUrl: j['videoUrl'] as String?,
-      audioUrl: j['audioUrl'] as String?,
-      voiceSeconds: vs is int ? vs : (vs is num ? vs.toInt() : null),
-      fileUrl: j['fileUrl'] as String?,
-      locationLabel: j['locationLabel'] as String?,
-      createdAt: j['createdAt'] as String?,
+      id: s(j['id']),
+      threadId: s(j['threadId']),
+      senderUserId: s(j['senderUserId']),
+      kind: s(j['kind']).isEmpty ? 'TEXT' : s(j['kind']),
+      text: j['text']?.toString(),
+      imageUrl: j['imageUrl']?.toString(),
+      videoUrl: j['videoUrl']?.toString(),
+      audioUrl: j['audioUrl']?.toString(),
+      voiceSeconds: vs is int ? vs : (vs is num ? vs.toInt() : int.tryParse(vs?.toString() ?? '')),
+      fileUrl: j['fileUrl']?.toString(),
+      locationLabel: j['locationLabel']?.toString(),
+      createdAt: j['createdAt']?.toString(),
       readByRecipient: readByRecipient,
     );
   }

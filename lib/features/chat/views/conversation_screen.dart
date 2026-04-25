@@ -1164,7 +1164,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     // Document mode: accepter tout type, y compris gros fichiers (stream/path/bytes).
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.any,
-      withData: false,
+      withData: true,
       withReadStream: true,
     );
     final f = picked?.files.single;

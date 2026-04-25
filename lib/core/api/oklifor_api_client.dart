@@ -478,7 +478,14 @@ class OkliforApiClient {
     debugPrint('[OKL_UPLOAD] Header Content-Type: $contentType');
     debugPrint('[OKL_UPLOAD] Bytes length: ${bytes.length}');
 
-    final dio = Dio(BaseOptions(baseUrl: ''));
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: '',
+        connectTimeout: const Duration(seconds: 20),
+        sendTimeout: const Duration(minutes: 5),
+        receiveTimeout: const Duration(seconds: 60),
+      ),
+    );
     try {
       final res = await dio.requestUri<void>(
         Uri.parse(effectivePutUrl),
@@ -486,8 +493,9 @@ class OkliforApiClient {
         options: Options(
           method: 'PUT',
           headers: {'Content-Type': contentType},
+          connectTimeout: const Duration(seconds: 20),
           sendTimeout: const Duration(minutes: 5),
-          receiveTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 60),
           validateStatus: (status) =>
               status != null && status >= 200 && status < 300,
         ),
