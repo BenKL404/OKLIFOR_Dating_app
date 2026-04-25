@@ -130,7 +130,6 @@ jobs:
             git pull origin main
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" > backend/.env
             echo "GHCR_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> backend/.env
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             cd backend
             docker compose -f docker-compose.prod.yml down
             docker compose -f docker-compose.prod.yml pull
