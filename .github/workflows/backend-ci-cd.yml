@@ -121,17 +121,17 @@ jobs:
           passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           script: |
             DEPLOY_PATH="${{ secrets.VPS_DEPLOY_PATH }}"
+            mkdir -p "$DEPLOY_PATH"
             if [ ! -d "$DEPLOY_PATH/.git" ]; then
-              rm -rf "$DEPLOY_PATH"
-              mkdir -p "$DEPLOY_PATH"
-              git clone https://github.com/${{ github.repository }}.git "$DEPLOY_PATH"
+              git -C "$DEPLOY_PATH" init
+              git -C "$DEPLOY_PATH" remote add origin "https://github.com/${{ github.repository }}.git"
+              git -C "$DEPLOY_PATH" fetch origin main
+              git -C "$DEPLOY_PATH" checkout -t origin/main
+            else
+              git -C "$DEPLOY_PATH" pull origin main
             fi
-            cd "$DEPLOY_PATH"
-            git pull origin main
-            mkdir -p backend
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" > backend/.env
-            echo "GHCR_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> backend/.env
-            cd backend
-            docker compose -f docker-compose.prod.yml down
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" > "$DEPLOY_PATH/backend/.env"
+            echo "GHCR_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$DEPLOY_PATH/backend/.env"
+            docker compose -f "$DEPLOY_PATH/backend/docker-compose.prod.yml" -p oklifor down
+            docker compose -f "$DEPLOY_PATH/backend/docker-compose.prod.yml" -p oklifor pull
+            docker compose -f "$DEPLOY_PATH/backend/docker-compose.prod.yml" -p oklifor up -d
