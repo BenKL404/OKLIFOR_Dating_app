@@ -120,6 +120,11 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           script: |
+            if [ ! -d /opt/oklifor/.git ]; then
+              sudo mkdir -p /opt/oklifor
+              sudo chown $(whoami):$(whoami) /opt/oklifor
+              git clone https://github.com/${{ github.repository }}.git /opt/oklifor
+            fi
             cd /opt/oklifor
             git pull origin main
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" > backend/.env
