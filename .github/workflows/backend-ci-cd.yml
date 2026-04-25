@@ -135,5 +135,5 @@ jobs:
             echo "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" >> "$DEPLOY_PATH/backend/.env"
             echo "GHCR_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$DEPLOY_PATH/backend/.env"
             docker compose -f "$DEPLOY_PATH/backend/docker-compose.prod.yml" -p oklifor down
-            docker compose -f "$DEPLOY_PATH/backend/docker-compose.prod.yml" -p oklifor pull
+            docker compose -f "$DEPLOY_PATH/backend/docker-compose.prod.yml" -p oklifor pull || true
             docker compose -f "$DEPLOY_PATH/backend/docker-compose.prod.yml" -p oklifor up -d
