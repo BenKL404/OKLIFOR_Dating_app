@@ -79,24 +79,28 @@ jobs:
       - name: Maven package (embeds frontend)
         run: cd backend && mvn -B package -DskipTests
       
+      - name: Set lowercase owner
+        id: owner
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Build and push fullstack image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/oklifor-api:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/oklifor-api:latest
+            ghcr.io/${{ steps.owner.outputs.name }}/oklifor-api:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.name }}/oklifor-api:latest
 
   deploy:
     needs: docker
@@ -117,7 +121,7 @@ jobs:
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" > backend/.env
             echo "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" >> backend/.env
             echo "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" >> backend/.env
-            echo "GHCR_OWNER=${{ github.repository_owner }}" >> backend/.env
+            echo "GHCR_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> backend/.env
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             cd backend
             docker compose -f docker-compose.prod.yml down
